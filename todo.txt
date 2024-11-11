@@ -1,0 +1,5 @@
+do client script
+
+fix server script where it don't save chat logs
+
+give client option to save login data
