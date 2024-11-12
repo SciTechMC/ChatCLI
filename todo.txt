@@ -3,3 +3,69 @@ do client script
 fix server script where it don't save chat logs
 
 give client option to save login data
+
+For building a command-line-based chat system, let’s break it down into the main components you’ll need for functionality, like message sending, receiving, and updating in real-time or on-demand. Here’s a brainstorm for how to approach each part:
+
+1. Message Storage and Retrieval
+
+Storage: Store messages in text files or a simple database. Each conversation (sender-receiver pair) could have a dedicated file (e.g., ScitechMC -- nig.txt), where each message is appended with the timestamp, sender, and content.
+
+Retrieval: When the user wants to view messages, load messages from the relevant file for their current conversation. Only load new messages that were added since the last check, if possible.
+
+
+2. Sending Messages
+
+Input: After the user logs in and selects a conversation, they can type a message to send.
+
+Sending: Send the message to the server with sender, receiver, and timestamp details. The server then saves it in the conversation’s file, which both users can access.
+
+Display Confirmation: Print confirmation that the message was sent successfully or an error if it didn’t send.
+
+
+3. Receiving Messages (Polling)
+
+Since it’s command-line based, you could either:
+
+Manually Poll: Have the user type a command to "refresh" or check for new messages, which would pull updates from the server.
+
+Auto Poll with a Timer: Set up an interval to check for new messages automatically every few seconds, displaying them in real-time.
+
+
+
+4. Conversation Management
+
+After login, show a list of active contacts or conversations.
+
+Let the user pick a contact or search for a username to start a new conversation.
+
+Once a conversation is chosen, the program enters “chat mode” with options like “send a message,” “refresh,” or “exit” to navigate out.
+
+
+5. Formatting in Command Line
+
+Simple UI Elements: Use lines or separators to distinguish between messages. For example:
+
+[Friend] Hello, how are you?
+[You]    Doing well, thanks!
+
+Timestamps: Display timestamps beside each message for context, like [10:35 AM].
+
+Alerts for New Messages: Show a simple notification ([New message]) in the chat window whenever a new message arrives, or a summary at the end of each refresh if multiple conversations have updates.
+
+
+6. Session Management
+
+Keep track of the user’s login status and session to maintain active chats and prevent relogging every time.
+
+Logout Option: Allow the user to log out of the session securely, clearing any cached data.
+
+
+7. Error Handling and Feedback
+
+Provide user feedback, especially in the command-line setup, to confirm actions (like successful sending or failed network requests).
+
+Show clear messages for any errors like connection issues or invalid usernames to ensure a smooth experience.
+
+
+This setup would give you a basic command-line chat that feels somewhat like a real-time messaging app, even without a GUI. Let me know if you'd like to dive into any of these ideas further!
+
