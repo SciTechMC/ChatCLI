@@ -18,34 +18,34 @@ receiver = "nig"
 saved_login_dir = os.getenv("USERPROFILE") + "/Documents/PythonChatApp/Saved-Profiles"
 
 try:
-    r = requests.get(server_ip)
+    r = requests.get(server_base_url)
     print(r.text)  # Print the content of the response
 except requests.exceptions.RequestException as e:
     print("Request failed:", e)
 
-choice = input("send(s)/or receive(r): ")
-match choice:
-    case "s":
-        send_message = input("Please enter text to send to the server: ")
-        try:
-            # Convert the date object to a string (YYYY-MM-DD)
-            current_date = date.today().strftime("%Y-%m-%d")
-            # Send the message in JSON format
-            r = requests.post(send_url, json={
-                "message": send_message,
-                "sender": sender,
-                "receiver": receiver,
-                "date": current_date  # Use the current_date string here, not the 'date' class
-            })
-            print("Server response:", r.text)  # Print the server's response
-        except requests.exceptions.RequestException as e:
-            print("Request failed:", e)
-    case "r":
-        try:
-            r = requests.get(server_ip_receive)
-            print(r.text)  # Print the content of the response
-        except requests.exceptions.RequestException as e:
-            print("Request failed:", e)
+#choice = input("send(s)/or receive(r): ")
+#match choice:
+#    case "s":
+##        send_message = input("Please enter text to send to the server: ")
+#        try:
+#            # Convert the date object to a string (YYYY-MM-DD)
+#            current_date = date.today().strftime("%Y-%m-%d")
+#            # Send the message in JSON format
+#            r = requests.post(send_url, json={
+#                "message": send_message,
+#                "sender": sender,
+#                "receiver": receiver,
+#                "date": current_date  # Use the current_date string here, not the 'date' class
+#            })
+#            print("Server response:", r.text)  # Print the server's response
+#        except requests.exceptions.RequestException as e:
+#            print("Request failed:", e)
+#    case "r":
+#        try:
+#            r = requests.get(server_ip_receive)
+#            print(r.text)  # Print the content of the response
+#        except requests.exceptions.RequestException as e:
+#            print("Request failed:", e)
 
 
 
@@ -62,7 +62,7 @@ match choice:
 def homepage():
     print("1. Register")
     print("2. Log In")
-    match input("")
+    match input(""):
         case "1":
             register()
         case "2":
@@ -73,9 +73,10 @@ def homepage():
     return
     
 def conversations():
-    convos = requests.POST(conversations_url, json={"username" = username})
-    for "chat" in convos:
-        print(f"{chat} ({date})")
+    convos = requests.post(convo_url, json={"username" : username})
+    #for "chat" in convos:
+    #    print(f" ({date})")
+    print(convos)
 def login():
     match input("Use saved password?(y/n)"):
         case "n":
@@ -84,14 +85,14 @@ def login():
         case "y":
             with open(saved_login_dir, "r") as f:
                 username, password = f.read.split(",")
-        if sender and password:
-            logged_in = requests.POST(login_url, json={"username" = sender, "password" = password})
-            if logged_in == "True":
-                print("You are logged in!")
-                homepage()
-            if logged_in == "Account exists":
-                print("That account already exist!")
-                homepage()
+    if sender and password:
+        logged_in = requests.post(login_url, json={"username" : sender, "password" : password})
+        if logged_in == "True":
+            print("You are logged in!")
+            homepage()
+        if logged_in == "Account exists":
+            print("That account already exist!")
+            homepage()
             
 def save_login():
     save_log = input("Save login info? (y/n): ")
@@ -109,11 +110,17 @@ def register():
     password = input("Enter a password: ")
     repeat_password = input("Repeat the password: ")
     if password == repeat_password:
-        signed_in = requests.POST(register_url, json={"username" = username, "password" = password})
+        signed_in = requests.post(register_url, json={"username" : username, "password" : password})
         match signed_in:
             case "True":
                 print("You are signed in!")
                 homepage()
+            case _:
+                homepage()
     else:
         print("Username or password is empty, please try again.")
         homepage()
+        
+        
+if __name__ == "__main__":
+    homepage()

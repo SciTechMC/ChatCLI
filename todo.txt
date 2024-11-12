@@ -4,6 +4,14 @@ fix server script where it don't save chat logs
 
 give client option to save login data
 
+
+
+check clinet script to have a fallback incase of server response (not looged in user not exist,....)
+check connection with server (it won't talk with server)
+
+
+
+
 For building a command-line-based chat system, let’s break it down into the main components you’ll need for functionality, like message sending, receiving, and updating in real-time or on-demand. Here’s a brainstorm for how to approach each part:
 
 1. Message Storage and Retrieval
