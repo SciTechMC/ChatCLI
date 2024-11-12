@@ -1,6 +1,7 @@
 import requests
 from datetime import date
 import os
+from rich import print
 
 # Base server URL
 server_base_url = "http://172.27.27.231:5000"
@@ -9,45 +10,13 @@ server_base_url = "http://172.27.27.231:5000"
 send_url = server_base_url + "/send"
 login_url = server_base_url + "/login"
 register_url = server_base_url + "/register"
-convo_url = server_base_url + "/register"
+convo_url = server_base_url + "/convo"
 
-sender = "ScitechMC"
 username = ""
 password = ""
 receiver = "nig"
-saved_login_dir = os.getenv("USERPROFILE") + "/Documents/PythonChatApp/Saved-Profiles"
-
-try:
-    r = requests.get(server_base_url)
-    print(r.text)  # Print the content of the response
-except requests.exceptions.RequestException as e:
-    print("Request failed:", e)
-
-#choice = input("send(s)/or receive(r): ")
-#match choice:
-#    case "s":
-##        send_message = input("Please enter text to send to the server: ")
-#        try:
-#            # Convert the date object to a string (YYYY-MM-DD)
-#            current_date = date.today().strftime("%Y-%m-%d")
-#            # Send the message in JSON format
-#            r = requests.post(send_url, json={
-#                "message": send_message,
-#                "sender": sender,
-#                "receiver": receiver,
-#                "date": current_date  # Use the current_date string here, not the 'date' class
-#            })
-#            print("Server response:", r.text)  # Print the server's response
-#        except requests.exceptions.RequestException as e:
-#            print("Request failed:", e)
-#    case "r":
-#        try:
-#            r = requests.get(server_ip_receive)
-#            print(r.text)  # Print the content of the response
-#        except requests.exceptions.RequestException as e:
-#            print("Request failed:", e)
-
-
+saved_login_dir = os.getenv("USERPROFILE") + "/Documents/PythonChatApp/Saved-Profiles/"
+current_date = date.today().strftime("%Y-%m-%d")
 
 #options, send, login, register, receive
 #
@@ -59,6 +28,7 @@ except requests.exceptions.RequestException as e:
 #
 #
 #
+
 def homepage():
     print("1. Register")
     print("2. Log In")
@@ -77,50 +47,98 @@ def conversations():
     #for "chat" in convos:
     #    print(f" ({date})")
     print(convos)
+
 def login():
+    global username
+    global password
+    file_list = []
+
     match input("Use saved password?(y/n)"):
-        case "n":
-            sender = input("Enter your username: ")
-            password = input("Enter your password: ")
         case "y":
-            with open(saved_login_dir, "r") as f:
-                username, password = f.read.split(",")
-    if sender and password:
-        logged_in = requests.post(login_url, json={"username" : sender, "password" : password})
-        if logged_in == "True":
-            print("You are logged in!")
+            for file in os.listdir(saved_login_dir):
+                file_list +=  [file]
+                if file.endswith(".txt") and len(file_list) == 1:
+                    with open(os.path.join(saved_login_dir, file), "r") as f:
+                        username, password = f.read().split(",")
+            if len(file_list) > 1:
+                choice = input("Please enter the username you would like to sign in with: ")
+                if os.path.exists(saved_login_dir + choice):
+                    with open(os.path.join(saved_login_dir, choice), "r") as f:
+                        username, password = f.read().split(",")
+
+                else:
+                    print("That username's login info is not saved.")
+                    login()
+
+        case "n":
+            username = input("Enter your username: ")
+            password = input("Enter your password: ")
+    if username and password:
+        response = requests.post(login_url, json={"username" : username, "password" : password})
+        if response.status_code == 200:
+            print("Login successful!")
             homepage()
-        if logged_in == "Account exists":
-            print("That account already exist!")
+        elif response.status_code == 400:
+            response = response.json()
+            print(response["status"])
+            print("Please try again.")
             homepage()
             
 def save_login():
+    global username
+    global password
+
     save_log = input("Save login info? (y/n): ")
     match save_log:
         case "y":
-            os.makedir(saved_login_dir, exist_ok=True)
+            os.makedirs(saved_login_dir, exist_ok=True)
             with open(saved_login_dir+username+".txt", "w") as f:
                 f.write(f"{username},{password}")
         case "n":
             homepage()
         case _:
-            save_login()            
+            save_login()
+
 def register():
+    global username
+    global password
+
     username = input("Enter a username: ")
     password = input("Enter a password: ")
     repeat_password = input("Repeat the password: ")
-    if password == repeat_password:
-        signed_in = requests.post(register_url, json={"username" : username, "password" : password})
-        match signed_in:
-            case "True":
-                print("You are signed in!")
-                homepage()
-            case _:
-                homepage()
+
+    if password == repeat_password and username and password:
+        try:
+            response = requests.post(register_url, json={"username": username, "password": password})
+
+            # Check the response status and handle each case
+            match response.status_code:
+                case 200:
+                    print("User Has been registered!")
+                    save_login()
+                case 400:
+                    # Handle 400 response and print server message
+                    server_response = response.json()  # Extract JSON from the server response
+                    print(server_response.get("status", "Unknown error"))  # Print "status" field if it exists
+                    homepage()
+                case _:
+                    # Handle unexpected status codes
+                    print(f"Unexpected response from server: {response.status_code}")
+                    print("Response details:", response.text)
+        except requests.exceptions.RequestException as error:
+            print("Request failed:", error)
     else:
         print("Username or password is empty, please try again.")
         homepage()
-        
-        
+
+
 if __name__ == "__main__":
-    homepage()
+    try:
+        r = requests.post(server_base_url + "/check-connection", json={"message" : "Hello?"})
+        if r.status_code == 200:
+            print("Server response:", r.text)  # Print server response content
+            homepage()
+        else:
+            print(f"[red]Unable to connect to server. Status code: {r.status_code}[/red]")
+    except requests.exceptions.RequestException as e:
+        print("Request failed:", e)
