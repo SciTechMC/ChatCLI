@@ -73,12 +73,17 @@ def homepage():
     return
     
 def conversations():
-    requests.POST
+    convos = requests.POST(conversations_url, json={"username" = username})
+    for "chat" in convos:
+        print(f"{chat} ({date})")
 def login():
     match input("Use saved password?(y/n)"):
-        case
-        sender = input("Enter your username: ")
-        password = input("Enter your password: ")
+        case "n":
+            sender = input("Enter your username: ")
+            password = input("Enter your password: ")
+        case "y":
+            with open(saved_login_dir, "r") as f:
+                username, password = f.read.split(",")
         if sender and password:
             logged_in = requests.POST(login_url, json={"username" = sender, "password" = password})
             if logged_in == "True":
