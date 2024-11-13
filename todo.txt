@@ -4,8 +4,10 @@ fix server script where it don't save chat logs
 
 give client option to save login data
 
-check what to do if no .txt file exists
+
 check version number (when released)
+check save key server
+check why bad response when loggin in
 
 
 

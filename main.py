@@ -4,7 +4,7 @@ import os
 from rich import print
 
 # Base server URL
-server_base_url = "http://172.27.27.231:5000"
+server_base_url = "http://127.0.0.1:5000"
 
 # Endpoint paths
 send_url = server_base_url + "/send"
@@ -14,7 +14,8 @@ convo_url = server_base_url + "/convo"
 
 username = ""
 password = ""
-receiver = "nig"
+receiver = ""
+key = ""
 saved_login_dir = os.getenv("USERPROFILE") + "/Documents/PythonChatApp/Saved-Profiles/"
 current_date = date.today().strftime("%Y-%m-%d")
 
@@ -30,6 +31,7 @@ current_date = date.today().strftime("%Y-%m-%d")
 #
 
 def homepage():
+    os.makedirs(saved_login_dir, exist_ok=True)
     print("1. Register")
     print("2. Log In")
     match input(""):
@@ -37,53 +39,19 @@ def homepage():
             register()
         case "2":
             login()
+        case "3":
+            conversations()
         case _:
             print("Please enter a number(1/2)")
             homepage()
     return
     
 def conversations():
-    convos = requests.post(convo_url, json={"username" : username})
+    convos = requests.post(convo_url, json={"username" : username, "key" : key})
     #for "chat" in convos:
     #    print(f" ({date})")
     print(convos)
 
-def login():
-    global username
-    global password
-    file_list = []
-
-    match input("Use saved password?(y/n)"):
-        case "y":
-            for file in os.listdir(saved_login_dir):
-                file_list +=  [file]
-                if file.endswith(".txt") and len(file_list) == 1:
-                    with open(os.path.join(saved_login_dir, file), "r") as f:
-                        username, password = f.read().split(",")
-            if len(file_list) > 1:
-                choice = input("Please enter the username you would like to sign in with: ")
-                if os.path.exists(saved_login_dir + choice):
-                    with open(os.path.join(saved_login_dir, choice), "r") as f:
-                        username, password = f.read().split(",")
-
-                else:
-                    print("That username's login info is not saved.")
-                    login()
-
-        case "n":
-            username = input("Enter your username: ")
-            password = input("Enter your password: ")
-    if username and password:
-        response = requests.post(login_url, json={"username" : username, "password" : password})
-        if response.status_code == 200:
-            print("Login successful!")
-            homepage()
-        elif response.status_code == 400:
-            response = response.json()
-            print(response["status"])
-            print("Please try again.")
-            homepage()
-            
 def save_login():
     global username
     global password
@@ -94,10 +62,72 @@ def save_login():
             os.makedirs(saved_login_dir, exist_ok=True)
             with open(saved_login_dir+username+".txt", "w") as f:
                 f.write(f"{username},{password}")
+                conversations()
         case "n":
-            homepage()
+            conversations()
         case _:
             save_login()
+
+def check_saved_login(option):
+    global username
+    global password
+    file_list = []
+    if os.listdir(saved_login_dir):
+        for file in os.listdir(saved_login_dir):
+            file_list += [file]
+            if file.endswith(".txt") and len(file_list) == 1:
+                with open(os.path.join(saved_login_dir, file), "r") as f:
+                    if option == "check" and [username, password] == f.read().split(","):
+                        return True
+                    else:
+                        username, password = f.read().split(",")
+    else:
+        if option == "check":
+            return False
+        else:
+            print("No user login has been saved.")
+        login()
+    if len(file_list) > 1:
+        choice = input("Please enter the username you would like to sign in with: ")
+        if os.path.exists(saved_login_dir + choice):
+            with open(os.path.join(saved_login_dir, choice), "r") as f:
+                username, password = f.read().split(",")
+
+        else:
+            print("That username's login info is not saved.")
+            login()
+
+def login():
+    global username
+    global password
+    global key
+
+    match input("Use saved password?(y/n)"):
+        case "y":
+            check_saved_login("")
+
+        case "n":
+            username = input("Enter your username: ")
+            password = input("Enter your password: ")
+        case _:
+            print("Please type 'y' or 'n'.")
+            login()
+    if username and password:
+        response = requests.post(login_url, json={"username" : username, "password" : password})
+        if response.status_code == 200:
+            print("Login successful!")
+            response = response.json()
+            key = response["key"]
+            saved = check_saved_login("check")
+            if not saved:
+                save_login()
+            conversations()
+
+        elif response.status_code == 400:
+            response = response.json()
+            print(response["status"])
+            print("Please try again.")
+            homepage()
 
 def register():
     global username
@@ -115,7 +145,7 @@ def register():
             match response.status_code:
                 case 200:
                     print("User Has been registered!")
-                    save_login()
+                    homepage()
                 case 400:
                     # Handle 400 response and print server message
                     server_response = response.json()  # Extract JSON from the server response
@@ -131,8 +161,8 @@ def register():
         print("Username or password is empty, please try again.")
         homepage()
 
-
 if __name__ == "__main__":
+    print("Checking connection with the server, please hold...")
     try:
         r = requests.post(server_base_url + "/check-connection", json={"message" : "Hello?"})
         if r.status_code == 200:
