@@ -10,6 +10,7 @@ server_version = "v0.2.0"
 
 app = Flask(__name__)
 
+
 @app.route("/check-connection", methods=["GET", "POST"])
 def hello_world():
     os.makedirs("connection-checks", exist_ok=True)
@@ -20,9 +21,10 @@ def hello_world():
         client_ip = request.remote_addr
         with open(f"connection-checks/{current_date}.txt", "a") as f:
             f.write(f"{client_ip}   {current_time}\n")
-        return jsonify({"status": "Hello World", "server_version" : server_version"}), 200
+        return jsonify({"status": "Hello World", "server_version": "server_version"}), 200
     else:
         return jsonify({"error": "Bad Request"}), 400
+
 
 def save_key(username, key):
     file_path = "keys.json"
@@ -61,6 +63,7 @@ def sent_message():
             return jsonify({"status": "Receiver not found"}), 400
     return jsonify({"status": "Invalid message data"}), 400
 
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     os.makedirs("users", exist_ok=True)
@@ -73,14 +76,16 @@ def login():
             with open(file_path, 'r') as f:
                 stored_password = f.read().strip()  # Read the stored password and remove any trailing spaces/newlines
                 if stored_password == data["password"]:
-                    gen_key = str(''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(8)))
+                    gen_key = str(
+                        ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(8)))
                     logged_in = save_key(data["username"], gen_key)
-                    return jsonify({"status": "Login successful!", "key" : gen_key}), 200
+                    return jsonify({"status": "Login successful!", "key": gen_key}), 200
                 else:
                     return jsonify({"status": "Incorrect password"}), 400
         else:
             return jsonify({"status": "User not found"}), 400
     return jsonify({"status": "Invalid login data"}), 400
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -96,10 +101,11 @@ def register():
         return jsonify({"status": "User created successfully!"}), 200
     return jsonify({"status": "Invalid signup data"}), 400
 
+
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
     data = request.get_json()
-    user_chats : list
+    user_chats: list
 
     os.makedirs("messages", exist_ok=True)
     try:
@@ -107,14 +113,12 @@ def conversations():
     finally:
         with open("messages/convos.json", 'r') as convos:
             all_chats = convos.read()
-    
+
     for conversation in all_chats:
         if conversation["user1"] == data["username"]:
             user_chats += [conversation["user2"]]
         elif conversations["user2"] == data["username"]:
             user_chats += [conversation["user1"]]
-
-
 
 
 if __name__ == "__main__":
