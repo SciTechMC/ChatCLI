@@ -4,13 +4,14 @@ import os
 from rich import print
 
 # Base server URL
-server_base_url = "http://127.0.0.1:5000"
+server_base_url = "http://172.27.27.231:5000"
 
 # Endpoint paths
 send_url = server_base_url + "/send"
 login_url = server_base_url + "/login"
 register_url = server_base_url + "/register"
 convo_url = server_base_url + "/convo"
+client_version = "v0.2.0"
 
 username = ""
 password = ""
@@ -20,11 +21,6 @@ saved_login_dir = os.getenv("USERPROFILE") + "/Documents/PythonChatApp/Saved-Pro
 current_date = date.today().strftime("%Y-%m-%d")
 
 #options, send, login, register, receive
-#
-#
-#
-#
-#
 #
 #
 #
@@ -166,8 +162,9 @@ if __name__ == "__main__":
     try:
         r = requests.post(server_base_url + "/check-connection", json={"message" : "Hello?"})
         if r.status_code == 200:
-            print("Server response:", r.text)  # Print server response content
-            homepage()
+            r = r.json()
+            if r["server_version"] == client_version:
+                homepage()
         else:
             print(f"[red]Unable to connect to server. Status code: {r.status_code}[/red]")
     except requests.exceptions.RequestException as e:
