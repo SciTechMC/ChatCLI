@@ -3,10 +3,26 @@ import string
 from flask import Flask, request, jsonify
 import os
 import json
+from datetime import date
+from datetime import datetime
+
+server_version = "v0.2.0"
 
 app = Flask(__name__)
 
-import json
+@app.route("/check-connection", methods=["GET", "POST"])
+def hello_world():
+    os.makedirs("connection-checks", exist_ok=True)
+    data = request.get_json(silent=True)  # Use silent=True to avoid errors if no JSON is sent
+    if data and data["message"] == "Hello?":
+        current_date = date.today().strftime("%Y-%m-%d")
+        current_time = datetime.now().strftime("%H:%M:%S")
+        client_ip = request.remote_addr
+        with open(f"connection-checks/{current_date}.txt", "a") as f:
+            f.write(f"{client_ip}   {current_time}\n")
+        return jsonify({"status": "Hello World", "server_version" : server_version"}), 200
+    else:
+        return jsonify({"error": "Bad Request"}), 400
 
 def save_key(username, key):
     file_path = "keys.json"
@@ -25,14 +41,6 @@ def save_key(username, key):
     with open(file_path, "w") as keyfile:
         json.dump(data, keyfile, indent=4)
 
-
-@app.route("/check-connection", methods=["GET", "POST"])
-def hello_world():
-    data = request.get_json(silent=True)  # Use silent=True to avoid errors if no JSON is sent
-    if data and data["message"] == "Hello?":
-        return jsonify({"status": "Hello World"}), 200
-    else:
-        return jsonify({"error": "Bad Request"}), 400
 
 @app.route("/send", methods=["GET", "POST"])
 def sent_message():
@@ -90,7 +98,7 @@ def register():
 
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
-    data = request.json()
+    data = request.get_json()
     user_chats : list
 
     os.makedirs("messages", exist_ok=True)
