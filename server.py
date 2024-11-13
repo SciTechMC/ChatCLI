@@ -6,7 +6,7 @@ import json
 from datetime import date
 from datetime import datetime
 
-server_version = "v0.2.0"
+server_version = "v0.5.0"
 
 app = Flask(__name__)
 
@@ -21,7 +21,7 @@ def hello_world():
         client_ip = request.remote_addr
         with open(f"connection-checks/{current_date}.txt", "a") as f:
             f.write(f"{client_ip}   {current_time}\n")
-        return jsonify({"status": "Hello World", "server_version": "server_version"}), 200
+        return jsonify({"status": "Hello World", "server_version": server_version}), 200
     else:
         return jsonify({"error": "Bad Request"}), 400
 
@@ -42,6 +42,27 @@ def save_key(username, key):
     # Write the updated data back to the file
     with open(file_path, "w") as keyfile:
         json.dump(data, keyfile, indent=4)
+
+@app.route("/initiate-conversation", methods=["GET", "POST"])
+def initiate_conversation():
+    data = {}
+    req_data = request.get_json()
+    file_path = "messages/chats.json"
+    try:
+        with open(file_path, "r") as chatsfile:
+            json.load(chatsfile)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = {}
+
+    current_date = date.today().strftime("%Y-%m-%d")
+    current_time = datetime.now().strftime("%H:%M:%S")
+
+    data["users"] = f"{req_data['sender']},{req_data['receiver']}"
+    data["last_used"] = f"{current_date} {current_time}"
+    data["initiated"] = f"{current_date} {current_time}"
+
+    with open(file_path, "w") as chatsfile:
+        json.dump(data, chatsfile, indent=4)
 
 
 @app.route("/send", methods=["GET", "POST"])
@@ -78,7 +99,7 @@ def login():
                 if stored_password == data["password"]:
                     gen_key = str(
                         ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(8)))
-                    logged_in = save_key(data["username"], gen_key)
+                    save_key(data["username"], gen_key)
                     return jsonify({"status": "Login successful!", "key": gen_key}), 200
                 else:
                     return jsonify({"status": "Incorrect password"}), 400
@@ -105,21 +126,32 @@ def register():
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
     data = request.get_json()
-    user_chats: list
-
+    user_chats = []
     os.makedirs("messages", exist_ok=True)
     try:
-        open("messages/convos.json", 'x')
-    finally:
-        with open("messages/convos.json", 'r') as convos:
-            all_chats = convos.read()
+        with open("messages/chats.json", 'r') as chats:
+            all_chats = chats.read()
+    except FileNotFoundError:
+        open("messages/chats.json", 'x')
 
     for conversation in all_chats:
         if conversation["user1"] == data["username"]:
             user_chats += [conversation["user2"]]
         elif conversations["user2"] == data["username"]:
             user_chats += [conversation["user1"]]
+    if user_chats:
+        return jsonify(user_chats), 200
+    else:
+        return jsonify({"status" : "None"}), 401
 
+@app.route("/check-user-exists", methods=["GET", "POST"])
+def check_user_exists():
+    data = request.get_json()
+    if data and data["username"]:
+        if os.path.exists(f"users/{data['username']}.txt"):
+            return jsonify({"status" : "Valid user"}), 200
+        else:
+            return  jsonify({"status" : "Invalid user"}), 400
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", debug=True)

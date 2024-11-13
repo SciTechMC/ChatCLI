@@ -1,13 +1,10 @@
-do client script
+fix conversations not sending server > client
 
-fix server script where it don't save chat logs
+make function to catch before closing send to server
+before moving on, bug checking (albert proofing)
+research how to use subprocess multithreading to have receive/send simultaniously
 
-give client option to save login data
 
-
-check version number (when released)
-check save key server
-check why bad response when loggin in
 
 
 
