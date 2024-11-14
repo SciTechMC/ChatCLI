@@ -4,7 +4,7 @@ make function to catch before closing send to server
 before moving on, bug checking (albert proofing)
 research how to use subprocess multithreading to have receive/send simultaniously
 
-
+make username checks all lower case (better for friend requests)
 
 
 
