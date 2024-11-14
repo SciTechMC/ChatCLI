@@ -63,7 +63,7 @@ def conversations():
     if user_conversations.status_code == 401:
         print("No conversations found!")
         check_user_server()
-    else:
+    elif user_conversations.status_code == 200:
         chats = user_conversations.json()
         for chat in chats:
             print(chat)

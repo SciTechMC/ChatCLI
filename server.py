@@ -57,10 +57,10 @@ def initiate_conversation():
     current_date = date.today().strftime("%Y-%m-%d")
     current_time = datetime.now().strftime("%H:%M:%S")
     
-    data[req_data[sender] + "--" req_data[receiver]] = {
-        "users" = f"{req_data['sender']},{req_data['receiver']}"
-        "last_used" = f"{current_date} {current_time}"
-        "initiated" = f"{current_date} {current_time}"
+    data[req_data["sender"] + "--"  + req_data["receiver"]] = {
+        "users" : f"{req_data['sender']},{req_data['receiver']}",
+        "last_used" : f"{current_date} {current_time}",
+        "initiated" : f"{current_date} {current_time}"
     }
     
 
@@ -131,19 +131,19 @@ def conversations():
     data = request.get_json()
     os.makedirs("messages", exist_ok=True)
     try:
-        with open("messages/chats.json", 'r') as chats:
+        with open("messages/chats.json", 'r') as chatsfile:
             json.load(chatsfile)
     except (FileNotFoundError, json.JSONDecodeError):
         open("messages/chats.json", 'x')
         data = {}
 
-    for conversation in all_chats:
+    for conversation in data:
         user1, user2 = conversation["users"].split(",")
         if user1 == data["username"]:
             data[user2] = conversation
         elif user2 == data["username"]:
             data[user1] = conversation
-    if user_chats:
+    if data:
         return jsonify(data), 200
         
     else:
