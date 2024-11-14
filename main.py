@@ -6,7 +6,7 @@ from rich import print
 
 # import subprocess
 
-client_version = "v0.5.1"
+client_version = "v0.5.3"
 server_base_url = ""
 send_url = server_base_url + "/send"
 login_url = server_base_url + "/login"
@@ -67,7 +67,8 @@ def conversations():
         chats = user_conversations.json()
         for chat in chats:
             print(chat)
-
+    elif user_conversations.status_code == 500:
+        print("Server side erro")
 def check_user_server():
     global receiver
     receiver = input("Who would you like to talk to? ")
@@ -140,7 +141,7 @@ def login_procedure():
         elif choice == "n":
             username = input("Enter your username: ")
             password = input("Enter your password: ")
-            return False  # Return False and move to enter credentials
+            return True  # Return False and move to enter credentials
         else:
             print("Please type 'y' or 'n'.")  # Continue the loop if invalid input
 

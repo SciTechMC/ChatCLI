@@ -6,7 +6,7 @@ import json
 from datetime import date
 from datetime import datetime
 
-server_version = "v0.5.1"
+server_version = "v0.5.3"
 
 app = Flask(__name__)
 
@@ -45,25 +45,30 @@ def save_key(username, key):
 
 @app.route("/initiate-conversation", methods=["GET", "POST"])
 def initiate_conversation():
-    data = {}
     req_data = request.get_json()
     file_path = "messages/chats.json"
+    data = {}
+
+    # Attempt to read existing data, if any
     try:
         with open(file_path, "r") as chatsfile:
-            json.load(chatsfile)
+            data = json.load(chatsfile)  # Attempt to load JSON content
     except (FileNotFoundError, json.JSONDecodeError):
+        # If file does not exist or contains invalid JSON, start with an empty dictionary
         data = {}
 
+    # Prepare new conversation data
     current_date = date.today().strftime("%Y-%m-%d")
     current_time = datetime.now().strftime("%H:%M:%S")
-    
-    data[req_data["sender"] + "--"  + req_data["receiver"]] = {
-        "users" : f"{req_data['sender']},{req_data['receiver']}",
-        "last_used" : f"{current_date} {current_time}",
-        "initiated" : f"{current_date} {current_time}"
-    }
-    
 
+    # Create a unique key based on sender and receiver
+    data[req_data["sender"] + "--" + req_data["receiver"]] = {
+        "users": f"{req_data['sender']},{req_data['receiver']}",
+        "last_used": f"{current_date} {current_time}",
+        "initiated": f"{current_date} {current_time}"
+    }
+
+    # Write the updated data back to the file
     with open(file_path, "w") as chatsfile:
         json.dump(data, chatsfile, indent=4)
 
