@@ -6,7 +6,7 @@ import json
 from datetime import date
 from datetime import datetime
 
-server_version = "v0.5.0"
+server_version = "v0.5.1"
 
 app = Flask(__name__)
 
@@ -56,10 +56,13 @@ def initiate_conversation():
 
     current_date = date.today().strftime("%Y-%m-%d")
     current_time = datetime.now().strftime("%H:%M:%S")
-
-    data["users"] = f"{req_data['sender']},{req_data['receiver']}"
-    data["last_used"] = f"{current_date} {current_time}"
-    data["initiated"] = f"{current_date} {current_time}"
+    
+    data[req_data[sender] + "--" req_data[receiver]] = {
+        "users" = f"{req_data['sender']},{req_data['receiver']}"
+        "last_used" = f"{current_date} {current_time}"
+        "initiated" = f"{current_date} {current_time}"
+    }
+    
 
     with open(file_path, "w") as chatsfile:
         json.dump(data, chatsfile, indent=4)
@@ -126,21 +129,23 @@ def register():
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
     data = request.get_json()
-    user_chats = []
     os.makedirs("messages", exist_ok=True)
     try:
         with open("messages/chats.json", 'r') as chats:
-            all_chats = chats.read()
-    except FileNotFoundError:
+            json.load(chatsfile)
+    except (FileNotFoundError, json.JSONDecodeError):
         open("messages/chats.json", 'x')
+        data = {}
 
     for conversation in all_chats:
-        if conversation["user1"] == data["username"]:
-            user_chats += [conversation["user2"]]
-        elif conversations["user2"] == data["username"]:
-            user_chats += [conversation["user1"]]
+        user1, user2 = conversation["users"].split(",")
+        if user1 == data["username"]:
+            data[user2] = conversation
+        elif user2 == data["username"]:
+            data[user1] = conversation
     if user_chats:
-        return jsonify(user_chats), 200
+        return jsonify(data), 200
+        
     else:
         return jsonify({"status" : "None"}), 401
 

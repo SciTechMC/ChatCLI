@@ -6,7 +6,7 @@ from rich import print
 
 # import subprocess
 
-client_version = "v0.5.0"
+client_version = "v0.5.1"
 server_base_url = ""
 send_url = server_base_url + "/send"
 login_url = server_base_url + "/login"
