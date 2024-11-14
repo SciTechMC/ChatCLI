@@ -1,2 +1,2 @@
-git clone https://github.com/username/repo-name.git
+git clone https://github.com/SciTechMC/ServerChatApp.git
 pause
