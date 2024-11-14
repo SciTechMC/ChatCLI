@@ -1,2 +1,2 @@
-git clone https://github.com/SciTechMC/ServerChatApp.git
+git clone https://github.com/SciTechMC/ChatCLI.git
 pause
