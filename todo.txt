@@ -4,6 +4,7 @@ fix printing conversations
 make function to catch before closing send to server
 before moving on, bug checking (albert proofing)
 research how to use subprocess multithreading to have receive/send simultaniously
+check pre_alpha v0.6.0 for what to do
 
 make username checks all lower case (better for friend requests)
 
