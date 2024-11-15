@@ -1,5 +1,7 @@
 import random
 import string
+from crypt import methods
+
 from flask import Flask, request, jsonify
 import os
 import json
@@ -25,6 +27,7 @@ def hello_world():
     else:
         return jsonify({"error": "Bad Request"}), 400
 
+#@app.route("/open-convo", methods=["GET" ,"POST"])
 
 def save_key(username, key):
     file_path = "keys.json"
@@ -65,7 +68,7 @@ def initiate_conversation():
     data[req_data["sender"] + "--" + req_data["receiver"]] = {
         "users": f"{req_data['sender']},{req_data['receiver']}",
         "last_used": f"{current_date} {current_time}",
-        "initiated": f"{current_date} {current_time}"
+        "initiated": f"{current_date} {current_time}",
     }
 
     # Write the updated data back to the file
@@ -133,26 +136,36 @@ def register():
 
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
-    data = request.get_json()
+    # Get the request data (username)
+    request_data = request.get_json()
     os.makedirs("messages", exist_ok=True)
+
+    # Try to load existing chat data from the file
     try:
         with open("messages/chats.json", 'r') as chatsfile:
-            json.load(chatsfile)
+            chat_data = json.load(chatsfile)  # Load JSON data into a dictionary
     except (FileNotFoundError, json.JSONDecodeError):
-        open("messages/chats.json", 'x')
-        data = {}
+        chat_data = {}  # Start with an empty dictionary if the file is missing or corrupt
 
-    for conversation in data:
-        user1, user2 = conversation["users"].split(",")
-        if user1 == data["username"]:
-            data[user2] = conversation
-        elif user2 == data["username"]:
-            data[user1] = conversation
-    if data:
-        return jsonify(data), 200
-        
+    # Prepare a result dictionary for storing relevant conversations
+    result = {}
+
+    # Iterate over the chat data
+    for key, conversation in chat_data.items():
+        # Extract usernames from the key
+        user1, user2 = key.split("--")
+
+        # Check if the current user is involved in this conversation
+        if user1 == request_data["username"]:
+            result[user2] = conversation
+        elif user2 == request_data["username"]:
+            result[user1] = conversation
+
+    # Return the filtered conversations or an appropriate message
+    if result:
+        return jsonify(result), 200
     else:
-        return jsonify({"status" : "None"}), 401
+        return jsonify({"status": "None"}), 401
 
 @app.route("/check-user-exists", methods=["GET", "POST"])
 def check_user_exists():

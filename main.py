@@ -14,6 +14,8 @@ register_url = server_base_url + "/register"
 convo_url = server_base_url + "/convo"
 check_user_url = server_base_url + "/check-user-exists"
 initiate_conversation_url = server_base_url + "/initiate-conversation"
+open_chat_url = server_base_url + "/open-convo"
+                    
 username = ""
 password = ""
 receiver = ""
@@ -58,6 +60,7 @@ def homepage():
 
 def conversations():
     global receiver
+    chats_indexed = {}
     print()
     user_conversations = requests.post(convo_url, json={"username": username, "key": key})
     if user_conversations.status_code == 401:
@@ -65,10 +68,31 @@ def conversations():
         check_user_server()
     elif user_conversations.status_code == 200:
         chats = user_conversations.json()
-        for chat in chats:
-            print(chat)
+        i = 0
+        for index,chat in enumerate(chats):
+            chats_indexed[index] = chat
+            print(index,chat)
+        choice = input("Who would you like to talk to? ")
+        choose_chat(chats, chats_indexed, choice)
     elif user_conversations.status_code == 500:
-        print("Server side erro")
+        print("Server side error.")
+
+def choose_chat(chats, indexed, choice):
+    try:
+        choice = int(choice)
+        response = requests.post(open_chat_url, json=(indexed[choice]))
+    except (ValueError, KeyError):
+        response = requests.post(open_chat_url, json=(chats[choice]))
+    if response:
+        if response.status_code == 200:
+            response = response.json()
+        elif response.status_code == 400:
+            response = response.json()
+            choice = input(response["status"])
+            choose_chat(chats, indexed, choice)
+        elif response.status_code == 500:
+            print("Server error")
+
 def check_user_server():
     global receiver
     receiver = input("Who would you like to talk to? ")
@@ -226,6 +250,7 @@ def start_client():
     global check_user_url
     global initiate_conversation_url
     global server_base_url
+    global open_chat_url
 
     server_base_url = ""
     print("Checking connection with the server, please hold...")
@@ -250,6 +275,7 @@ def start_client():
                     convo_url = server_base_url + "/convo"
                     check_user_url = server_base_url + "/check-user-exists"
                     initiate_conversation_url = server_base_url + "/initiate-conversation"
+                    open_chat_url = server_base_url + "/open-convo"
                     while True:
                         homepage()
                 else:
