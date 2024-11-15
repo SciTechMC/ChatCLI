@@ -1,20 +1,19 @@
 import random
 import string
-from crypt import methods
 
 from flask import Flask, request, jsonify
 import os
 import json
 from datetime import date
 from datetime import datetime
+from rich import print
 
-server_version = "v0.5.3"
+server_version = "pre-alpha V0.7.0"
 
 app = Flask(__name__)
 
-
 @app.route("/check-connection", methods=["GET", "POST"])
-def hello_world():
+def check_connection():
     os.makedirs("connection-checks", exist_ok=True)
     data = request.get_json(silent=True)  # Use silent=True to avoid errors if no JSON is sent
     if data and data["message"] == "Hello?":
@@ -27,7 +26,15 @@ def hello_world():
     else:
         return jsonify({"error": "Bad Request"}), 400
 
-#@app.route("/open-convo", methods=["GET" ,"POST"])
+@app.route("/open-convo", methods=["GET" ,"POST"])
+def return_user_chat():
+    data = request.get_json()
+    chats = os.listdir("messages")
+    user1, user2 = data["users"].split(",")
+    for chat in chats:
+        if user1 in chat and user2 in chat:
+            with open(chat, "r") as f:
+                return json.load(f)
 
 def save_key(username, key):
     file_path = "keys.json"
@@ -50,7 +57,6 @@ def save_key(username, key):
 def initiate_conversation():
     req_data = request.get_json()
     file_path = "messages/chats.json"
-    data = {}
 
     # Attempt to read existing data, if any
     try:
@@ -75,7 +81,6 @@ def initiate_conversation():
     with open(file_path, "w") as chatsfile:
         json.dump(data, chatsfile, indent=4)
 
-
 @app.route("/send", methods=["GET", "POST"])
 def sent_message():
     os.makedirs("messages", exist_ok=True)
@@ -94,7 +99,6 @@ def sent_message():
         else:
             return jsonify({"status": "Receiver not found"}), 400
     return jsonify({"status": "Invalid message data"}), 400
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -118,7 +122,6 @@ def login():
             return jsonify({"status": "User not found"}), 400
     return jsonify({"status": "Invalid login data"}), 400
 
-
 @app.route("/register", methods=["GET", "POST"])
 def register():
     os.makedirs("users", exist_ok=True)
@@ -132,7 +135,6 @@ def register():
             f.write(data["password"])  # Store the password in the file
         return jsonify({"status": "User created successfully!"}), 200
     return jsonify({"status": "Invalid signup data"}), 400
-
 
 @app.route("/convo", methods=["GET", "POST"])
 def conversations():
@@ -177,4 +179,5 @@ def check_user_exists():
             return  jsonify({"status" : "Invalid user"}), 400
 
 if __name__ == "__main__":
+    print(f"   * [red]SERVER VERSION: {server_version}[/]")
     app.run(host="0.0.0.0", debug=True)

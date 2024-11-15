@@ -1,4 +1,5 @@
 import sys
+
 import requests
 from datetime import date
 import os
@@ -6,15 +7,7 @@ from rich import print
 
 # import subprocess
 
-client_version = "v0.5.3"
-server_base_url = ""
-send_url = server_base_url + "/send"
-login_url = server_base_url + "/login"
-register_url = server_base_url + "/register"
-convo_url = server_base_url + "/convo"
-check_user_url = server_base_url + "/check-user-exists"
-initiate_conversation_url = server_base_url + "/initiate-conversation"
-open_chat_url = server_base_url + "/open-convo"
+server_config = {}
                     
 username = ""
 password = ""
@@ -57,18 +50,16 @@ def homepage():
             homepage()
     return
 
-
 def conversations():
     global receiver
     chats_indexed = {}
     print()
-    user_conversations = requests.post(convo_url, json={"username": username, "key": key})
+    user_conversations = requests.post(server_config["convo_url"], json={"username": username, "key": key})
     if user_conversations.status_code == 401:
         print("No conversations found!")
         check_user_server()
     elif user_conversations.status_code == 200:
         chats = user_conversations.json()
-        i = 0
         for index,chat in enumerate(chats):
             chats_indexed[index] = chat
             print(index,chat)
@@ -78,25 +69,28 @@ def conversations():
         print("Server side error.")
 
 def choose_chat(chats, indexed, choice):
-    try:
-        choice = int(choice)
-        response = requests.post(open_chat_url, json=(indexed[choice]))
-    except (ValueError, KeyError):
-        response = requests.post(open_chat_url, json=(chats[choice]))
+    global username
+    if int(choice) in indexed:
+        response = requests.post(server_config["open_chat_url"], json={"users": f"{username},{indexed[int(choice)]}"})
+    else:
+        response = requests.post(server_config["open_chat_url"], json={"users": f"{username},{chats[choice]}"})
     if response:
+
         if response.status_code == 200:
             response = response.json()
+            print(response)
         elif response.status_code == 400:
             response = response.json()
             choice = input(response["status"])
             choose_chat(chats, indexed, choice)
+
         elif response.status_code == 500:
             print("Server error")
 
 def check_user_server():
     global receiver
     receiver = input("Who would you like to talk to? ")
-    response = requests.post(check_user_url, json={"username" : receiver})
+    response = requests.post(server_config["check_user_url"], json={"username" : receiver})
     if response.status_code == 401:
         print("No user found with that name.")
         match input("Try again? (y/n)"):
@@ -105,9 +99,8 @@ def check_user_server():
             case _:
                 homepage()
     else:
-        requests.post(initiate_conversation_url, json={"sender" : username, "receiver" : receiver})
+        requests.post(server_config["initiate_conversation_url"], json={"sender" : username, "receiver" : receiver})
         conversations()
-
 
 def save_login():
     print()
@@ -127,7 +120,6 @@ def save_login():
         case _:
             save_login()  # Recurse if invalid input
 
-
 def check_saved_login():
     global username
     global password
@@ -145,7 +137,6 @@ def check_saved_login():
                         password = saved_password
                         return True
     return False
-
 
 def login_procedure():
     global username
@@ -169,7 +160,6 @@ def login_procedure():
         else:
             print("Please type 'y' or 'n'.")  # Continue the loop if invalid input
 
-
 def login():
     global username
     global password
@@ -187,7 +177,7 @@ def login():
 
     # Proceed with the login attempt
     if username and password:
-        login_response = requests.post(login_url, json={"username": username, "password": password})
+        login_response = requests.post(server_config["login_url"], json={"username": username, "password": password})
         if login_response.status_code == 200:
             print("Login successful!")
             login_response = login_response.json()
@@ -207,7 +197,6 @@ def login():
         print("Please enter a username and password.")
         login()  # If no username or password entered, retry login
 
-
 def register():
     global username
     global password
@@ -218,7 +207,7 @@ def register():
 
     if password == repeat_password and username and password:
         try:
-            register_response = requests.post(register_url, json={"username": username, "password": password})
+            register_response = requests.post(server_config["register_url"], json={"username": username, "password": password})
 
             # Check the register_response status and handle each case
             match register_response.status_code:
@@ -240,60 +229,74 @@ def register():
         print("Username or password is empty, please try again.")
         homepage()
 
+#------------------------------------------------------------------------------------------------
+
+def check_server_connection(possible_server_urls, client_version):
+    for url in possible_server_urls:
+        try:
+            # Send POST request with the "Hello?" message
+            response = requests.post(f"{url}/check-connection", timeout=3, json={"message": "Hello?"})
+
+            # Check if the response is valid and matches the client version
+            if response.status_code == 200:
+                response_json = response.json()
+                if response_json.get("server_version") == client_version:
+                    return url  # Return the valid server URL
+                else:
+                    print(
+                        f"Version mismatch: Server version {response_json.get('server_version')}, expected {client_version}.")
+        except requests.ConnectionError:
+            print(f"Failed to connect to {url}.")
+            continue  # Try the next URL in the list
+        except requests.Timeout:
+            print(f"Connection to {url} timed out.")
+            continue  # Try the next URL in the list
+        except Exception as e:
+            print(f"Unexpected error while connecting to {url}: {e}")
+            continue  # Handle other exceptions gracefully
+    return None  # No valid server found
+
+
+def configure_urls(base_url):
+    # Construct all relevant URLs based on the base URL
+    return {
+        "base_url": base_url,
+        "send_url": f"{base_url}/send",
+        "login_url": f"{base_url}/login",
+        "register_url": f"{base_url}/register",
+        "convo_url": f"{base_url}/convo",
+        "check_user_url": f"{base_url}/check-user-exists",
+        "initiate_conversation_url": f"{base_url}/initiate-conversation",
+        "open_chat_url": f"{base_url}/open-convo"
+    }
 
 
 def start_client():
-    global send_url
-    global login_url
-    global register_url
-    global convo_url
-    global check_user_url
-    global initiate_conversation_url
-    global server_base_url
-    global open_chat_url
-
-    server_base_url = ""
-    print("Checking connection with the server, please hold...")
+    global server_config
+    client_version = "pre-alpha V0.7.0"  # Current client version
     possible_server_urls = [
         "http://fortbow.duckdns.org:5000",
         "http://172.27.27.231:5000",
         "http://127.0.0.1:5000"
     ]
-    main_response = ""
-    for url in possible_server_urls:
-        try:
-            # Try connecting to the server with a small timeout
-            main_response = requests.post(url + "/check-connection", timeout=1, json={"message": "Hello?"})
-            if main_response.status_code == 200:
-                response_json = main_response.json()
-                if response_json["server_version"] == client_version:
-                    print("Connection with server established!")
-                    server_base_url = url
-                    send_url = server_base_url + "/send"
-                    login_url = server_base_url + "/login"
-                    register_url = server_base_url + "/register"
-                    convo_url = server_base_url + "/convo"
-                    check_user_url = server_base_url + "/check-user-exists"
-                    initiate_conversation_url = server_base_url + "/initiate-conversation"
-                    open_chat_url = server_base_url + "/open-convo"
-                    while True:
-                        homepage()
-                else:
-                    print("Server and client version do not match, please download the newest version!")
-                    break
-        except requests.ConnectionError:
-            # If connection fails, continue to the next URL
-            continue
-    if main_response and main_response.status_code == 200:
-        homepage()
-    else:
-        print("No reachable server URL found.")
-        match input("Try again(y/n): "):
-            case "y:":
-                start_client()
-            case _:
-                sys.exit()
 
+    while True:
+        # Check for a valid server connection
+        server_url = check_server_connection(possible_server_urls, client_version)
+
+        if server_url:
+            print(f"Connected to server at {server_url}")
+
+            # Configure the server URLs for further usage
+            server_config = configure_urls(server_url)
+
+            # Move to the main application entry point
+            homepage()
+            break
+        else:
+            # Retry or exit if no valid server is found
+            if input("No reachable server URL found. Try again? (y/n): ").lower() != 'y':
+                sys.exit()
 
 
 if __name__ == "__main__":
