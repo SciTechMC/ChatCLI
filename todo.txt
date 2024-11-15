@@ -1,4 +1,5 @@
 fix conversations not sending server > client
+fix printing conversations
 
 make function to catch before closing send to server
 before moving on, bug checking (albert proofing)
