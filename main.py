@@ -63,14 +63,7 @@ def conversations():
     print()
 
     # Fetch conversations from the server
-    try:
-        user_conversations = requests.post(
-            server_config["convo_url"], json={"username": username, "key": key}
-        )
-        user_conversations.raise_for_status()  # Automatically raises for HTTP errors
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred while fetching conversations: {e}")
-        return
+    user_conversations = requests.post(server_config["convo_url"], json={"username": username, "key": key})
 
     if user_conversations.status_code == 401:
         print("No conversations found!")
@@ -171,24 +164,25 @@ def choose_chat(chats, indexed, choice):
     try:
         if choice in indexed:
             receiver = indexed[choice]["users"].replace(username, "").strip(",")
-            response = requests.post(
-                server_config["open_chat_url"], json={"users": f"{username},{receiver}"}
-            )
-
-            if response.status_code == 200:
-                response = response.json()
-                print(response["chat"])  # Display the chat messages
-            elif response.status_code == 400:
-                print(response.json()["status"])
-                return False
-            elif response.status_code == 500:
-                print("Server error")
+            response = requests.post(server_config["open_chat_url"], json={"users": f"{username},{receiver}"})
         else:
             print("Invalid index. Please try again.")
             return  # This will allow the user to make another choice
     except ValueError:
-        print("Invalid input. Please enter a number.")
+        receiver = chats[choice]["users"].replace(username, "").strip(",")
+        response = requests.post(server_config["open_chat_url"], json={"users": f"{username},{receiver}"})
         return  # This will allow the user to make another choice
+
+    if response.status_code == 200:
+        response = response.json()
+        print(response["chat"])  # Display the chat messages
+    elif response.status_code == 400:
+        print(response.json()["status"])
+        check_user_server()
+        return False
+    elif response.status_code == 500:
+        print("Server error")
+
 
 def check_user_server():
     """
@@ -441,7 +435,7 @@ def start_client():
     If no server is reachable, prompts the user to retry or exit.
     """
     global server_config
-    client_version = "pre-alpha V0.8.0"  # Current client version
+    client_version = "pre-alpha V0.9.0"  # Current client version
     possible_server_urls = [
         "http://fortbow.duckdns.org:5000",
         "http://172.27.27.231:5000",

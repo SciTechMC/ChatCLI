@@ -7,7 +7,7 @@ from datetime import date
 from datetime import datetime
 from rich import print
 
-server_version = "pre-alpha V0.8.0"
+server_version = "pre-alpha V0.9.0"
 app = Flask(__name__)
 
 # ------------------------------------------------------------------------------------------------
@@ -136,6 +136,24 @@ def initiate_conversation():
 
     with open(file_path, "w") as chatsfile:
         json.dump(data, chatsfile, indent=4)
+
+    file_path: str = f"messages/{req_data['sender']} -- {req_data['receiver']}.json"
+    if not os.path.exists(file_path) and check_user_exists(req_data["receiver"]):
+        message = {
+            "Good day!": {
+                "from": req_data["sender"],
+                "datetime": f"{current_date} {current_time}",
+                "readreceipt": "unread"
+            }
+        }
+        try:
+            with open(file_path, "w") as convo_file:
+                json.dump(message, convo_file, indent=4)
+        except Exception as e:
+            return jsonify({"status" : "Error creating file: " + str(e)}),400
+    else:
+        return jsonify({"status" : "Chat already exists"}), 400
+
 
 # ------------------------------------------------------------------------------------------------
 # Route: /send
@@ -281,7 +299,7 @@ def conversations():
 # Description: Checks if a user exists in the userbase
 # ------------------------------------------------------------------------------------------------
 @app.route("/check-user-exists", methods=["GET", "POST"])
-def check_user_exists():
+def check_user_exists(username : str = ""):
     """
     Endpoint for checking if a user exists.
 
@@ -292,7 +310,11 @@ def check_user_exists():
         - 200: If the user exists in the userbase.
         - 400: If the user does not exist.
     """
-    data = request.get_json()
+    data =  {}
+    if username:
+        data["username"] = username
+    else:
+        data = request.get_json()
     if data and data["username"]:
         if os.path.exists(f"users/{data['username']}.txt"):
             return jsonify({"status": "Valid user"}), 200
