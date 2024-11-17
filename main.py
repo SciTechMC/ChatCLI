@@ -2,7 +2,11 @@ import sys
 import requests
 from datetime import date
 import os
+
+from flask import jsonify
 from rich import print
+import multiprocessing
+import time
 
 # Global Variables
 server_config = {}
@@ -105,22 +109,22 @@ def conversations():
                     else:
                         print("Invalid index. Please try again.")
                 else:  # If the user enters a name
-                    choose_chat_by_name(chats, chats_indexed, choice)
+                    choose_chat_by_name(chats_indexed, choice)
                     break  # Exit loop if valid choice by name is made
 
         except ValueError:
             print("Error parsing server response.")
     elif user_conversations.status_code == 500:
         print("Server side error.")
+        homepage()
 
 
-def choose_chat_by_name(chats, indexed, choice):
+def choose_chat_by_name(indexed, choice):
     """
     Handles user input to select a chat by name. Searches for a chat with the specified user.
     Sends a request to open the selected chat and displays chat messages.
 
     Args:
-        chats (dict): The full list of conversations fetched from the server.
         indexed (dict): Indexed list of conversations for user selection.
         choice (str): The user's input to select a chat by name.
     """
@@ -174,8 +178,7 @@ def choose_chat(chats, indexed, choice):
         return  # This will allow the user to make another choice
 
     if response.status_code == 200:
-        response = response.json()
-        print(response["chat"])  # Display the chat messages
+        start_chatting()
     elif response.status_code == 400:
         print(response.json()["status"])
         check_user_server()
@@ -183,6 +186,29 @@ def choose_chat(chats, indexed, choice):
     elif response.status_code == 500:
         print("Server error")
 
+def start_chatting():
+    process = multiprocessing.Process(target=retrieve_messages, args=[server_config["open_chat_url"], username, receiver])
+    process.start()
+    time.sleep(5)
+    while True:
+        send_msg = input('Your message: ')
+        if send_msg:
+            requests.post(server_config["send_url"], jsonify({"sender" : username, "receiver" : receiver, "message" : send_msg}))
+
+def retrieve_messages(open_chat_url, user, receive):
+    chat : dict = {}
+    print("Loading messages...")
+    while True:
+        response = requests.post(open_chat_url, json={"users": f"{user},{receive}"})
+        if response.status_code == 200:
+            messages = response.json()["chat"]
+            for message_content, message_metadata in messages.items():
+                if message_content not in chat and message_metadata["datetime"] not in chat:
+                    sender = message_metadata["from"]
+                    print(f"[{sender}] {message_content}")
+            if messages != chat:
+                chat = messages
+            time.sleep(10)
 
 def check_user_server():
     """
@@ -200,8 +226,13 @@ def check_user_server():
             case _:
                 homepage()  # Return to homepage if user opts out
     else:
-        requests.post(server_config["initiate_conversation_url"], json={"sender": username, "receiver": receiver})
-        conversations()  # Refresh the conversation list
+        response = requests.post(server_config["initiate_conversation_url"], json={"sender": username, "receiver": receiver})
+        if response.status_code == 200:
+            conversations()  # Refresh the conversation list
+        else:
+            response= response.json()
+            print(response["status"])
+            conversations()
 
 
 # --------------------------------------------------------------------------------
@@ -437,8 +468,8 @@ def start_client():
     global server_config
     client_version = "pre-alpha V0.9.0"  # Current client version
     possible_server_urls = [
-        "http://fortbow.duckdns.org:5000",
-        "http://172.27.27.231:5000",
+        #"http://fortbow.duckdns.org:5000",
+        #"http://172.27.27.231:5000",
         "http://127.0.0.1:5000"
     ]
 
