@@ -6,6 +6,7 @@ import json
 from datetime import date
 from datetime import datetime
 from rich import print
+import requests
 
 server_version = "pre-alpha V0.9.0"
 app = Flask(__name__)
@@ -116,43 +117,51 @@ def initiate_conversation():
         - 200: If the conversation is successfully initiated.
         - 400: If there are any errors during the process.
     """
+
     req_data = request.get_json()
-    file_path = "messages/chats.json"
+    response = requests.post("http://127.0.0.1:5000/check-user-exists", json={"username": req_data["receiver"]})
+    if response.status_code == 200:
+        user_exist = True
+        file_path = "messages/chats.json"
 
-    try:
-        with open(file_path, "r") as chatsfile:
-            data = json.load(chatsfile)
-    except (FileNotFoundError, json.JSONDecodeError):
-        data = {}
-
-    current_date = date.today().strftime("%Y-%m-%d")
-    current_time = datetime.now().strftime("%H:%M:%S")
-
-    data[req_data["sender"] + "--" + req_data["receiver"]] = {
-        "users": f"{req_data['sender']},{req_data['receiver']}",
-        "last_used": f"{current_date} {current_time}",
-        "initiated": f"{current_date} {current_time}",
-    }
-
-    with open(file_path, "w") as chatsfile:
-        json.dump(data, chatsfile, indent=4)
-
-    file_path: str = f"messages/{req_data['sender']} -- {req_data['receiver']}.json"
-    if not os.path.exists(file_path) and check_user_exists(req_data["receiver"]):
-        message = {
-            "Good day!": {
-                "from": req_data["sender"],
-                "datetime": f"{current_date} {current_time}",
-                "readreceipt": "unread"
-            }
-        }
         try:
-            with open(file_path, "w") as convo_file:
-                json.dump(message, convo_file, indent=4)
-        except Exception as e:
-            return jsonify({"status" : "Error creating file: " + str(e)}),400
+            with open(file_path, "r") as chatsfile:
+                data = json.load(chatsfile)
+        except (FileNotFoundError, json.JSONDecodeError):
+            data = {}
+
+        current_date = date.today().strftime("%Y-%m-%d")
+        current_time = datetime.now().strftime("%H:%M")
+
+        data[req_data["sender"] + "--" + req_data["receiver"]] = {
+            "users": f"{req_data['sender']},{req_data['receiver']}",
+            "last_used": f"{current_date} {current_time}",
+            "initiated": f"{current_date} {current_time}",
+        }
+
+        with open(file_path, "w") as chatsfile:
+            json.dump(data, chatsfile, indent=4)
+
+
+        file_path: str = f"messages/{req_data['sender']} -- {req_data['receiver']}.json"
+
+        if not os.path.exists(file_path):
+            message = {
+                "Good day!": {
+                    "from": req_data["sender"],
+                    "datetime": f"{current_date} {current_time}",
+                    "readreceipt": "unread"
+                }
+            }
+            try:
+                with open(file_path, "w") as convo_file:
+                    json.dump(message, convo_file, indent=4)
+            except Exception as e:
+                return jsonify({"status" : "Error creating file: " + str(e)}),400
+        else:
+            return jsonify({"status" : "Chat already exists"}), 400
     else:
-        return jsonify({"status" : "Chat already exists"}), 400
+        return jsonify({"status" : "User does not exist"}),400
 
 
 # ------------------------------------------------------------------------------------------------
@@ -160,7 +169,7 @@ def initiate_conversation():
 # Description: Sends a message between two users and stores it in a file
 # ------------------------------------------------------------------------------------------------
 @app.route("/send", methods=["GET", "POST"])
-def sent_message():
+def send_message():
     """
     Endpoint for sending a message from one user to another.
 
@@ -173,20 +182,25 @@ def sent_message():
         - 400: If the receiver is not found or the message data is invalid.
     """
     os.makedirs("messages", exist_ok=True)
-
+    chats = os.listdir()
     data = request.get_json()
-    if data and "message" in data and "sender" in data and "receiver" in data:
-        message = data["message"]
-        sender = data["sender"]
-        receiver = data["receiver"]
-        if os.path.exists(f"users/{receiver}.txt"):
-            file_path = os.path.join("messages", f"{sender} -- {receiver}.txt")
-            with open(file_path, "a") as f:
-                f.write(f"<{sender}> {message}\n")
-            return jsonify({"status": "Message sent!"}), 200
-        else:
-            return jsonify({"status": "Receiver not found"}), 400
-    return jsonify({"status": "Invalid message data"}), 400
+
+    for chat in chats:
+        if data["sender"] in chat and data["receiver"] in chat:
+            try:
+                with open("messages/chats.json", 'r') as chatsfile:
+                    chat_data = json.load(chatsfile)
+            except (FileNotFoundError, json.JSONDecodeError):
+                chat_data = {}
+
+            current_date = date.today().strftime("%Y-%m-%d")
+            current_time = datetime.now().strftime("%H:%M")
+
+            chat_data[data["message"]] = {"from": data["sender"],
+                                          "datetime": f"{current_date} {current_time}",
+                                          "readreceipt": "unread"
+                                          }
+
 
 # ------------------------------------------------------------------------------------------------
 # Route: /login
@@ -299,7 +313,7 @@ def conversations():
 # Description: Checks if a user exists in the userbase
 # ------------------------------------------------------------------------------------------------
 @app.route("/check-user-exists", methods=["GET", "POST"])
-def check_user_exists(username : str = ""):
+def check_user_exists():
     """
     Endpoint for checking if a user exists.
 
@@ -310,11 +324,7 @@ def check_user_exists(username : str = ""):
         - 200: If the user exists in the userbase.
         - 400: If the user does not exist.
     """
-    data =  {}
-    if username:
-        data["username"] = username
-    else:
-        data = request.get_json()
+    data = request.get_json()
     if data and data["username"]:
         if os.path.exists(f"users/{data['username']}.txt"):
             return jsonify({"status": "Valid user"}), 200
