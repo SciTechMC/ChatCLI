@@ -1,26 +1,17 @@
-import asyncio, websockets, rich
-import requests
+import asyncio
+import websockets
 
 
-async def check_url():
-    client_version = "pre-alpha V0.1.0"
-    possible_server_urls = [
-        "http://fortbow.duckdns.org",
-        "http://172.27.27.231",
-        "http://127.0.0.1"
-    ]
-    print("Connecting to the server.")
-    for url in possible_server_urls:
-        response = requests.post(url + ":5000/connection", json={"client_version" : client_version})
-        if response.status_code == 200:
-            return url
+async def send_request():
+    uri = "ws://localhost:6420/connection"  # Specify the route you want to connect to
+    async with websockets.connect(uri) as websocket:
+        # Send a message to the server
+        await websocket.send("Hello, server!")
 
-async def start_client():
-    url = str(check_url()) + ":6942"
-    async with websockets.connect(url) as ws:
-        await ws.send({"init_connection" : "Hello!"})
-        print(ws.recv())
+        # Wait for a response
+        response = await websocket.recv()
+        print(f"Server response: {response}")
 
 
 if __name__ == "__main__":
-    asyncio.run(start_client())
+    asyncio.run(send_request())
