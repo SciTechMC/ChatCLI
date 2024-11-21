@@ -1,13 +1,15 @@
 import asyncio
 import json
+from textwrap import indent
+
 import websockets
 import os
 import random
 import string
+from datetime import date, datetime
+from rich import print
 
-from main import username
-
-server_version = "pre-alpha V0.4.0"
+server_version = "pre-alpha V0.5.0"
 req_client_ver = "pre-alpha V0.3.0"
 
 async def connection(ws, client):
@@ -23,24 +25,22 @@ async def connection(ws, client):
 
 async def login(ws, client):
     os.makedirs("users", exist_ok=True)
-    data = client
     try:
-        data = eval(data)  # Only for demo; avoid `eval` in production
-        if "username" in data and "password" in data:
-            file_path = os.path.join("users", f"{data['username']}.txt")
+        if "username" in client and "password" in client:
+            file_path = os.path.join("users", f"{client['username']}.txt")
             if os.path.exists(file_path):
                 with open(file_path, 'r') as f:
                     stored_password = f.read().strip()
-                    if stored_password == data["password"]:
+                    if stored_password == client["password"]:
                         gen_key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
                         file_path = "keys.json"
                         try:
                             with open(file_path, "r") as keyfile:
                                 keys = json.load(keyfile)
                         except (FileNotFoundError, json.JSONDecodeError):
-                            data = {}
+                            keys = {}
 
-                        keys[data[username]] = gen_key
+                        keys[client["username"]] = gen_key
 
                         with open(file_path, "w") as keyfile:
                             json.dump(keys, keyfile, indent=4)
@@ -60,7 +60,7 @@ async def register(ws, client):
     os.makedirs("users", exist_ok=True)
 
     if client and "username" in client and "password" in client:
-        file_path = os.path.join("users/", f"{client['username']}.txt")
+        file_path = os.path.join("users", f"{client['username']}.txt")
         if os.path.exists(file_path):
             await ws.send(json.dumps({"handler" : "register" ,"data": "", "status_code": 400, "error" : "Username already taken"}))
         with open(file_path, 'w') as f:
@@ -70,44 +70,72 @@ async def register(ws, client):
     return
 
 async def chatting(ws, client):
-    receive(ws, client)
-    send(ws, client)
-    async def receive(ws, client):
+    async def receive(wsoc, client_data):
         while True:
             try:
                 message = await ws.recv()
-                current_date = time.
-                current_time = 
-                receiver = client["receiver"]
-                sender = client["username"]
+                receiver = client_data["receiver"]
+                sender = client_data["username"]
                 current_date = date.today().strftime("%Y-%m-%d")
                 current_time = datetime.now().strftime("%H:%M")
+                file_path = ""
+                allchats_data = {}
 
-                chat_data[client["content"]] = {"from": sender,
-                                          "datetime": f"{current_date} {current_time}",
-                                          "readreceipt": "unread"}
                 for file in os.listdir("messages"):
                     if receiver in file and sender in file:
                         file_path = file
                         continue
+
                 try:
                     with open(file_path, "r") as chatsfile:
-                        data = json.load(chatsfile)
+                        chat_data = json.load(chatsfile)
                 except (FileNotFoundError, json.JSONDecodeError):
-                    data = {}
+                    creating_file = open(f"{sender}--{receiver}.json", "x")
+                    try:
+                         with open("chats.json", "r") as allchats:
+                             allchats_data = json.load(allchats)
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        open("chats.json", "x")
+
+                    allchats_data[f"{sender}--{receiver}"] = {"Users": f"{sender},{receiver}", "date time inititated": f"{current_date} {current_time}"}
+
+                    with open("chats.json", "w") as chats:
+                        json.dump(allchats_data, chats, indent=4)
+
+                    print(creating_file)
+                    chat_data = {}
+
+                chat_data[client_data["content"]] = \
+                    {"from": sender,
+                     "message" : message,
+                    "datetime": f"{current_date} {current_time}",
+                    "readreceipt": "unread"
+                     }
+
+                try:
+                    with open(file_path, "w") as chatsfile:
+                        json.dump(chat_data, chatsfile, indent=4)
+                        wsoc.send(json.dumps({"handler" : "message_receive" ,"data": "Message received!", "status_code": 200, "error" : None}))
+                except (FileNotFoundError, json.JSONDecodeError):
+                    print("[red bold]Error with chat receive saving![/]")
 
             except websockets.ConnectionClosedOK:
                 break
     
-    async def send(ws, client):
+    async def send(wsoc, client_data):
         while True:
             try:
-                await ws.send(json.dums({"handler" : "chatting", data : data, "status_code" : 200}))
+                await ws.send(json.dumps({"handler" : "chatting", "data" : "todo", "status_code" : 200}))
             except websockets.ConnectionClosedOK:
                 break
 
+
+    await asyncio.create_task(send(ws, client))
+    await asyncio.create_task(receive(ws, client))
+
     await ws.send(json.dumps({"handler" : "chatting" ,"data": "Fetch chat not implemented yet", "status_code": 501}))
     return
+
 
 async def check_user_exist(ws, client):
     data = client
@@ -142,10 +170,10 @@ async def handler(websocket):
                 await websocket.close()
 
 async def main():
-    print(f"SERVER VERSION: {server_version}")
-    async with websockets.serve(handler, "localhost", 6420):
+    print(f"[red]SERVER VERSION: {server_version}[/]")
+    async with websockets.serve(handler, "0.0.0.0", 6420):
+        print(f"WebSocket server running on 0.0.0.0:6420")
         await asyncio.Future()
-    print(f"WebSocket server running on localhost:6420")
 
 if __name__ == "__main__":
     asyncio.run(main())
