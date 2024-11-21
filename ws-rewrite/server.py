@@ -70,11 +70,39 @@ async def register(ws, client):
     return
 
 async def chatting(ws, client):
-    async def receive(ws):
+    receive(ws, client)
+    send(ws, client)
+    async def receive(ws, client):
         while True:
             try:
                 message = await ws.recv()
+                current_date = time.
+                current_time = 
+                receiver = client["receiver"]
+                sender = client["username"]
+                current_date = date.today().strftime("%Y-%m-%d")
+                current_time = datetime.now().strftime("%H:%M")
 
+                chat_data[client["content"]] = {"from": sender,
+                                          "datetime": f"{current_date} {current_time}",
+                                          "readreceipt": "unread"}
+                for file in os.listdir("messages"):
+                    if receiver in file and sender in file:
+                        file_path = file
+                        continue
+                try:
+                    with open(file_path, "r") as chatsfile:
+                        data = json.load(chatsfile)
+                except (FileNotFoundError, json.JSONDecodeError):
+                    data = {}
+
+            except websockets.ConnectionClosedOK:
+                break
+    
+    async def send(ws, client):
+        while True:
+            try:
+                await ws.send(json.dums({"handler" : "chatting", data : data, "status_code" : 200}))
             except websockets.ConnectionClosedOK:
                 break
 
