@@ -1,6 +1,5 @@
 import asyncio
 import json
-
 import websockets
 import os
 import random
@@ -8,22 +7,26 @@ import string
 from datetime import date, datetime
 from rich import print
 
-server_version = "pre-alpha V0.6.1"
-req_client_ver = "pre-alpha V0.3.0"
+server_version = "pre-alpha V0.7.0"
+req_client_ver = "pre-alpha V0.5.0"
+
+os.makedirs("messages", exist_ok=True)
+os.makedirs("users", exist_ok=True)
 
 async def connection(ws, client):
-    print(f"Handling connection at connection")
     data = client
     try:  # Only for demo; avoid `eval` in production
         if data.get("client_version") == req_client_ver:
             await ws.send(json.dumps({"data" : "Connection successful!", "status_code" : 200}))
+            return
         else:
             await ws.send(json.dumps({"data": "Version mismatch", "status_code": 400}))
+            return
     except Exception as e:
         await ws.send(json.dumps({"data": str(e), "status_code": 400}))
+        return
 
 async def login(ws, client):
-    os.makedirs("users", exist_ok=True)
     try:
         if "username" in client and "password" in client:
             file_path = os.path.join("users", f"{client['username']}.txt")
@@ -39,34 +42,40 @@ async def login(ws, client):
                         except (FileNotFoundError, json.JSONDecodeError):
                             keys = {}
 
-                        keys[client["username"]] = gen_key
+                        keys[client["username"]] = gen_key # bob : bob_key
 
                         with open(file_path, "w") as keyfile:
                             json.dump(keys, keyfile, indent=4)
                         await ws.send(json.dumps({"handler" : "login" ,"data": "Login successful!", "key": str(gen_key), "status_code": 200}))
                         return
+
                     else:
                         await ws.send(json.dumps({"handler" : "login" ,"data": "", "status_code": 400, "error" : "Incorrect password"}))
                         return
+
             else:
                 await ws.send(json.dumps({"handler" : "login" ,"data": "", "status_code": 400, "error" : "User not found"}))
                 return
+
         await ws.send(json.dumps({"handler" : "login" ,"data": "", "status_code": 400,"error" : "Invalid login data"}))
+        return
     except Exception as e:
-        await ws.send(json.dumps({"handler" : "login" ,"data": e, "status_code": 400}))
+        await ws.send(json.dumps({"handler" : "login" ,"data": "", "status_code": 400, "error" : e}))
+        return
 
 async def register(ws, client):
-    os.makedirs("users", exist_ok=True)
 
-    if client and "username" in client and "password" in client: #checks if values are not emptyu
+    if client and client.get("username") and client.get("password"): #checks if values are not emptyu
         file_path = os.path.join("users", f"{client['username']}.txt")
         if os.path.exists(file_path): #checks if username exists
             await ws.send(json.dumps({"handler" : "register" ,"data": "", "status_code": 400, "error" : "Username already taken"}))
         with open(file_path, 'w') as f:
             f.write(client["password"])
         await ws.send(json.dumps({"handler" : "register" ,"data": "User Created successfully", "status_code": 200, "error" : ""}))
-    await ws.send(json.dumps({"handler" : "register" ,"data": "", "status_code": 400, "error" : "Invalid Signup data"}))
-    return
+        return
+    else:
+        await ws.send(json.dumps({"handler" : "register" ,"data": "", "status_code": 400, "error" : "Invalid Signup data"}))
+        return
 
 async def chatting(ws, client):
     async def receive(wsoc, client_data):
@@ -80,47 +89,48 @@ async def chatting(ws, client):
                 file_path = ""
                 allchats_data = {}
 
-                for file in os.listdir("messages"):
-                    if receiver in file and sender in file:
-                        file_path = file
-                        continue
+                if message.get("message"):
+                    for file in os.listdir("messages"):
+                        if receiver in file and sender in file:
+                            file_path = file
+                            continue
 
-                try:
-                    with open(file_path, "r") as chatsfile:
-                        chat_data = json.load(chatsfile)
-                except (FileNotFoundError, json.JSONDecodeError):
-                    creating_file = open(f"{sender}--{receiver}.json", "x")
                     try:
-                         with open("chats.json", "r") as allchats:
-                             allchats_data = json.load(allchats)
+                        with open(file_path, "r") as chatsfile:
+                            chat_data = json.load(chatsfile)
                     except (FileNotFoundError, json.JSONDecodeError):
-                        open("chats.json", "x")
+                        creating_file = open(f"{sender}--{receiver}.json", "x")
+                        try:
+                             with open("chats.json", "r") as allchats:
+                                 allchats_data = json.load(allchats)
+                        except (FileNotFoundError, json.JSONDecodeError):
+                            open("chats.json", "x")
 
-                    allchats_data[f"{sender}--{receiver}"] = {"Users": f"{sender},{receiver}", "date time inititated": f"{current_date} {current_time}"}
+                        allchats_data[f"{sender}--{receiver}"] = {"users": f"{sender},{receiver}", "date time inititated": f"{current_date} {current_time}"}
 
-                    with open("chats.json", "w") as chats:
-                        json.dump(allchats_data, chats, indent=4)
+                        with open("chats.json", "w") as chats:
+                            json.dump(allchats_data, chats, indent=4)
 
-                    print(creating_file)
-                    chat_data = {}
+                        print(creating_file)
+                        chat_data = {}
 
-                chat_data[client_data["content"]] = \
-                    {"from": sender,
-                     "message" : message["content"],
-                    "datetime": f"{current_date} {current_time}",
-                    "readreceipt": "unread"
-                     }
+                    chat_data[client_data["content"]] = \
+                        {"from": sender,
+                         "message" : message["content"],
+                        "datetime": f"{current_date} {current_time}",
+                        "readreceipt": "unread"
+                         }
 
-                try:
-                    with open(file_path, "w") as chatsfile:
-                        json.dump(chat_data, chatsfile, indent=4)
-                        wsoc.send(json.dumps({"handler" : "message_receive" ,"data": "Message received!", "status_code": 200, "error" : None}))
-                except (FileNotFoundError, json.JSONDecodeError):
-                    print("[red bold]Error with chat receive saving![/]")
+                    try:
+                        with open(file_path, "w") as chatsfile:
+                            json.dump(chat_data, chatsfile, indent=4)
+                            await wsoc.send(json.dumps({"handler" : "message_receive" ,"data": "Message received!", "status_code": 200, "error" : None}))
+                    except (FileNotFoundError, json.JSONDecodeError):
+                        print("[red bold]Error with chat receive saving![/]")
 
             except websockets.ConnectionClosedOK:
                 break
-    
+
     async def send(wsoc, client_data):
         file = ""
         for file in os.listdir("messages"):
@@ -141,23 +151,73 @@ async def chatting(ws, client):
     await asyncio.create_task(send(ws, client))
     await asyncio.create_task(receive(ws, client))
 
-    await ws.send(json.dumps({"handler" : "chatting" ,"data": "Fetch chat not implemented yet", "status_code": 501}))
-    return
-
-
-async def check_user_exist(ws, client):
-    data = client
+async def check_user_exist(ws, data):
     if data and data["username"]:
         if os.path.exists(f"users/{data['username']}.txt"):
             await ws.send(json.dumps({"handler" : "check_user_exist" ,"data": "Valid User", "status_code": 200, "error" : ""}))
+            return
         else:
-            await ws.send(json.dumps({"handler" : "check_user_exist" ,"data": "", "status_code": 404, "error" : "Invalid User"}))
-    await ws.send(json.dumps({"handler" : "check_user_exist" ,"data": "Check user exist not implemented yet", "status_code": 501}))
-    return
+            await ws.send(json.dumps({"handler" : "check_user_exist" ,"data": "", "status_code": 400, "error" : "Invalid User"}))
+            return
+
+async def get_chats(ws, data):
+    file_path = os.path.join("messages", "chats.json")
+    print("Get_chats")
+
+    chats = []
+    try:
+        # Check if user is verified
+        verified = await verify_user(ws, data)
+        if not verified:
+            return
+
+        # Read chats from file
+        with open(file_path, "r") as f:
+            chats_data = json.load(f)
+
+        if chats_data:
+            for chat in chats_data:
+                if data.get("username") in chat:
+                    user1, user2 = chat["users"].split(",")
+                    if user1 == data.get("username"):
+                        chats.append(user2)
+                    if user2 == data.get("username"):
+                        chats.append(user1)
+
+            if chats:
+                await ws.send(json.dumps({"handler": "get_chats", "data": chats, "status_code": 200, "error": ""}))
+            else:
+                await ws.send(json.dumps({"handler": "get_chats", "data": [], "status_code": 400, "error": "No chats found!"}))
+        else:
+            empty_dict = {}
+            with open(file_path, 'w') as file:
+                json.dump(empty_dict, file)  # Create an empty chat file if it doesn't exist
+            await ws.send(json.dumps({"handler": "get_chats", "data": [], "status_code": 400, "error": "No chats found!"}))
+    except Exception as e:
+        print(f"[red]Error: {str(e)}[/]")
+        await ws.send(json.dumps({"handler": "get_chats", "data": "", "status_code": 500, "error": f"Failed to read chat data: {str(e)}"}))
+        empty_dict = {}
+        with open(file_path, 'w') as f:
+            json.dump(empty_dict, f)  # Create an empty chat file if there's an error
+        return
+
+async def verify_user(ws, data):
+    try:
+        with open("keys.json", "r") as f:
+            keys = json.load(f)
+            # Validate the user and key
+            if keys.get(data["username"]) != data["key"]:
+                await ws.send(json.dumps({"handler": "get_chats", "data": "", "status_code": 400, "error": "Invalid username or key!"}))
+                return False  # User not verified
+            return True  # User verified
+    except Exception as e:
+        print(f"[red]{str(e)}[/]")
+        await ws.send(json.dumps({"handler": "get_chats", "data": "", "status_code": 500, "error": f"Internal server error! {str(e)}"}))
+        return False  # Error verifying user
+
 
 async def handler(websocket):
     async for client in websocket:
-        print(type(client))
         client = json.loads(client)
         path = client.get("path")
 
@@ -170,11 +230,15 @@ async def handler(websocket):
                 await register(websocket, client)
             case "chatting":
                 await chatting(websocket, client)
-            case "check-user-exist":
+            case "check_user_exist":
                 await check_user_exist(websocket, client)
+            case "get_chats":
+                await get_chats(websocket, client)
+            case "verify_user":
+                await verify_user(websocket, client)
             case _:
                 print(f"Unknown path: {path}")
-                await websocket.send(json.dumps({"handler" : "main_handler" ,"data": "Unknown path", "status_code": 404}))
+                await websocket.send(json.dumps({"handler" : "main_handler" ,"data": "Unknown path", "status_code": 400, "error" : "Unknown path"}))
                 await websocket.close()
 
 async def main():
