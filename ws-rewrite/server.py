@@ -1,6 +1,5 @@
 import asyncio
 import json
-from textwrap import indent
 
 import websockets
 import os
@@ -9,7 +8,7 @@ import string
 from datetime import date, datetime
 from rich import print
 
-server_version = "pre-alpha V0.5.0"
+server_version = "pre-alpha V0.6.1"
 req_client_ver = "pre-alpha V0.3.0"
 
 async def connection(ws, client):
@@ -59,9 +58,9 @@ async def login(ws, client):
 async def register(ws, client):
     os.makedirs("users", exist_ok=True)
 
-    if client and "username" in client and "password" in client:
+    if client and "username" in client and "password" in client: #checks if values are not emptyu
         file_path = os.path.join("users", f"{client['username']}.txt")
-        if os.path.exists(file_path):
+        if os.path.exists(file_path): #checks if username exists
             await ws.send(json.dumps({"handler" : "register" ,"data": "", "status_code": 400, "error" : "Username already taken"}))
         with open(file_path, 'w') as f:
             f.write(client["password"])
@@ -107,7 +106,7 @@ async def chatting(ws, client):
 
                 chat_data[client_data["content"]] = \
                     {"from": sender,
-                     "message" : message,
+                     "message" : message["content"],
                     "datetime": f"{current_date} {current_time}",
                     "readreceipt": "unread"
                      }
@@ -123,9 +122,18 @@ async def chatting(ws, client):
                 break
     
     async def send(wsoc, client_data):
+        file = ""
+        for file in os.listdir("messages"):
+            if client_data["username"] in file and client_data["receiver"] in file:
+                file = file
+                continue
+
         while True:
             try:
-                await ws.send(json.dumps({"handler" : "chatting", "data" : "todo", "status_code" : 200}))
+                with open (os.path.join("messages", file), "r") as f:
+                    chatlog = json.load(f)
+                await wsoc.send(json.dumps({"handler" : "chatting", "data" : chatlog, "status_code" : 200}))
+                asyncio.timeout(2)
             except websockets.ConnectionClosedOK:
                 break
 
