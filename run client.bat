@@ -1,4 +1,4 @@
 @echo off
 title Client
-python main.py
+python client.py
 pause
