@@ -1,10 +1,11 @@
 import asyncio
+import time
 import websockets
 import json
 import os
 import sys
 
-client_version = "pre-alpha V0.5.2"
+client_version = "pre-alpha V0.6.0"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
@@ -83,6 +84,7 @@ async def register(ws):
 async def login(ws):
     global key, username, password
     while True:
+        response = {}
         username = input("Please enter your username: ")
         if username:
             saved = await check_saved_login()
@@ -93,14 +95,15 @@ async def login(ws):
                         await ws.send(json.dumps({"path" : "login", "content": "", "username": username, "receiver" : receiver, "key" : key, "password": password}))
                         response = json.loads(await ws.recv())
                     case _:
-                        continue
+                        password = input("Enter your password: ")
+                        if password:
+                            await ws.send(json.dumps({"path" : "login", "content": "", "username": username, "receiver" : receiver, "key" : key, "password": password}))
+                            response = json.loads(await ws.recv())
             else:
                 password = input("Enter your password: ")
                 if password:
                     await ws.send(json.dumps({"path" : "login", "content": "", "username": username, "receiver" : receiver, "key" : key, "password": password}))
                     response = json.loads(await ws.recv())
-                else:
-                    continue
         else:
             continue
 
@@ -208,29 +211,56 @@ async def get_chats(ws):
         print(f"Verification failed: {response.get('error')}")
 
 async def chatting(ws):
-    #init the chats
-    await ws.send(json.dumps({"path" : "chatting", "content": "", "username": username, "receiver" : receiver, "key" : key}))
+    # Send initial message to start the chatting process
+    await ws.send(json.dumps({"path": "chatting", "content": "", "username": username, "receiver": receiver, "key": key}))
     state = {"loop": True}
+    print("Type 'e' or 'exit' to leave the chat.")
+
     async def send(websock, variable):
         while variable["loop"]:
-            message = input("Your message or e to exit: ")
+            message = input(f"[{username}]: ")
+            if message.lower() == "e" or message.lower() == "exit":
+                variable["loop"] = False
+                break
             if message:
-                if message.lower() != "e" or message.lower() != "exit":
-                    await websock.send(json.dumps({"path" : "chatting", "content": message, "username": username, "receiver" : receiver, "key" : key}))
-                    asyncio.timeout(0.5)
-                else:
-                    variable["loop"] = False
+                await websock.send(json.dumps({"path": "chatting", "content": message, "username": username, "receiver": receiver, "key": key}))
+                await asyncio.sleep(1)
 
     async def receive(websock, variable):
         log = {}
         while variable["loop"]:
-            chatlog = json.loads(await websock.recv())
-            for message in chatlog:
-                if message not in log:
-                    print(f'[{message.get("from")}: {message.get("message")}')
+            try:
+                message_data = await websock.recv()  # Receive message data
+                try:
+                    chatlog = json.loads(message_data)  # Parse the message data as JSON
+                except json.JSONDecodeError:
+                    print("Received invalid JSON")
+                    continue  # Skip invalid data
 
-    await asyncio.create_task(send(ws, state))
-    await asyncio.create_task(receive(ws, state))
+                if not isinstance(chatlog, dict):
+                    print("Expected dictionary but got", type(chatlog))
+                    continue
+
+                if "data" not in chatlog:
+                    print("Received invalid message data, no 'data' field found.")
+                    continue
+
+                for message in chatlog["data"]:
+                    message_id = f"{message.get('from')}_{message.get('datetime')}"
+                    if message_id not in log:
+                        sender = message.get("from")
+                        message_text = message.get("message")
+                        print(f"[{sender}]: {message_text}")
+                        log[message_id] = message
+
+            except websockets.ConnectionClosedError as e:
+                print(f"Connection closed with error: {e}")
+                break
+            except Exception as e:
+                print(f"Unexpected error while receiving message: {e}")
+                break
+
+    await asyncio.gather(send(ws, state), receive(ws, state))
 
 
 if __name__ == "__main__":
