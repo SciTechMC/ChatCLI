@@ -1,14 +1,14 @@
 import asyncio
-from asyncio import timeout
-
 import websockets
 import json
 import os
 import sys
 
-client_version = "pre-alpha V0.4.0"
+client_version = "pre-alpha V0.5.2"
 
-saved_login_dir = "%appdata%/ChatCLI/Saved_Profiles"
+
+saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
+os.makedirs(saved_login_dir, exist_ok=True)
 username = ""
 password = ""
 receiver = ""
@@ -21,10 +21,13 @@ async def homepage():
     Navigates to the corresponding functionality based on user input.
     """
     async with websockets.connect(uri) as websocket:
-        await websocket.send(json.dumps({"path": "connection", "client_version": client_version}))
-        response = await websocket.recv()
-        response = json.loads(response)
-        print(f"Server response: {str(response)}")
+        try:
+            await websocket.send(json.dumps({"path": "connection", "client_version": client_version}))
+            response = json.loads(await websocket.recv())
+            print(f"Server response: {str(response)}")
+        except Exception as e:
+            print(e)
+            sys.exit()
         os.makedirs(saved_login_dir, exist_ok=True)
         while True:
             print()
@@ -52,11 +55,11 @@ async def homepage():
 async def register(ws):
     global username, password
     while True:
-        username = input("Please enter a username: ")
+        username = input("Please enter a username: ").lower()
         password = input("Please enter a password: ")
         if username and password:
             try:
-                await ws.send(json.dumps({"path" : "register", "content": "", "username": username, "receiver" : receiver, "key" : key, "passowrd" : password}))
+                await ws.send(json.dumps({"path" : "register", "content": "", "username": username, "receiver" : receiver, "key" : key, "password" : password}))
             except websockets.ConnectionClosedOK:
                 print("Server unreachable!")
                 break
@@ -68,21 +71,22 @@ async def register(ws):
                 print(response.get("error"))
             else:
                 print("Unknown error!")
-
-        print("Please make sure both fields are filled in!")
-        choice = input("retry or exit?(r/e): ")
-        match choice:
-            case "r":
-                continue
-            case _:
-                break
+        else:
+            print("Please make sure both fields are filled in!")
+            choice = input("retry or exit?(r/e): ")
+            match choice:
+                case "r":
+                    continue
+                case _:
+                    break
 
 async def login(ws):
     global key, username, password
     while True:
         username = input("Please enter your username: ")
         if username:
-            if check_saved_login():
+            saved = await check_saved_login()
+            if saved:
                 choice = input("Use saved login(y/n): ").lower()
                 match choice:
                     case "y":
@@ -90,18 +94,34 @@ async def login(ws):
                         response = json.loads(await ws.recv())
                     case _:
                         continue
-            password = input("Enter your password: ")
-            if password:
-                ws.send(json.dumps({"path" : "login", "content": "", "username": username, "receiver" : receiver, "key" : key, "password": password}))
-                response = json.loads(await ws.recv())
             else:
-                continue
+                password = input("Enter your password: ")
+                if password:
+                    await ws.send(json.dumps({"path" : "login", "content": "", "username": username, "receiver" : receiver, "key" : key, "password": password}))
+                    response = json.loads(await ws.recv())
+                else:
+                    continue
         else:
             continue
 
         if response:
             if response.get("status_code") == 200:
+                key = response.get("key")
                 print(response.get("data"))
+                if not saved:
+                    match input("Save login data(y/n)?").lower():
+                        case "yes":
+                            await save_login()
+                            break
+                        case "y":
+                            await save_login()
+                            break
+                        case _:
+                            break
+                break
+
+
+
             elif response.get("status_code") == 400:
                 print(response.get("error"))
                 choice = input("retry or exit?(r/e): ")
@@ -114,6 +134,10 @@ async def login(ws):
             print("No response from server!")
             break
 
+async def save_login():
+    with open(os.path.join(saved_login_dir, username+".txt"), "w") as f:
+        f.write(password)
+
 async def check_saved_login():
     """
     Checks if the user's login credentials are saved in the local directory.
@@ -123,43 +147,90 @@ async def check_saved_login():
         bool: True if login is saved, False otherwise.
     """
     global username, password
-    file_list = []
 
     # Check if the saved login directory exists and has any files
     if os.listdir(saved_login_dir):
-        for file in os.listdir(saved_login_dir):
-            file_list += [file]
-            if file.endswith(".txt") and len(file_list) == 1:
-                with open(os.path.join(saved_login_dir, file), "r") as f:
-                    # Return True if the login details match the saved info
-                    saved_username, saved_password = f.read().split(",")
-                    if saved_username == username:
-                        password = saved_password
-                        return True
+        try:
+            with open(os.path.join(saved_login_dir, username+".txt"), "r") as f:
+                password = f.read()
+                if password:
+                    return True
+        except FileNotFoundError:
+            return False
     return False
 
 async def get_chats(ws):
-    return
+    global receiver
+    try:
+        # Send message to the server to verify user
+        await ws.send(json.dumps({"path": "get_chats", "content": "", "username": username, "receiver": receiver, "key": key}))
+    except websockets.exceptions.ConnectionClosed as e:
+        print(f"Connection closed unexpectedly: {e}")
+        return  # Exit or handle appropriately
+
+    response = json.loads(await ws.recv())
+
+    if response.get("status_code") == 200:  # Check if user is verified
+
+        # Check if the response is valid and contains expected data
+        while True:
+            chats = response.get("data")
+            for chat in chats:
+                print(f"Chat with: {chat}")
+            choice = input("Enter the name of the user you would like to talk to: ").lower()
+            if choice in chats:
+                receiver = choice  # Update the global receiver
+                await chatting(ws)
+                return
+            else:
+                print("Invalid selection. Try again.")
+
+    elif response.get("status_code") == 400:
+        print(response.get("error"))
+        while True:
+            choice = input("Who would you like to talk to, or exit(e): ").lower()
+            match choice:
+                case "e":
+                    break
+                case "exit":
+                    break
+                case _:
+                    if choice:
+                        receiver = choice
+                        await ws.send(json.dumps({"path": "check_user_exist", "content": "", "username": username, "receiver": receiver, "key": key}))
+                        response = json.loads(await ws.recv())
+                        if response.get("status_code") == 200:
+                            await chatting(ws)
+                            return
+
+
+    else:
+        print(f"Verification failed: {response.get('error')}")
 
 async def chatting(ws):
-    async def send(websock):
-        while True:
-            message = input("")
+    #init the chats
+    await ws.send(json.dumps({"path" : "chatting", "content": "", "username": username, "receiver" : receiver, "key" : key}))
+    state = {"loop": True}
+    async def send(websock, variable):
+        while variable["loop"]:
+            message = input("Your message or e to exit: ")
             if message:
-                await ws.send(json.dumps({"path" : "", "content": message, "username": username, "receiver" : receiver, "key" : key}))
-                asyncio.timeout(0.5)
+                if message.lower() != "e" or message.lower() != "exit":
+                    await websock.send(json.dumps({"path" : "chatting", "content": message, "username": username, "receiver" : receiver, "key" : key}))
+                    asyncio.timeout(0.5)
+                else:
+                    variable["loop"] = False
 
-    async def receive(websock):
+    async def receive(websock, variable):
         log = {}
-        while True:
-            chatlog = json.loads(await ws.recv())
+        while variable["loop"]:
+            chatlog = json.loads(await websock.recv())
             for message in chatlog:
                 if message not in log:
                     print(f'[{message.get("from")}: {message.get("message")}')
 
-    await asyncio.create_task(send(ws))
-    await asyncio.create_task(receive(ws))
-#mainpage > login/register/exit/conversations
+    await asyncio.create_task(send(ws, state))
+    await asyncio.create_task(receive(ws, state))
 
 
 if __name__ == "__main__":
