@@ -5,7 +5,7 @@ import json
 import os
 import sys
 
-client_version = "pre-alpha V0.6.0"
+client_version = "pre-alpha V0.6.1"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
@@ -221,7 +221,7 @@ async def chatting(ws):
             message = input(f"[{username}]: ")
             if message.lower() == "e" or message.lower() == "exit":
                 variable["loop"] = False
-                break
+                return
             if message:
                 await websock.send(json.dumps({"path": "chatting", "content": message, "username": username, "receiver": receiver, "key": key}))
                 await asyncio.sleep(1)
