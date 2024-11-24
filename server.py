@@ -6,9 +6,14 @@ import random
 import string
 from datetime import date, datetime
 from rich import print
+import logging
 
-server_version = "pre-alpha V0.8.0"
-req_client_ver = "pre-alpha V0.6.0"
+logger = logging.getLogger('websockets')
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler())
+
+server_version = "pre-alpha V0.8.7"
+req_client_ver = "pre-alpha V0.6.1"
 
 os.makedirs("messages", exist_ok=True)
 os.makedirs("users", exist_ok=True)
@@ -16,10 +21,11 @@ os.makedirs("users", exist_ok=True)
 
 # Helper function to log user actions
 def log_action(action, username=None, additional_info=""):
-    if username:
-        print(f"[blue]Action: {action}[/] [green]User: {username}[/] {additional_info}")
-    else:
-        print(f"[blue]Action: {action}[/] {additional_info}")
+    return
+    #if username:
+    #    print(f"[blue]Action: {action}[/] [green]User: {username}[/] {additional_info}")
+    #else:
+    #    print(f"[blue]Action: {action}[/] {additional_info}")
 
 
 async def connection(ws, client):
@@ -117,12 +123,11 @@ async def chatting(ws, client_data):
                 if message.get("content"):
                     for file in os.listdir("messages"):
                         if receiver in file and sender in file:
-                            file_path = file
+                            file_path = os.path.join("messages", file)
                             break
 
                     if not file_path:
                         log_action("Chat file not found", sender, f"Receiver: {receiver}")
-                        continue
 
                     try:
                         with open(file_path, "r") as chatsfile:
@@ -166,8 +171,9 @@ async def chatting(ws, client_data):
                 break
 
         if not file_path:
-            print("Chat file not found, aborting.")
-            return
+            print("Chat file not found, creating.")
+            file_path = os.path.join("messages", f'{data["username"]}--{data["receiver"]}.json')
+            open(file_path, 'x')
 
         while True:
             try:
@@ -208,8 +214,6 @@ async def check_user_exist(ws, data):
 
 async def get_chats(ws, data):
     file_path = os.path.join("messages", "chats.json")
-    print("Get_chats")
-
     chats = []
     try:
         if not os.path.exists(file_path):
@@ -272,7 +276,6 @@ async def handler(websocket):
     async for client in websocket:
         client = json.loads(client)
         path = client.get("path")
-
         match path:
             case "connection":
                 await connection(websocket, client)
