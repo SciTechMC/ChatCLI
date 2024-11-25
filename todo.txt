@@ -32,7 +32,14 @@ all client sends need to look like this
 
 client -------- who talk to > send first message > start chat
 
-
+minimum username length, no special chars or spaces, also minimum password
+register w email
+place all user logins in single file (if not alr)
+make new chat
+give nicknames to users
+ability to change username
+if possible, get notif if new message in background
+research encryptions for passwords and such
 
 
 For building a command-line-based chat system, let’s break it down into the main components you’ll need for functionality, like message sending, receiving, and updating in real-time or on-demand. Here’s a brainstorm for how to approach each part:
