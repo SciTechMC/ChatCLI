@@ -1,11 +1,12 @@
 import asyncio
-import time
 import websockets
 import json
 import os
 import sys
 
-client_version = "pre-alpha V0.6.1"
+from bottle_websocket import websocket
+
+client_version = "pre-alpha V0.6.2"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
