@@ -6,14 +6,14 @@ import random
 import string
 from datetime import date, datetime
 from rich import print
-import logging
 
-logger = logging.getLogger('websockets')
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
+#import logging
+#logger = logging.getLogger('websockets')
+#logger.setLevel(logging.DEBUG)
+#logger.addHandler(logging.StreamHandler())
 
-server_version = "pre-alpha V0.8.7"
-req_client_ver = "pre-alpha V0.6.1"
+server_version = "pre-alpha V0.8.3"
+req_client_ver = "pre-alpha V0.6.2"
 
 os.makedirs("messages", exist_ok=True)
 os.makedirs("users", exist_ok=True)
@@ -21,11 +21,10 @@ os.makedirs("users", exist_ok=True)
 
 # Helper function to log user actions
 def log_action(action, username=None, additional_info=""):
-    return
-    #if username:
-    #    print(f"[blue]Action: {action}[/] [green]User: {username}[/] {additional_info}")
-    #else:
-    #    print(f"[blue]Action: {action}[/] {additional_info}")
+    if username:
+        print(f"[blue]Action: {action}[/] [green]User: {username}[/] {additional_info}")
+    else:
+        print(f"[blue]Action: {action}[/] {additional_info}")
 
 
 async def connection(ws, client):
@@ -149,9 +148,6 @@ async def chatting(ws, client_data):
                     try:
                         with open(file_path, "w") as chatsfile:
                             json.dump({"messages": chat_data}, chatsfile, indent=4)
-                            await webs.send(json.dumps(
-                                {"handler": "message_receive", "data": "Message received!", "status_code": 200,
-                                 "error": None}))
                         log_action("Message sent", sender, f"Receiver: {receiver} | Message: {message['content']}")
                     except Exception as e:
                         print(f"Error saving message to chat file: {e}")
@@ -173,7 +169,12 @@ async def chatting(ws, client_data):
         if not file_path:
             print("Chat file not found, creating.")
             file_path = os.path.join("messages", f'{data["username"]}--{data["receiver"]}.json')
-            open(file_path, 'x')
+            try:
+                with open(file_path, 'w') as f:
+                    empty_dict = {}
+                    json.dump(empty_dict, f, indent=4)
+            except Exception as e:
+                print(str(e))
 
         while True:
             try:
@@ -189,6 +190,7 @@ async def chatting(ws, client_data):
                 await webs.send(json.dumps({"handler": "chatting", "data": chat_data_list, "status_code": 200}))
 
                 log_action("Chat data sent", data["username"], f"Receiver: {data['receiver']}")
+
                 await asyncio.sleep(2)
 
             except websockets.ConnectionClosedOK:
