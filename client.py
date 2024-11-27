@@ -4,8 +4,6 @@ import json
 import os
 import sys
 
-from bottle_websocket import websocket
-
 client_version = "pre-alpha V0.6.2"
 
 
@@ -22,7 +20,7 @@ async def homepage():
     Displays the main menu options: Register, Log In, Exit, and Conversations (if logged in).
     Navigates to the corresponding functionality based on user input.
     """
-    async with websockets.connect(uri) as websocket:
+    async with websockets.connect(uri, ping_interval=10) as websocket:
         try:
             await websocket.send(json.dumps({"path": "connection", "client_version": client_version}))
             response = json.loads(await websocket.recv())
