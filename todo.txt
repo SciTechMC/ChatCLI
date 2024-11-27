@@ -41,7 +41,7 @@ ability to change username
 if possible, get notif if new message in background
 research encryptions for passwords and such
 options (saved in file)
-
+register with email
 
 For building a command-line-based chat system, let’s break it down into the main components you’ll need for functionality, like message sending, receiving, and updating in real-time or on-demand. Here’s a brainstorm for how to approach each part:
 
