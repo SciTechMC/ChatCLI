@@ -12,11 +12,12 @@ from rich import print
 #logger.setLevel(logging.DEBUG)
 #logger.addHandler(logging.StreamHandler())
 
-server_version = "pre-alpha V0.8.3"
-req_client_ver = "pre-alpha V0.6.2"
+server_version = "pre-alpha V0.8.4"
+req_client_ver = "pre-alpha V0.6.3"
 
 os.makedirs("messages", exist_ok=True)
 os.makedirs("users", exist_ok=True)
+os.makedirs("important", exist_ok=True)
 
 
 # Helper function to log user actions
@@ -53,7 +54,7 @@ async def login(ws, client):
                     stored_password = f.read().strip()
                     if stored_password == client["password"]:
                         gen_key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(8))
-                        file_path = "keys.json"
+                        file_path = os.path.join("important", "keys.json")
                         try:
                             with open(file_path, "r") as keyfile:
                                 keys = json.load(keyfile)
@@ -107,80 +108,104 @@ async def register(ws, client):
 
 
 async def chatting(ws, client_data):
-    # Inner function to handle receiving messages from the WebSocket
-    async def receive(webs, data):
-        while True:  # Continuously listen for incoming messages
+    # Receive messages and save them to the appropriate chat file
+    state = {"loop": True}
+    async def receive(webs, data, looping):
+        while looping["loop"]:
             try:
-                # Receive a message from the WebSocket and parse it as JSON
+                # Incoming message structure
                 message = await webs.recv()
                 message = json.loads(message)
 
-                # Extract sender, receiver, and current timestamp
-                receiver = data["receiver"]
+
+                # Extract sender, receiver, and message metadata
                 sender = data["username"]
+                receiver = data["receiver"]
                 current_date = date.today().strftime("%Y-%m-%d")
                 current_time = datetime.now().strftime("%H:%M")
 
-                file_path = ""  # Initialize file path for storing chat messages
-                chat_data = {}  # Initialize an empty dictionary for chat data
 
-                # Check if the received message contains content
-                if message.get("content"):
-                    # Search for an existing chat file between the sender and receiver
-                    for file in os.listdir("messages"):
-                        if receiver in file and sender in file:
-                            file_path = os.path.join("messages", file)
-                            break
+                if message.get("content") == "Exit":
+                    looping["loop"] = False
+                    log_action("Exiting loop", sender)
+                    return
 
-                    if not file_path:  # Log if no matching chat file is found
-                        log_action("Chat file not found", sender, f"Receiver: {receiver}")
+                # Define paths for chat file and `chats.json`
+                chat_file = os.path.join("messages", f"{sender}--{receiver}.json")
+                reverse_chat_file = os.path.join("messages", f"{receiver}--{sender}.json")
+                chats_file_path = os.path.join("important", "chats.json")
 
+                # Use the reverse naming convention if it already exists
+                if not os.path.exists(chat_file) and os.path.exists(reverse_chat_file):
+                    chat_file = reverse_chat_file
+                    log_action("Chat file found", chat_file, f"Receiver: {receiver} | Message: {message['content']}")
+
+                # Create new chat file and update `chats.json` if no chat file exists
+                if not os.path.exists(chat_file):
+                    with open(chat_file, "w") as f:
+                        json.dump({"messages": []}, f)
+                        log_action("Chat file found", f"Receiver: {receiver} | Message: {message['content']}")
+
+                    # Update or create `chats.json`
+                    if not os.path.exists(chats_file_path):
+                        with open(chats_file_path, "w") as f:
+                            json.dump({}, f)  # Initialize as an empty dictionary
+
+                    # Safely load `chats.json` data
+                    with open(chats_file_path, "r") as f:
                         try:
-                            # Attempt to open the chat file and load existing data
-                            file_p = os.path.join("messages", "chats.json")
-                            with open(file_p, "r") as chatsfile:
-                                chats_data = json.load(chatsfile)
+                            chats_data = json.load(f)
+                        except json.JSONDecodeError:
+                            chats_data = {}  # If the file is invalid, start with an empty dictionary
 
-                            chats_data[f"{sender}--{receiver}"] = {
-                                "users": f"{sender},{receiver}",
-                                "datetime_init": f"{current_date} {current_time}"
-                            }
-                            with open(file_p, "r") as chatsfile:
-                                json.dump(chats_data, chatsfile, indent=4)
-                            open(os.path.join("messages", f"{sender}--{receiver}"), "w")
-                        except FileNotFoundError:
-                            # Handle the case where the chat file doesn't exist
-                            print(f"File not found: {file_path}, creating a new one.")
-                            open(f"messages/{sender}--{receiver}.json", "w")
-                            file_path = f"messages/{sender}--{receiver}.json"
-                            chat_data = {}
+                    # Ensure the chat metadata exists in `chats.json`
+                    chat_key = f"{sender}--{receiver}"
+                    if chat_key not in chats_data:
+                        chats_data[chat_key] = {
+                            "users": f"{sender},{receiver}",
+                            "datetime_init": f"{current_date} {current_time}"
+                        }
 
-                    # Append the new message to the chat data
-                    chat_data = chat_data.get("messages", [])
-                    chat_data.append({
-                        "from": sender,
-                        "message": message["content"],
-                        "datetime": f"{current_date} {current_time}",
-                        "readreceipt": "unread"
-                    })
+                    # Save the updated `chats.json`
+                    with open(chats_file_path, "w") as f:
+                        json.dump(chats_data, f, indent=4)
 
+                    log_action("Chats.json updated", chats_file_path, f"Data: {chats_data}")
+
+                # Safely load chat data and ensure it has the correct structure
+                with open(chat_file, "r") as f:
                     try:
-                        # Save the updated chat data back to the chat file
-                        with open(file_path, "w") as chatsfile:
-                            json.dump({"messages": chat_data}, chatsfile, indent=4)
-                        log_action("Message sent", sender, f"Receiver: {receiver} | Message: {message['content']}")
-                    except Exception as e:
-                        # Log any errors encountered while saving the message
-                        print(f"Error saving message to chat file: {e}")
+                        chat_data = json.load(f)
+                    except json.JSONDecodeError:
+                        chat_data = {}  # Fallback to an empty dictionary if the file is invalid
 
-            except websockets.ConnectionClosedOK:  # Handle WebSocket disconnection
+                # Ensure the "messages" key exists in the chat data
+                if "messages" not in chat_data or not isinstance(chat_data["messages"], list):
+                    chat_data["messages"] = []
+
+                # Append the new message
+                chat_data["messages"].append({
+                    "from": sender,
+                    "message": message.get("content", ""),
+                    "datetime": f"{current_date} {current_time}",
+                    "readreceipt": "unread"
+                })
+
+                # Save the updated chat data
+                with open(chat_file, "w") as f:
+                    json.dump(chat_data, f, indent=4)
+
+                log_action("Message sent", sender, f"Receiver: {receiver} | Message: {message['content']}")
+
+            except websockets.ConnectionClosedOK:
+                log_action("Connection closed", data["username"])
                 break
-            except Exception as e:  # Handle unexpected errors
+            except Exception as e:
                 print(f"Unexpected error: {e}")
                 break
 
     # Inner function to handle sending chat data to the WebSocket
-    async def send(webs, data):
+    async def send(webs, data, looping):
         file_path = ""  # Initialize file path for storing chat messages
 
         # Search for the chat file corresponding to the sender and receiver
@@ -199,7 +224,7 @@ async def chatting(ws, client_data):
             except Exception as e:
                 print(str(e))  # Log any errors while creating the file
 
-        while True:  # Continuously send chat data to the WebSocket
+        while looping["loop"]:  # Continuously send chat data to the WebSocket
             try:
                 if not os.path.exists(file_path):  # Verify the file exists
                     print(f"Chat file '{file_path}' not found.")
@@ -227,7 +252,7 @@ async def chatting(ws, client_data):
                 break
 
     # Run both receive and send functions concurrently
-    await asyncio.gather(receive(ws, client_data), send(ws, client_data))
+    await asyncio.gather(receive(ws, client_data, state), send(ws, client_data, state))
 
 
 async def check_user_exist(ws, data):
@@ -243,7 +268,7 @@ async def check_user_exist(ws, data):
 
 async def get_chats(ws, data):
     # Define the path to the chats.json file
-    file_path = os.path.join("messages", "chats.json")
+    file_path = os.path.join("important", "chats.json")
     chats = []  # Initialize an empty list to store the chat partners
 
     try:
@@ -312,7 +337,7 @@ async def get_chats(ws, data):
 
 async def verify_user(ws, data):
     try:
-        with open("keys.json", "r") as f:
+        with open(os.path.join("important", "keys.json"), "r") as f:
             keys = json.load(f)
             if keys.get(data["username"]) != data["key"]:
                 await ws.send(json.dumps(

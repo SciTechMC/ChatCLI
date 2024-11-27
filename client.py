@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-client_version = "pre-alpha V0.6.2"
+client_version = "pre-alpha V0.6.3"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
@@ -49,6 +49,8 @@ async def homepage():
                         await get_chats(websocket)
                     else:
                         print("Please enter a valid number.")
+                case "e":
+                    sys.exit()
                 case _:
                     print("Please enter a valid number.")
 
@@ -63,7 +65,12 @@ async def register(ws):
             except websockets.ConnectionClosedOK:
                 print("Server unreachable!")
                 break
-            response = json.loads(await ws.recv())
+            try:
+                response = json.loads(await ws.recv())
+            except Exception as e:
+                print(e)
+                break
+
             if response.get("status_code") == 200:
                 print(response.get("data"))
                 break
@@ -179,7 +186,9 @@ async def get_chats(ws):
             chats = response.get("data")
             for chat in chats:
                 print(f"Chat with: {chat}")
-            choice = input("Enter the name of the user you would like to talk to: ").lower()
+            choice = input("Enter the name of the user you would like to talk to(e to exit): ").lower()
+            if choice == "e":
+                return
             if choice in chats:
                 receiver = choice  # Update the global receiver
                 await chatting(ws)
@@ -220,6 +229,7 @@ async def chatting(ws):
             message = input(f"[{username}]: ")
             if message.lower() == "e" or message.lower() == "exit":
                 variable["loop"] = False
+                await ws.send(json.dumps({"path": "chatting", "content": "Exit", "username": username, "receiver": receiver, "key": key}))
                 return
             if message:
                 await websock.send(json.dumps({"path": "chatting", "content": message, "username": username, "receiver": receiver, "key": key}))
@@ -258,8 +268,12 @@ async def chatting(ws):
             except Exception as e:
                 print(f"Unexpected error while receiving message: {e}")
                 break
+        final_response = await ws.recv()
+
 
     await asyncio.gather(send(ws, state), receive(ws, state))
+
+
 
 
 if __name__ == "__main__":
