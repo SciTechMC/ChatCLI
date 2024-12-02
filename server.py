@@ -12,13 +12,12 @@ from rich import print
 #logger.setLevel(logging.DEBUG)
 #logger.addHandler(logging.StreamHandler())
 
-server_version = "pre-alpha V0.8.4"
-req_client_ver = "pre-alpha V0.6.3"
+server_version = "pre-alpha V8.4"
+req_client_ver = "pre-alpha V6.3"
 
 os.makedirs("messages", exist_ok=True)
 os.makedirs("users", exist_ok=True)
 os.makedirs("important", exist_ok=True)
-
 
 # Helper function to log user actions
 def log_action(action, username=None, additional_info=""):

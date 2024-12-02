@@ -4,7 +4,7 @@ import json
 import os
 import sys
 
-client_version = "pre-alpha V0.6.3"
+client_version = "pre-alpha V6.3"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
