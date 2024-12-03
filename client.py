@@ -1,10 +1,13 @@
 import asyncio
+import shutil
+import subprocess
 import websockets
 import json
 import os
 import sys
+from pathlib import Path
 
-client_version = "pre-alpha V6.3"
+client_version = "pre-alpha V7.1"
 
 
 saved_login_dir = os.path.join(os.getenv("APPDATA"), "ChatCLI", "saved_profiles")
@@ -219,59 +222,52 @@ async def get_chats(ws):
         print(f"Verification failed: {response.get('error')}")
 
 async def chatting(ws):
+    os.makedirs(os.path.join(os.getenv("APPDATA"), "ChatCLI", "chat_window"), exist_ok=True)
+    chatcli_folder = os.path.join(os.getenv("APPDATA"), "ChatCLI", "chat_window")
     # Send initial message to start the chatting process
-    await ws.send(json.dumps({"path": "chatting", "content": "", "username": username, "receiver": receiver, "key": key}))
-    state = {"loop": True}
+    try:
+        Path()
+        shutil.move(str(".\\ChatCLI-secondary.py"), str(f"{chatcli_folder}\\ChatCLI-secondary.py"))
+        asyncio.timeout(1)
+    except Exception as e:
+        print(e)
+    try:
+        with open(os.path.join(chatcli_folder, 'data.json'), "w") as f:
+            json.dump({"receiver" : receiver, "username" : username, "key" : key,"server" : uri,"looping" : True}, f, indent=4)
+
+        asyncio.timeout(1)
+        subprocess.Popen(f"python {os.path.join(chatcli_folder, 'ChatCLI-secondary.py')}",creationflags=subprocess.CREATE_NEW_CONSOLE)
+    except Exception as e:
+        print(e)
+
     print("Type 'e' or 'exit' to leave the chat.")
 
-    async def send(websock, variable):
-        while variable["loop"]:
+    async def send(websock):
+        loop = True
+        while loop:
             message = input(f"[{username}]: ")
             if message.lower() == "e" or message.lower() == "exit":
-                variable["loop"] = False
-                await ws.send(json.dumps({"path": "chatting", "content": "Exit", "username": username, "receiver": receiver, "key": key}))
+                loop = False
+                with open(os.path.join(chatcli_folder, 'data.json'), "w") as f:
+                    json.dumps({"receiver": receiver, "username": username, "key": key, "server": uri, "looping": False}, f, indent=4)
+                await ws.send(json.dumps({"path": "send", "content": "Exit", "username": username, "receiver": receiver, "key": key}))
                 return
             if message:
-                await websock.send(json.dumps({"path": "chatting", "content": message, "username": username, "receiver": receiver, "key": key}))
+                await websock.send(json.dumps({"path": "send", "content": message, "username": username, "receiver": receiver, "key": key}))
                 await asyncio.sleep(1)
 
-    async def receive(websock, variable):
-        log = {}
-        while variable["loop"]:
-            try:
-                message_data = await websock.recv()  # Receive message data
-                try:
-                    chatlog = json.loads(message_data)  # Parse the message data as JSON
-                except json.JSONDecodeError:
-                    print("Received invalid JSON")
-                    continue  # Skip invalid data
+    async def receive():
+        #try:
+        #        with open(os.path.join(chatcli_folder), "data.json") as f:
+        #            data = json.load(f)#
 
-                if not isinstance(chatlog, dict):
-                    print("Expected dictionary but got", type(chatlog))
-                    continue
-
-                if "data" not in chatlog:
-                    print("Received invalid message data, no 'data' field found.")
-                    continue
-
-                for message in chatlog["data"]:
-                    message_id = f"{message.get('from')}_{message.get('datetime')}"
-                    if message_id not in log:
-                        sender = message.get("from")
-                        message_text = message.get("message")
-                        print(f"[{sender}]: {message_text}")
-                        log[message_id] = message
-
-            except websockets.ConnectionClosedError as e:
-                print(f"Connection closed with error: {e}")
-                break
-            except Exception as e:
-                print(f"Unexpected error while receiving message: {e}")
-                break
-        final_response = await ws.recv()
+        #    except Exception as e:
+        #        print(e)
+        # removed
+        return
 
 
-    await asyncio.gather(send(ws, state), receive(ws, state))
+    await asyncio.gather(send(ws), receive())
 
 
 

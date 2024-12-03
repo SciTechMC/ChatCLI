@@ -1,19 +1,45 @@
 import asyncio
-from os.path import exists
-
-version = "pre-alpha v1"
-
 import websockets
 import os
 import json
 
+version = "pre-alpha v2.1"
+receiver = ""
+username = ""
+key = ""
+server = "localhost:6420"
+looping = True
 
-async def receive(websock, variable):
+async def verify_connection(ws):
+    try:
+        await ws.send(json.dumps({"client_version" : version}))
+        response = json.loads(await ws.recv())
+        if response.get("status_code") == 200:
+            await receive(ws)
+    except Exception as e:
+        print(e)
+
+async def check_looping():
+    global looping
+    while looping:
+        with open(os.path.join(chatcli_folder, "data.json"), "r") as file:
+            file_data = json.load(file)
+        looping = file_data.get("looping")
+        asyncio.timeout(2)
+
+async def receive(ws):
+    await ws.send(json.dumps({"path" : "receive", "content": "", "username": username, "receiver" : receiver, "key" : key}))
+    response = json.loads(await ws.recv())
+    if response.get("status_code") == 400:
+        print(response.get("error"))
+        return
+    else:
+        asyncio.create_task(check_looping())
     var = True
     log = {}
     while var:
         try:
-            message_data = await websock.recv()  # Receive message data
+            message_data = await ws.recv()  # Receive message data
             try:
                 chatlog = json.loads(message_data)  # Parse the message data as JSON
             except json.JSONDecodeError:
@@ -30,7 +56,7 @@ async def receive(websock, variable):
 
             if chatlog.get("data") == "close":
                 var = False
-                websock.close()
+                ws.close()
                 break
 
             for message in chatlog["data"]:
@@ -47,12 +73,33 @@ async def receive(websock, variable):
         except Exception as e:
             print(f"Unexpected error while receiving message: {e}")
             break
+    ws.close()
 
-if __name__ == "__name__":
-    os.makedirs("chat_window", exist_ok=True)
-    chatcli_folder = os.path.join(os.getenv("APPDATA"), "ChatCLI", "chat_window")
-    with open(os.path.join(chatcli_folder), "data.json") as f:
-        data = json.load(f)
-    async with websockets.connect(uri, ping_interval=10) as websocket:
+
+async def start():
+    async with websockets.connect(server, ping_interval=10) as websocket:
         try:
-            receive(websocket,)
+            await verify_connection(websocket)
+        except Exception as e:
+            print(e)
+        try:
+            await receive(websocket)
+        except Exception as e:
+            print(e)
+
+if __name__ == "__main__":
+    os.makedirs("chat_window", exist_ok=True)
+    try:
+        chatcli_folder = os.path.join(os.getenv("APPDATA"), "ChatCLI", "chat_window")
+        with open(os.path.join(chatcli_folder, "data.json"), "r") as f:
+            data = json.load(f)
+        receiver = data.get("receiver")
+        username = data.get("username")
+        key = data.get("key")
+        server = data.get("server")
+        looping = data.get("looping")
+        print("Initiating Server Connection")
+        asyncio.run(start())
+        print("started")
+    except Exception as error:
+        print(error)
