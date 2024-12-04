@@ -7,12 +7,12 @@ version = "pre-alpha v2.1"
 receiver = ""
 username = ""
 key = ""
-server = "localhost:6420"
+server = "ws://localhost:6420"
 looping = True
 
 async def verify_connection(ws):
     try:
-        await ws.send(json.dumps({"client_version" : version}))
+        await ws.send(json.dumps({"path" : "connection", "client_version" : version}))
         response = json.loads(await ws.recv())
         if response.get("status_code") == 200:
             await receive(ws)
