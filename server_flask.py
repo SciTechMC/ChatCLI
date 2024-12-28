@@ -27,24 +27,23 @@ def close_db(exception):
 
 # DATABASE--------------
 
-def verif_user(username,key):
+def verif_user(username, user_key):
     """
     :param username: The client's username
-    :param key: The key that the client has sent to the server
+    :param user_key: The key that the client has sent to the server
     :return: True or False depending on the user validity
     """
     cursor = get_db().cursor()
     try:
-        cursor.execute("Select * from users where username=%s", (username,))
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-        if user[5] == key:
+        if user[5] == user_key:  # Adjusted from 'key' to 'user_key'
             return True
         return False
     except mysql.connector.Error as e:
         print(e)
     finally:
         cursor.close()
-
 
 def return_statement(response = None, error: str = "", status_code: int = 200, additional=None):
     """
@@ -111,14 +110,14 @@ def login():
         user_id = user[0]
         if user:
             if user[1] == username and user[2] == password:
-                key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(24))
+                user_key = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(24))
                 cursor_login.execute("""
                 UPDATE users
-                SET key = %s
+                SET user_key = %s
                 WHERE userID = %s;
-                """, (key,user_id,))
+                """, (user_key, user_id,))
                 get_db().commit()
-                return return_statement("Login Successful!", additional=["key",key])
+                return return_statement("Login Successful!", additional=["user_key", user_key])
             elif user[2] != password:
                 return return_statement("", "Password does not match!",400)
 
@@ -131,13 +130,13 @@ def login():
 def fetch_chats():
     client = request.get_json()
     username = client.get("username")
-    key = client.get("key")
+    user_key = client.get("user_key")  # Adjusted from 'key' to 'user_key'
 
     cursor_fetch_chats = get_db().cursor()
 
     # Check client validity
     try:
-        if not verif_user(username,key):
+        if not verif_user(username, user_key):  # Adjusted to use 'user_key'
             return return_statement("", "Unable to verify user!", 400)
 
         # chatgpt
@@ -163,9 +162,9 @@ def create_chat():
     client = request.get_json()
     username = client.get("username")
     receiver = client.get("receiver")
-    key = client.get("key")
+    user_key = client.get("user_key")  # Adjusted from 'key' to 'user_key'
 
-    if not verif_user(username, key):
+    if not verif_user(username, user_key):  # Adjusted to use 'user_key'
         return return_statement("", "Unable to verify user!", 400)
 
     cursor_create_chat = get_db().cursor()
@@ -209,11 +208,11 @@ def receive_message():
     client = request.get_json()
     username = client.get("username")
     receiver = client.get("receiver")
-    key = client.get("key")
+    user_key = client.get("user_key")  # Adjusted from 'key' to 'user_key'
     message = client.get("message")
 
     # Verify user authentication
-    if not verif_user(username, key):
+    if not verif_user(username, user_key):  # Adjusted to use 'user_key'
         return return_statement("", "Unable to verify user!", 400)
 
     cursor_receive = get_db().cursor()
