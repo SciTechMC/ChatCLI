@@ -1,4 +1,2 @@
 @echo off
-title Server
-python server.py
-pause
+python init_server.py
