@@ -44,6 +44,7 @@ def verif_user(username, user_key):
         print(e)
     finally:
         cursor.close()
+        return False
 
 def return_statement(response = None, error: str = "", status_code: int = 200, additional=None):
     """
@@ -183,7 +184,7 @@ def create_chat():
         user_id = cursor_create_chat.fetchone()[0]
 
         cursor_create_chat.execute("SELECT userID FROM Users WHERE username = %s;", (receiver,))
-        receiver_id = cursor_create_chat.fetchone()
+        receiver_id = cursor_create_chat.fetchone()[0]
 
         if not receiver_id:
             return return_statement("", "Receiver does not exist", 400)
