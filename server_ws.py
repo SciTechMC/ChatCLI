@@ -16,12 +16,10 @@ async def main(data, ws):
     user_key = data.get("user_key")
     last_msg_id = 0  # Track the latest message ID for incremental fetching
 
-    print(f"Handling chat between '{username}' and '{receiver}'.")
-
     try:
         # Create a database connection pool
         async with aiomysql.create_pool(
-            host="localhost", user="chatcli_access", password="test1234", db="chatcli", minsize=1, maxsize=5
+            host="localhost", user="production_chatcli", password="S3cret#Code1234", db="chatcli_prod", minsize=1, maxsize=5
         ) as pool:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -114,7 +112,7 @@ async def ws_start():
     """
     Start the WebSocket server.
     """
-    print("Starting WebSocket server on 0.0.0.0:6420...")
+    print("Starting WebSocket server on 0.0.0.0:8765...")
     async with websockets.serve(handler, "0.0.0.0", 8765):
         await asyncio.Future()  # Keep the server running indefinitely
 

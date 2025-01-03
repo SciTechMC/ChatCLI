@@ -3,6 +3,7 @@ import random
 import string
 from flask import Flask, request, jsonify, g
 import re
+from waitress import serve
 
 app = Flask(__name__)
 
@@ -17,9 +18,9 @@ def get_db():
     if 'db' not in g:
         g.db = mysql.connector.connect(
             host="localhost",
-            user="chatcli_access",
-            password="test1234",
-            database="ChatCLI"
+            user="production_chatcli",
+            password="S3cret#Code1234",
+            database="chatcli_prod"
         )
     return g.db
 
@@ -81,9 +82,9 @@ def register():
     :return: Success or error message depending on input and database state.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
-    password = client.get("password", "")
-    email = client.get("email", "")
+    username = client.get("username").lower()
+    password = client.get("password")
+    email = client.get("email")
 
     # Validate input fields
     if not username or not password:
@@ -99,7 +100,8 @@ def register():
     try:
         # Check if the user already exists
         cursor.execute("SELECT 1 FROM users WHERE username = %s", (username,))
-        if cursor.fetchone():
+        query = cursor.fetchone()
+        if query:
             return return_statement("", f"User '{username}' already exists", 400)
 
         # Insert the new user
@@ -121,8 +123,8 @@ def login():
     :return: Login success message or error.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
-    password = client.get("password", "")
+    username = client.get("username").lower()
+    password = client.get("password")
 
     cursor = get_db().cursor(dictionary=True)
     try:
@@ -151,8 +153,8 @@ def fetch_chats():
     :return: List of usernames involved in chats with the user.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
-    user_key = client.get("user_key", "")
+    username = client.get("username").lower()
+    user_key = client.get("user_key")
 
     if not verif_user(username, user_key):
         return return_statement("", "Unable to verify user!", 400)
@@ -183,7 +185,7 @@ def create_chat():
     user_key = client.get("user_key")
 
     if not username or not receiver:
-        return_statement("", "Some statements are empty", 404)
+        return return_statement("", "Some statements are empty", 404)
 
     # Verify user
     if not verif_user(username, user_key):
@@ -195,17 +197,12 @@ def create_chat():
         # Start a transaction
         cursor_create_chat.execute("START TRANSACTION;")
 
-        # Debug: Print the values of username and receiver
-        print(f"Username: {username}, Receiver: {receiver}")
-
         # Get user IDs for participants
         cursor_create_chat.execute("SELECT userID FROM Users WHERE LOWER(username) = %s;", (username,))
         sender_id = cursor_create_chat.fetchone()
-        print(f"Sender ID: {sender_id}")  # Debug: Print sender_id
 
         cursor_create_chat.execute("SELECT userID FROM Users WHERE LOWER(username) = %s;", (receiver,))
         receiver_id = cursor_create_chat.fetchone()
-        print(f"Receiver ID: {receiver_id}")  # Debug: Print receiver_id
 
         # Check if sender or receiver exist
         if not sender_id or not receiver_id:
@@ -237,7 +234,7 @@ def create_chat():
         return return_statement("", str(e), 500)
     except Exception as e:
         get_db().rollback()
-        print(e)
+        return return_statement("", str(e), 500)
     finally:
         cursor_create_chat.close()
 
@@ -248,42 +245,44 @@ def receive_message():
     :return: Success or error message.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
-    receiver = client.get("receiver", "").lower()
-    user_key = client.get("user_key", "")
-    message = client.get("message", "")
+    username = client.get("username").lower()
+    receiver = client.get("receiver").lower()
+    user_key = client.get("user_key")
+    message = client.get("message")
 
     if not verif_user(username, user_key):
         return return_statement("", "Unable to verify user!", 400)
 
-    cursor = get_db().cursor()
+    cursor = get_db().cursor(buffered=True)
     try:
         # Get chat ID
         cursor.execute("""
         SELECT chatID FROM participants
-        WHERE userID IN (
-            SELECT userID FROM users WHERE username = %s
-        )
+        WHERE userID IN ( SELECT userID FROM users WHERE username = %s )
         AND chatID IN (
             SELECT chatID FROM participants
             WHERE userID = (SELECT userID FROM users WHERE username = %s)
         )
-        """, (username, receiver))
+        """, (username, receiver,))
         chat_id = cursor.fetchone()
-
         if not chat_id:
             return return_statement("", "No chat found between users!", 400)
+        else:
+            chat_id = chat_id[0]
 
         # Insert message
         cursor.execute("""
         INSERT INTO messages (chatID, userID, message) VALUES (%s, (SELECT userID FROM users WHERE username = %s), %s)
-        """, (chat_id[0], username, message))
+        """, (chat_id, username, message,))
         get_db().commit()
         return return_statement("Message sent successfully!")
     except mysql.connector.Error as e:
+        return return_statement("", str(e), 500)
+    except Exception as e:
         return return_statement("", str(e), 500)
     finally:
         cursor.close()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    print("server started")
+    serve(app, host='0.0.0.0', port=5000)

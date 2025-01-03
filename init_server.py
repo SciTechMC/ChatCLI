@@ -7,18 +7,9 @@ try:
     with mysql.connector.connect(host="localhost", user="root", password="1234") as conn:
         cursor = conn.cursor()
 
-        match input("Reset database (y/n)? "):
-            case "y":
-                try:
-                    cursor.execute("DROP DATABASE IF EXISTS chatcli;")  # Corrected syntax
-                    conn.commit()
-                    print("Database 'chatcli' has been reset.")
-                except mysql.connector.Error as e:
-                    print(f"Error while resetting database: {e}")
-
         # Create the database if it doesn't already exist
-        cursor.execute("CREATE DATABASE IF NOT EXISTS chatcli;")
-        cursor.execute("USE chatcli;")
+        cursor.execute("CREATE DATABASE IF NOT EXISTS chatcli_prod;")
+        cursor.execute("USE chatcli_prod;")
 
         # Create tables
         cursor.execute("""
@@ -54,39 +45,19 @@ try:
             messageID INT AUTO_INCREMENT PRIMARY KEY,
             chatID INT,
             userID INT,
-            message TEXT,
+            message TEXT(2000),
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (chatID) REFERENCES Chats(chatID) ON DELETE CASCADE,
             FOREIGN KEY (userID) REFERENCES Users(userID) ON DELETE CASCADE
         );
         """)
-
-        # Insert users explicitly
-        cursor.execute("""
-        INSERT IGNORE INTO Users (username, password, email, user_key)
-        VALUES (%s, %s, %s, %s);
-        """, ('test', '1', 'jan.vdcg@gmail.com', '1'))
-        print("Inserted first user")
-
-        cursor.execute("""
-        INSERT IGNORE INTO Users (username, password, email, user_key)
-        VALUES (%s, %s, %s, %s);
-        """, ('tester', '2', 'jan.vdcg@gmail.com', '2'))
-        print("Inserted second user")
-
-        # Insert into Chats
-        cursor.execute("INSERT IGNORE INTO Chats (type,testing_chat_caract) VALUES ('private','yes');")
-
-        # Insert participants
-        cursor.execute("INSERT IGNORE INTO Participants (chatID, userID) VALUES (%s, %s);", (1, 1))
-        cursor.execute("INSERT IGNORE INTO Participants (chatID, userID) VALUES (%s, %s);", (1, 2))
-
+        
         # Create MySQL user and grant privileges
         cursor.execute("""
-        CREATE USER IF NOT EXISTS 'chatcli_access'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'test1234';
+        CREATE USER IF NOT EXISTS 'production_chatcli'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'S3cret#Code1234';
         """)
         cursor.execute("""
-        GRANT SELECT, INSERT, UPDATE, DELETE ON chatcli.* TO 'chatcli_access'@'localhost';
+        GRANT SELECT, INSERT, UPDATE, DELETE ON chatcli_prod.* TO 'production_chatcli'@'localhost';
         """)
 
         conn.commit()

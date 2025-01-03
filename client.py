@@ -17,7 +17,7 @@ GLOBAL_VARS = {
     "email": "",
     "user_key": "",
     "receiver": "",
-    "url": "http://localhost:5000/",
+    "url": "http://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
 }
 
@@ -131,14 +131,32 @@ def select_chat():
 
         while True:
             choice = input("Select a user to chat with: ")
+            if not choice:
+                print("Invalid choice!")
+                continue
             if choice.lower() in ("e", "exit"):
                 return
 
             if choice.isdigit() and 0 < int(choice) <= len(user_list):
                 GLOBAL_VARS["receiver"] = user_list[int(choice) - 1]
-                break
+            elif choice in user_list:
+                GLOBAL_VARS["receiver"] = choice
             else:
-                print("Invalid choice. Try again!")
+                GLOBAL_VARS["receiver"] = choice
+                if input("Would you like to create this chat(y/n)? ") == "y":
+                    response = response = requests.post(
+                        GLOBAL_VARS["url"] + "create-chat",
+                        json={"username": GLOBAL_VARS["username"], "user_key": GLOBAL_VARS["user_key"], "receiver": GLOBAL_VARS["receiver"]},
+                        )
+                    if response.status_code == 200:
+                        print(response.json().get("response"))
+                    else:
+                        print(response.json().get("error"))
+                        continue
+                else:
+                    continue
+
+            in_chat()
     except requests.RequestException as e:
         print(f"Error: {e}")
 
@@ -155,14 +173,12 @@ def in_chat():
     with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as file:
         json.dump(chat_data, file, indent=4)
 
-    subprocess.Popen(
-        f"python client_2.py", creationflags=subprocess.CREATE_NEW_CONSOLE
-    )
+    subprocess.Popen('start client_2.exe', shell=True)
 
     print("Type your message or type 'exit' to leave.")
     while True:
         message = input()
-        if message.lower() == "exit":
+        if message.lower() in ("exit", "e"):
             break
         if message:
             try:

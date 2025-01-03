@@ -7,7 +7,7 @@ import json
 # Constants
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
 DATA_FILE_PATH = os.path.join(CHATCLI_FOLDER, "data.json")
-SERVER_URL = "ws://localhost:8765"
+SERVER_URL = "ws://fortbow.duckdns.org:8765"
 
 # Global variables for user and connection details
 receiver = ""
@@ -24,7 +24,9 @@ async def check_looping():
     while looping:
         try:
             with open(DATA_FILE_PATH, "r") as file:
-                looping = json.load(file).get("looping", True)
+                looping = json.load(file).get("looping")
+                if not looping:
+                    exit()
         except Exception as e:
             print(f"Error checking looping flag: {e}")
         await asyncio.sleep(5)  # Check every 5 seconds
@@ -108,7 +110,6 @@ def initialize():
 
 if __name__ == "__main__":
     initialize()
-    print("Initiating Server Connection...")
     try:
         asyncio.run(start())
     except Exception as error:
