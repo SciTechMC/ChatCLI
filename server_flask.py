@@ -3,6 +3,7 @@ import random
 import string
 from flask import Flask, request, jsonify, g
 import re
+from waitress import serve
 
 app = Flask(__name__)
 
@@ -17,9 +18,9 @@ def get_db():
     if 'db' not in g:
         g.db = mysql.connector.connect(
             host="localhost",
-            user="chatcli_access",
-            password="test1234",
-            database="ChatCLI"
+            user="production_chatcli",
+            password="S3cret#Code1234",
+            database="chatcli_prod"
         )
     return g.db
 
@@ -183,7 +184,7 @@ def create_chat():
     user_key = client.get("user_key")
 
     if not username or not receiver:
-        return_statement("", "Some statements are empty", 404)
+        return return_statement("", "Some statements are empty", 404)
 
     # Verify user
     if not verif_user(username, user_key):
@@ -195,17 +196,12 @@ def create_chat():
         # Start a transaction
         cursor_create_chat.execute("START TRANSACTION;")
 
-        # Debug: Print the values of username and receiver
-        print(f"Username: {username}, Receiver: {receiver}")
-
         # Get user IDs for participants
         cursor_create_chat.execute("SELECT userID FROM Users WHERE LOWER(username) = %s;", (username,))
         sender_id = cursor_create_chat.fetchone()
-        print(f"Sender ID: {sender_id}")  # Debug: Print sender_id
 
         cursor_create_chat.execute("SELECT userID FROM Users WHERE LOWER(username) = %s;", (receiver,))
         receiver_id = cursor_create_chat.fetchone()
-        print(f"Receiver ID: {receiver_id}")  # Debug: Print receiver_id
 
         # Check if sender or receiver exist
         if not sender_id or not receiver_id:
@@ -237,7 +233,7 @@ def create_chat():
         return return_statement("", str(e), 500)
     except Exception as e:
         get_db().rollback()
-        print(e)
+        return return_statement("", str(e), 500)
     finally:
         cursor_create_chat.close()
 
@@ -286,4 +282,5 @@ def receive_message():
         cursor.close()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    print("server started")
+    serve(app, host='0.0.0.0', port=5000)

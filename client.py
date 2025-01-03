@@ -17,7 +17,7 @@ GLOBAL_VARS = {
     "email": "",
     "user_key": "",
     "receiver": "",
-    "url": "http://localhost:5000/",
+    "url": "http://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
 }
 
@@ -156,7 +156,7 @@ def in_chat():
         json.dump(chat_data, file, indent=4)
 
     subprocess.Popen(
-        f"python client_2.py", creationflags=subprocess.CREATE_NEW_CONSOLE
+    ["client_2.exe"], creationflags=subprocess.CREATE_NEW_CONSOLE
     )
 
     print("Type your message or type 'exit' to leave.")

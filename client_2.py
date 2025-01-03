@@ -7,7 +7,7 @@ import json
 # Constants
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
 DATA_FILE_PATH = os.path.join(CHATCLI_FOLDER, "data.json")
-SERVER_URL = "ws://localhost:8765"
+SERVER_URL = "ws://fortbow.duckdns.org:8765"
 
 # Global variables for user and connection details
 receiver = ""
