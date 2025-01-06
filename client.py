@@ -5,6 +5,7 @@ import requests
 import re
 from rich.console import Console
 from rich.panel import Panel
+from rich import print
 
 # Global variables
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
@@ -28,14 +29,20 @@ def is_valid_email(email):
     return re.match(regex, email) is not None
 
 
-def verify_connection(url):
+def verify_connection():
+    global GLOBAL_VARS
     """Verify server connection."""
+    print("Connecting to the server...")
     try:
-        requests.get(url + "verify-connection")
+        requests.get(GLOBAL_VARS["url"] + "verify-connection")
         return True
     except requests.RequestException as e:
-        print(f"Connection error: {e}")
-        return False
+        try:
+            GLOBAL_VARS["url"] = "http://localhost:5000/"
+            print("[green]Connected to localhost[/]")
+            return True
+        except requests.RequestException as e:
+            return False
 
 
 # Features
@@ -172,8 +179,15 @@ def in_chat():
 
     with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as file:
         json.dump(chat_data, file, indent=4)
-
-    subprocess.Popen('start client_2.exe', shell=True)
+    try:
+        subprocess.Popen('start client_2.exe', shell=True)
+    except FileNotFoundError:
+        print("[red]Couldn't find client_2.exe[/]")
+        try:
+            subprocess.Popen('python client_2.py', shell=True)
+        except FileNotFoundError:
+            print("[red]Unable to find client_2 file![/]")
+            return
 
     print("Type your message or type 'exit' to leave.")
     while True:
@@ -268,7 +282,7 @@ def homepage():
 
 
 if __name__ == "__main__":
-    if verify_connection(GLOBAL_VARS["url"]):
+    if verify_connection():
         homepage()
     else:
-        print("Unable to connect to the server.")
+        print("[red]Unable to establish a connection![/]")

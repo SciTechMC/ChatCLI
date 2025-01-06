@@ -3,11 +3,8 @@ import random
 import string
 from flask import Flask, request, jsonify, g
 import re
-from waitress import serve
 
 app = Flask(__name__)
-
-#gunicorn --workers 4 --bind 0.0.0.0:5000 server_flask:app
 
 # ---------------------------- DATABASE UTILITIES ----------------------------
 
@@ -284,5 +281,4 @@ def receive_message():
         cursor.close()
 
 if __name__ == "__main__":
-    print("server started")
-    serve(app, host='0.0.0.0', port=5000)
+    app.run(debug=True)
