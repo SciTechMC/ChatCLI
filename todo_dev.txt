@@ -1,0 +1,12 @@
+add pssw minimum check
+make ui better looking
+add pip install lines to init_server
+check for tables update sql init_server
+add special feedback if no chat is found (No chat is found, would you like to create one, or smn)
+check error msg when pressing e to exit app
+fix error msg when manualy closing ws client
+fix client_ws not closing on its own
+make sure logic is correct when error
+fix client_2 not found error maybe dir searching or smn
+check for display clearing os.system(cls)...
+
