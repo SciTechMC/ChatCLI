@@ -1,5 +1,6 @@
 import json
 import os
+import string
 import subprocess
 import requests
 import re
@@ -64,6 +65,9 @@ def register():
             return
         if any(char in password for char in r'";\ '):
             print("Invalid password. Try again!")
+            continue
+        if len(password) < 8 or password not in (string.ascii_uppercase, string.ascii_lowercase, string.punctuation):
+            print("[orange]Your password must contain at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character![/]")
             continue
         GLOBAL_VARS["password"] = password
         break

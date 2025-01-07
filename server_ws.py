@@ -2,7 +2,9 @@ import asyncio
 import websockets
 import json
 import aiomysql
+import db_envs
 
+env = db_envs.dev()
 
 async def main(data, ws):
     """
@@ -19,7 +21,7 @@ async def main(data, ws):
     try:
         # Create a database connection pool
         async with aiomysql.create_pool(
-            host="localhost", user="production_chatcli", password="S3cret#Code1234", db="chatcli_prod", minsize=1, maxsize=5
+            host="localhost", user=env["user"], password=env["password"], db=env["db"], minsize=1, maxsize=5
         ) as pool:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
