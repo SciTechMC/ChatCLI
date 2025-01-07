@@ -1,12 +1,13 @@
-add pssw minimum check
-make ui better looking
-add pip install lines to init_server
-check for tables update sql init_server
-add special feedback if no chat is found (No chat is found, would you like to create one, or smn)
-check error msg when pressing e to exit app
-fix error msg when manualy closing ws client
-fix client_ws not closing on its own
-make sure logic is correct when error
-fix client_2 not found error maybe dir searching or smn
-check for display clearing os.system(cls)...
-
+1. Add password minimum check
+2. Implement password encryption
+3. Set up HTTPS with Let's Encrypt
+4. Improve UI design
+5. Add pip install lines to init_server
+6. Check for tables update in SQL during init_server
+7. Provide special feedback if no chat is found (e.g., "No chat is found. Would you like to create one?")
+8. Check error message when pressing 'e' to exit the app
+9. Fix error message when manually closing WebSocket client
+10. Fix client_ws not closing on its own
+11. Ensure logic is correct during errors
+12. Fix 'client_2 not found' error (possibly directory searching or similar issue)
+13. Check for display clearing with os.system('cls')
