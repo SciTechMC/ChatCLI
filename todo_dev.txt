@@ -1,3 +1,4 @@
+1. Implement minimum password reqs  DONE
 2. Implement password encryption
 3. Set up HTTPS with Let's Encrypt
 4. Improve UI design
