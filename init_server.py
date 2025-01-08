@@ -65,10 +65,10 @@ async def setup_database():
 
             # Create MySQL user and grant privileges
             await cursor.execute(f"""
-            CREATE USER IF NOT EXISTS 'production_chatcli'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'S3cret#Code1234';
+            CREATE USER IF NOT EXISTS '{db_config["user"]}'@'localhost' IDENTIFIED WITH caching_sha2_password BY 'S3cret#Code1234';
             """)
             await cursor.execute(f"""
-            GRANT SELECT, INSERT, UPDATE, DELETE ON {db_config['db']}.* TO 'production_chatcli'@'localhost';
+            GRANT SELECT, INSERT, UPDATE, DELETE ON {db_config['db']}.* TO '{db_config["user"]}'@'localhost';
             """)
 
             await conn.commit()
@@ -80,8 +80,14 @@ async def setup_database():
 
 def start_servers():
     try:
-        subprocess.Popen(["python", "server_ws.py"], creationflags=subprocess.CREATE_NEW_CONSOLE)
-        subprocess.Popen(["python", "server_flask.py"], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        subprocess.Popen(
+            ["cmd.exe", "/c", "start", "WebSocket Server", "python", "server_ws.py"],
+            creationflags=subprocess.CREATE_NEW_CONSOLE
+        )
+        subprocess.Popen(
+            ["cmd.exe", "/c", "start", "Flask Server", "python", "server_flask.py"],
+            creationflags=subprocess.CREATE_NEW_CONSOLE
+        )
     except Exception as e:
         print(f"Error starting servers: {e}")
 

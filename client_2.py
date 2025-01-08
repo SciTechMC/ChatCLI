@@ -7,7 +7,7 @@ import json
 # Constants
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
 DATA_FILE_PATH = os.path.join(CHATCLI_FOLDER, "data.json")
-SERVER_URL = "ws://fortbow.duckdns.org:8765"
+SERVER_URL = "wss://fortbow.duckdns.org:8765"
 
 # Global variables for user and connection details
 receiver = ""
@@ -48,17 +48,10 @@ async def receive(ws):
         asyncio.create_task(check_looping())
 
         while looping:
-            # Wait for incoming data from the server
-            data = json.loads(await ws.recv())
-
-            # Handle errors from the server
-            if data.get("status_code") != 200:
-                print(data.get("error"))
-                return
-
-            # Display messages
-            for message in data.get("messages", []):
-                print(f"[{message.get('user')}] {message.get('message')}")
+            with open(DATA_FILE_PATH, 'r') as f:
+                data = json.load(f)
+                if not data.get("looping"):
+                    exit()
 
     except Exception as e:
         print(f"Error receiving messages: {e}")

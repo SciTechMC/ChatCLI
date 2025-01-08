@@ -3,6 +3,7 @@ import websockets
 import json
 import aiomysql
 import db_envs
+import ssl
 
 env = db_envs.dev()
 
@@ -112,10 +113,16 @@ async def handler(ws):
 
 async def ws_start():
     """
-    Start the WebSocket server.
+    Start the WebSocket server with SSL.
     """
     print("Starting WebSocket server on 0.0.0.0:8765...")
-    async with websockets.serve(handler, "0.0.0.0", 8765):
+
+    # Create an SSL context with your certificates
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(certfile='./certifs/fullchain.pem', keyfile='./certifs/privkey.pem')
+
+    # Start the WebSocket server with SSL context
+    async with websockets.serve(handler, "0.0.0.0", 8765, ssl=ssl_context):
         await asyncio.Future()  # Keep the server running indefinitely
 
 

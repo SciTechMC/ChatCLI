@@ -1,6 +1,5 @@
 import json
 import os
-import string
 import subprocess
 import requests
 import re
@@ -19,9 +18,11 @@ GLOBAL_VARS = {
     "email": "",
     "user_key": "",
     "receiver": "",
-    "url": "http://fortbow.duckdns.org:5000/",
+    "url": "https://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
 }
+
+
 
 # Utility Functions
 def is_valid_email(email):
@@ -29,21 +30,32 @@ def is_valid_email(email):
     regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
     return re.match(regex, email) is not None
 
-
 def verify_connection():
     global GLOBAL_VARS
     """Verify server connection."""
     print("Connecting to the server...")
     try:
-        requests.get(GLOBAL_VARS["url"] + "verify-connection")
+        # First attempt with the existing GLOBAL_VARS["url"]
+        response = requests.post(
+            GLOBAL_VARS["url"] + "verify-connection",
+            json={"version": "post-alpha-dev-build"}
+        )
         return True
     except requests.RequestException as e:
+        print(f"First attempt failed: {e}")
         try:
-            GLOBAL_VARS["url"] = "http://localhost:5000/"
-            print("[green]Connected to localhost[/]")
+            # Fallback to localhost
+            GLOBAL_VARS["url"] = "https://localhost:5000/"
+            response = requests.post(
+                GLOBAL_VARS["url"] + "verify-connection",
+                json={"version": "post-alpha-dev-build"}
+            )
+            print("[green]Connected to localhost![/]")
             return True
         except requests.RequestException as e:
             return False
+
+
 
 
 # Features
@@ -66,9 +78,19 @@ def register():
         if any(char in password for char in r'";\ '):
             print("Invalid password. Try again!")
             continue
-        if len(password) < 8 or password not in (string.ascii_uppercase, string.ascii_lowercase, string.punctuation):
-            print("[orange]Your password must contain at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character![/]")
+        import string
+
+        if (
+                len(password) < 8 or
+                not any(char.isupper() for char in password) or
+                not any(char.islower() for char in password) or
+                not any(char.isdigit() for char in password) or
+                not any(char in string.punctuation for char in password)
+        ):
+            print(
+                "[orange]Your password must contain at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character![/]")
             continue
+
         GLOBAL_VARS["password"] = password
         break
 
@@ -90,7 +112,10 @@ def register():
                 "email": GLOBAL_VARS["email"],
             },
         )
-        print(response.json().get("response"))
+        if response.status_code != 200:
+            print(response.json().get("error"))
+        else:
+            print(response.json().get("response"), response.status_code)
     except requests.RequestException as e:
         print(f"Error: {e}")
 
@@ -120,7 +145,7 @@ def login():
             LOGGED_IN = True
             print(data.get("response"))
         else:
-            print(data.get("error"))
+            print(data.get("error"), response.status_code)
     except requests.RequestException as e:
         print(f"Error: {e}")
 
@@ -133,7 +158,7 @@ def select_chat():
             json={"username": GLOBAL_VARS["username"], "user_key": GLOBAL_VARS["user_key"]},
         )
         if response.status_code != 200:
-            print(response.json().get("error"))
+            print(response.json().get("error"), response.status_code)
             return
 
         user_list = response.json().get("response", [])
@@ -162,7 +187,7 @@ def select_chat():
                     if response.status_code == 200:
                         print(response.json().get("response"))
                     else:
-                        print(response.json().get("error"))
+                        print(response.json().get("error"), response.status_code)
                         continue
                 else:
                     continue
@@ -210,7 +235,7 @@ def in_chat():
                     },
                 )
                 if response.status_code != 200:
-                    print(response.json().get("error"))
+                    print(response.json().get("error"), response.status_code)
             except requests.RequestException as e:
                 print(f"Error: {e}")
 
