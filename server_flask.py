@@ -82,6 +82,8 @@ async def register():
         return return_statement("", "Username includes bad characters", 400)
     if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
         return return_statement("", "Invalid email address", 400)
+    if len(password) < 8 or password not in (string.ascii_uppercase, string.ascii_lowercase, string.punctuation):
+        return return_statement("", "Your password must contain at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character!", 400)
 
     conn = await get_db()
     async with conn.cursor() as cursor:

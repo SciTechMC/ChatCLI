@@ -1,19 +1,22 @@
+import subprocess
+
+imports = ["asyncio", "aiomysql", "websockets","requests", "json", "rich", "mysql.connector", "cryptography"]
+for install in imports:
+    subprocess.Popen(f"pip install {install}", creationflags=subprocess.CREATE_NEW_CONSOLE)
+
 import asyncio
 import aiomysql
-import subprocess
 import db_envs  # Importing the module to get database credentials
 
 
 async def setup_database():
-    # Retrieve database credentials
-    db_config = (db_envs.dev())  # Expects a dictionary with keys: user, password, db
+    db_config = (db_envs.dev())
+    conn = await aiomysql.connect(
+        host="localhost",
+        user='root',
+        password='1234'
+    )
     try:
-        # Connect to the MySQL server
-        conn = await aiomysql.connect(
-            host="localhost",
-            user=db_config['user'],
-            password=db_config['password']
-        )
         async with conn.cursor() as cursor:
             # Create the database if it doesn't already exist
             await cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_config['db']};")
