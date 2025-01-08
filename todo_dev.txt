@@ -11,3 +11,4 @@
 11. Ensure logic is correct during errors
 12. Fix 'client_2 not found' error (possibly directory searching or similar issue)
 13. Check for display clearing with os.system('cls')
+14. Research encrypted at rest
