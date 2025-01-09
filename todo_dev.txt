@@ -12,7 +12,7 @@
 12. Fix 'client_2 not found' error (possibly directory searching or similar issue)
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest
-
+15. Seperate table for session_tokens (user keys, rename) and email verif tokens
 
 import bcrypt
 
