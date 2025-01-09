@@ -13,18 +13,7 @@
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest
 15. Seperate table for session_tokens (user keys, rename) and email verif tokens    SESSION TOKENS DONE
-16. Fix username showing up when not logged in (after register)
-
-import bcrypt
-
-# Input password
-password = "your_password_here".encode("utf-8")
-
-# Generate a salt and hash the password
-hashed_password = bcrypt.hashpw(password, bcrypt.gensalt())
-
-print("Hashed password:", hashed_password)
-
+16. Fix username showing up when not logged in (after register)    DONE
 
 import smtplib
 import random
