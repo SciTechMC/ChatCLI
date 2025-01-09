@@ -11,12 +11,12 @@ async def main(data, ws):
     """
     Handle chat functionality between users via WebSocket.
 
-    :param data: JSON data containing username, receiver, and user_key.
+    :param data: JSON data containing username, receiver, and session_token.
     :param ws: WebSocket connection.
     """
     username = data.get("username")
     receiver = data.get("receiver")
-    user_key = data.get("user_key")
+    session_token = data.get("session_token")
     last_msg_id = 0  # Track the latest message ID for incremental fetching
 
     try:
@@ -26,12 +26,18 @@ async def main(data, ws):
         ) as pool:
             async with pool.acquire() as conn:
                 async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    # Validate user and their key
-                    await cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-                    user = await cursor.fetchone()
+                    # Validate user with session token
+                    await cursor.execute("""
+                        SELECT session_token 
+                        FROM session_tokens 
+                        WHERE userID = (SELECT userID FROM Users WHERE username = %s)
+                        ORDER BY created_at DESC 
+                        LIMIT 1
+                    """, (username,))
+                    user_session = await cursor.fetchone()
 
-                    if not user or user["user_key"] != user_key:
-                        await ws.send(json.dumps({"error": "Invalid user or key", "status_code": 400}))
+                    if not user_session or user_session["session_token"] != session_token:
+                        await ws.send(json.dumps({"error": "Invalid user or session token", "status_code": 400}))
                         return
 
                     # Retrieve the chat ID for the sender and receiver
@@ -102,7 +108,7 @@ async def handler(ws):
     async for message in ws:
         try:
             data = json.loads(message)
-            required_keys = ("username", "receiver", "user_key")
+            required_keys = ("username", "receiver", "session_token")
             if all(data.get(key) for key in required_keys):
                 await main(data, ws)
             else:

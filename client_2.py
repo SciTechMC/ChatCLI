@@ -12,7 +12,7 @@ SERVER_URL = "wss://fortbow.duckdns.org:8765"
 # Global variables for user and connection details
 receiver = ""
 username = ""
-user_key = ""
+session_token = ""
 looping = True
 
 
@@ -41,7 +41,7 @@ async def receive(ws):
     global looping
 
     # Send initial authentication request
-    await ws.send(json.dumps({"username": username, "receiver": receiver, "user_key": user_key}))
+    await ws.send(json.dumps({"username": username, "receiver": receiver, "session_token": session_token}))
 
     try:
         # Start a background task to monitor the looping flag
@@ -88,7 +88,7 @@ def initialize():
     """
     Initializes the application, loading user data and preparing for connection.
     """
-    global receiver, username, user_key, looping
+    global receiver, username, session_token, looping
 
     # Ensure the chat data directory exists
     os.makedirs(CHATCLI_FOLDER, exist_ok=True)
@@ -97,7 +97,7 @@ def initialize():
     file_data = load_user_data()
     receiver = file_data.get("receiver", "")
     username = file_data.get("username", "")
-    user_key = file_data.get("user_key", "")
+    session_token = file_data.get("session_token", "")
     looping = file_data.get("looping", True)
 
 

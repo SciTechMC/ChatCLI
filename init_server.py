@@ -27,12 +27,24 @@ async def setup_database():
             CREATE TABLE IF NOT EXISTS Users (
                 userID INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(20) NOT NULL UNIQUE,
-                password VARCHAR(64) NOT NULL,
+                password VARCHAR(128) NOT NULL,
                 email VARCHAR(100),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                user_key VARCHAR(24)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
             """)
+
+            await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS session_tokens (
+                tokenID INT AUTO_INCREMENT PRIMARY KEY,
+                userID INT,
+                session_token VARCHAR(128),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ip_address VARCHAR(45),
+                is_active BOOLEAN DEFAULT TRUE,
+                FOREIGN KEY (userID) REFERENCES users(userID)
+            );
+            """)
+
             await cursor.execute("""
             CREATE TABLE IF NOT EXISTS Chats (
                 chatID INT AUTO_INCREMENT PRIMARY KEY,

@@ -16,7 +16,7 @@ GLOBAL_VARS = {
     "username": "",
     "password": "",
     "email": "",
-    "user_key": "",
+    "": "",
     "receiver": "",
     "url": "https://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
@@ -141,7 +141,7 @@ def login():
         )
         data = response.json()
         if response.status_code == 200:
-            GLOBAL_VARS["user_key"] = data.get("user_key")
+            GLOBAL_VARS[""] = data.get("")
             LOGGED_IN = True
             print(data.get("response"))
         else:
@@ -155,13 +155,32 @@ def select_chat():
     try:
         response = requests.post(
             GLOBAL_VARS["url"] + "fetch-chats",
-            json={"username": GLOBAL_VARS["username"], "user_key": GLOBAL_VARS["user_key"]},
+            json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""]},
         )
         if response.status_code != 200:
             print(response.json().get("error"), response.status_code)
             return
 
-        user_list = response.json().get("response", [])
+        user_list = response.json().get("response")
+        if not user_list:
+            print("No chats were found.")
+            while True:
+                receiver = input("Please enter the name of the person you'd like to start a conversation with: ")
+                if not receiver:
+                    continue
+                GLOBAL_VARS["receiver"] = receiver
+                response = response = requests.post(
+                    GLOBAL_VARS["url"] + "create-chat",
+                    json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""],
+                          "receiver": GLOBAL_VARS["receiver"]},
+                )
+                if response.status_code == 200:
+                    print(response.json().get("response"))
+                    break
+                else:
+                    print(response.json().get("error"), response.status_code)
+                    continue
+
         for idx, user in enumerate(user_list, 1):
             print(f"{idx}) {user}")
 
@@ -182,7 +201,7 @@ def select_chat():
                 if input("Would you like to create this chat(y/n)? ") == "y":
                     response = response = requests.post(
                         GLOBAL_VARS["url"] + "create-chat",
-                        json={"username": GLOBAL_VARS["username"], "user_key": GLOBAL_VARS["user_key"], "receiver": GLOBAL_VARS["receiver"]},
+                        json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""], "receiver": GLOBAL_VARS["receiver"]},
                         )
                     if response.status_code == 200:
                         print(response.json().get("response"))
@@ -202,7 +221,7 @@ def in_chat():
     chat_data = {
         "receiver": GLOBAL_VARS["receiver"],
         "username": GLOBAL_VARS["username"],
-        "user_key": GLOBAL_VARS["user_key"],
+        "": GLOBAL_VARS[""],
         "looping": True,
     }
 
@@ -230,7 +249,7 @@ def in_chat():
                     json={
                         "username": GLOBAL_VARS["username"],
                         "receiver": GLOBAL_VARS["receiver"],
-                        "user_key": GLOBAL_VARS["user_key"],
+                        "": GLOBAL_VARS[""],
                         "message": message,
                     },
                 )
@@ -244,7 +263,7 @@ def logout():
     """Log out the user."""
     global LOGGED_IN
     LOGGED_IN = False
-    for key in ("username", "password", "receiver", "user_key", "email"):
+    for key in ("username", "password", "receiver", "", "email"):
         GLOBAL_VARS[key] = ""
 
 
@@ -276,7 +295,7 @@ def homepage():
 
         # Generate the menu string
         menu = "\n".join(options)
-        header = f"Welcome to ChatCLI! [User: {GLOBAL_VARS['username'] or 'Guest'}]"
+        header = f"Welcome to ChatCLI! [User: {GLOBAL_VARS['username'] if LOGGED_IN else 'Guest'}]"
 
         # Use rich to display the menu
         console.print(

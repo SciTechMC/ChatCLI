@@ -3,6 +3,7 @@ import string
 from flask import Flask, request, jsonify, g
 import re
 import mysql.connector
+import bcrypt
 import db_envs
 
 #waitress-serve --host=0.0.0.0 --port=5000 --threads=4 --workers=9 --ssl-certfile=/certifs/cert.pem --ssl-keyfile=/certifs/privkey.pem server_flask:app
@@ -25,7 +26,6 @@ def get_db():
         )
     return g.db
 
-
 @app.teardown_appcontext
 def close_db(exception):
     """
@@ -39,16 +39,22 @@ def close_db(exception):
 
 # ---------------------------- UTILITY FUNCTIONS ----------------------------
 
-def verif_user(username, user_key):
+def verif_user(username, session_token):
     """
     Verifies if the user and key match.
     """
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT user_key FROM Users WHERE username = %s", (username,))
+    cursor.execute("""
+    SELECT session_token 
+    FROM session_tokens 
+    WHERE userID = (SELECT userID FROM Users WHERE username = %s)
+    ORDER BY created_at DESC 
+    LIMIT 1;
+    """, (username,))
     user = cursor.fetchone()
     cursor.close()
-    return user and user["user_key"] == user_key
+    return user and user["session_token"] == session_token
 
 
 def return_statement(response=None, error="", status_code=200, additional=None):
@@ -118,6 +124,8 @@ def register():
                                 "Your password must contain at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character!",
                                 400)
 
+    password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -142,7 +150,7 @@ def register():
 @app.route("/login", methods=["POST"])
 def login():
     """
-    Logs in a user by validating credentials and generating a session key.
+    Logs in a user by validating credentials and generating a session token.
     """
     client = request.get_json()
     username = client.get("username").lower()
@@ -151,18 +159,26 @@ def login():
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Fetch user data based on username
         cursor.execute("SELECT userID, password FROM Users WHERE username = %s", (username,))
         user = cursor.fetchone()
 
         if not user:
             return return_statement("", "Username not found!", 404)
-        if user["password"] != password:
+        if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
             return return_statement("", "Invalid password", 400)
 
-        user_key = ''.join(random.choices(string.ascii_uppercase + string.digits, k=24))
-        cursor.execute("UPDATE Users SET user_key = %s WHERE userID = %s", (user_key, user["userID"]))
+        # Generate a new session token
+        session_token = ''.join(random.choices(string.ascii_uppercase + string.digits, k=64))
+
+        # Insert the session token into the session_tokens table
+        cursor.execute("""
+            INSERT INTO session_tokens (userID, session_token, ip_address, is_active) 
+            VALUES (%s, %s, %s, TRUE)
+        """, (user["userID"], session_token, request.remote_addr))
         conn.commit()
-        return return_statement("Login Successful!", additional=["user_key", user_key])
+
+        return return_statement("Login Successful!", additional=["session_token", session_token])
     except mysql.connector.Error as e:
         return return_statement("", str(e), 500)
     finally:
@@ -176,9 +192,10 @@ def fetch_chats():
     """
     client = request.get_json()
     username = client.get("username").lower()
-    user_key = client.get("user_key")
+    session_token = client.get("session_token")
 
-    if not verif_user(username, user_key):
+    # Verify the session token instead of user_key
+    if not verif_user(username, session_token):
         return return_statement("", "Unable to verify user!", 400)
 
     conn = get_db()
@@ -193,13 +210,13 @@ def fetch_chats():
             WHERE userID = (SELECT userID FROM Users WHERE username = %s)
         ) AND u.userID != (SELECT userID FROM Users WHERE username = %s)
         """, (username, username))
+
         chats = [row[0] for row in cursor.fetchall()]
         return return_statement(chats)
     except mysql.connector.Error as e:
         return return_statement("", str(e), 500)
     finally:
         cursor.close()
-
 
 @app.route("/create-chat", methods=["POST"])
 def create_chat():
@@ -209,12 +226,13 @@ def create_chat():
     client = request.get_json()
     username = client.get("username").lower()
     receiver = client.get("receiver").lower()
-    user_key = client.get("user_key")
+    session_token = client.get("session_token")
 
     if not username or not receiver:
         return return_statement("", "Some statements are empty", 404)
 
-    if not verif_user(username, user_key):
+    # Verify the session token instead of user_key
+    if not verif_user(username, session_token):
         return return_statement("", "Unable to verify user!", 400)
 
     conn = get_db()
@@ -249,7 +267,6 @@ def create_chat():
     finally:
         cursor.close()
 
-
 @app.route("/receive-message", methods=["POST"])
 def receive_message():
     """
@@ -258,10 +275,11 @@ def receive_message():
     client = request.get_json()
     username = client.get("username").lower()
     receiver = client.get("receiver").lower()
-    user_key = client.get("user_key")
+    session_token = client.get("session_token")  # Changed to session_token
     message = client.get("message")
 
-    if not verif_user(username, user_key):
+    # Verify user with session token instead of user_key
+    if not verif_user(username, session_token):
         return return_statement("", "Unable to verify user!", 400)
 
     conn = get_db()
@@ -293,7 +311,6 @@ def receive_message():
         return return_statement("", str(e), 500)
     finally:
         cursor.close()
-
 
 # ---------------------------- RUN SERVER ----------------------------
 
