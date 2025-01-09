@@ -1,5 +1,5 @@
 1. Implement minimum password reqs  DONE
-2. Implement password encryption
+2. Implement password encryption    DONE
 3. Set up HTTPS with Let's Encrypt  DONE
 4. Improve UI design
 5. Add pip install lines to init_server  DONE
@@ -13,6 +13,7 @@
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest
 15. Seperate table for session_tokens (user keys, rename) and email verif tokens
+16. Fix username showing up when not logged in (after register)
 
 import bcrypt
 
