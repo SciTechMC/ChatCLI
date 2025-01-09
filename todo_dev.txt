@@ -12,3 +12,16 @@
 12. Fix 'client_2 not found' error (possibly directory searching or similar issue)
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest
+
+
+import bcrypt
+
+# Input password
+password = "your_password_here".encode("utf-8")
+
+# Generate a salt and hash the password
+hashed_password = bcrypt.hashpw(password, bcrypt.gensalt())
+
+print("Hashed password:", hashed_password)
+
+
