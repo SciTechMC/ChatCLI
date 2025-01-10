@@ -224,18 +224,15 @@ def in_chat():
         "": GLOBAL_VARS[""],
         "looping": True,
     }
-
-    with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as file:
-        json.dump(chat_data, file, indent=4)
-    try:
+    
+    files_dir = os.listdir()
+    if "client_2.exe" in files_dir:
         subprocess.Popen('start client_2.exe', shell=True)
-    except FileNotFoundError:
-        print("[red]Couldn't find client_2.exe[/]")
-        try:
-            subprocess.Popen('python client_2.py', shell=True)
-        except FileNotFoundError:
-            print("[red]Unable to find client_2 file![/]")
-            return
+    elif "client_2.py" in files_dir:
+        subprocess.Popen('python client_2.py', creationflags=subprocess.CREATE_NEW_CONSOLE)
+    else:
+        print("[red]Client_2 file not found! Make sure it is located in the same folder![/]")
+        return
 
     print("Type your message or type 'exit' to leave.")
     while True:
