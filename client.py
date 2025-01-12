@@ -3,9 +3,13 @@ import os
 import subprocess
 import requests
 import re
+
+from bottle import response
 from rich.console import Console
 from rich.panel import Panel
 from rich import print
+
+from client_2 import username
 
 # Global variables
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
@@ -16,13 +20,11 @@ GLOBAL_VARS = {
     "username": "",
     "password": "",
     "email": "",
-    "": "",
+    "session_token": "",
     "receiver": "",
     "url": "https://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
 }
-
-
 
 # Utility Functions
 def is_valid_email(email):
@@ -54,9 +56,6 @@ def verify_connection():
             return True
         except requests.RequestException as e:
             return False
-
-
-
 
 # Features
 def register():
@@ -113,12 +112,42 @@ def register():
             },
         )
         if response.status_code != 200:
-            print(response.json().get("error"))
+            print(response.json().get("error"), response.status_code)
         else:
-            print(response.json().get("response"), response.status_code)
+            email_verification()
     except requests.RequestException as e:
         print(f"Error: {e}")
 
+def email_verification():
+    print("A verification code has been sent to your email.")
+    while True:
+        email_token = input("Enter the verification code: ")
+        if not email_token:
+            continue
+        elif email_token.lower() in ("e", "exit"):
+            return
+        elif not email_token.isdigit():
+            print("Make sure your code only contains numbers!")
+            continue
+        elif 100000 < int(email_token) < 999999:
+            print("Invalid code format (xxxxxx)")
+            continue
+        else:
+            try:
+                response = requests.post(
+                    GLOBAL_VARS["url"] + "register",
+                    json={
+                        "username" : GLOBAL_VARS["username"],
+                        "email_token" : email_token
+
+                    }
+                )
+                if response != 200:
+                    print(response.json().get("error"), response.status_code)
+                else:
+                    print("Account registration completed!")
+            except requests.RequestException as e:
+                print(f"Error: {e}")
 
 def login():
     """Log in an existing user."""
@@ -141,7 +170,7 @@ def login():
         )
         data = response.json()
         if response.status_code == 200:
-            GLOBAL_VARS[""] = data.get("")
+            GLOBAL_VARS["session_token"] = data.get("session_token")
             LOGGED_IN = True
             print(data.get("response"))
         else:
@@ -155,7 +184,7 @@ def select_chat():
     try:
         response = requests.post(
             GLOBAL_VARS["url"] + "fetch-chats",
-            json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""]},
+            json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"]},
         )
         if response.status_code != 200:
             print(response.json().get("error"), response.status_code)
@@ -171,7 +200,7 @@ def select_chat():
                 GLOBAL_VARS["receiver"] = receiver
                 response = response = requests.post(
                     GLOBAL_VARS["url"] + "create-chat",
-                    json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""],
+                    json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"],
                           "receiver": GLOBAL_VARS["receiver"]},
                 )
                 if response.status_code == 200:
@@ -201,7 +230,7 @@ def select_chat():
                 if input("Would you like to create this chat(y/n)? ") == "y":
                     response = response = requests.post(
                         GLOBAL_VARS["url"] + "create-chat",
-                        json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS[""], "receiver": GLOBAL_VARS["receiver"]},
+                        json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"], "receiver": GLOBAL_VARS["receiver"]},
                         )
                     if response.status_code == 200:
                         print(response.json().get("response"))
@@ -221,7 +250,7 @@ def in_chat():
     chat_data = {
         "receiver": GLOBAL_VARS["receiver"],
         "username": GLOBAL_VARS["username"],
-        "": GLOBAL_VARS[""],
+        "session_token": GLOBAL_VARS["session_token"],
         "looping": True,
     }
     
@@ -246,7 +275,7 @@ def in_chat():
                     json={
                         "username": GLOBAL_VARS["username"],
                         "receiver": GLOBAL_VARS["receiver"],
-                        "": GLOBAL_VARS[""],
+                        "session_token": GLOBAL_VARS["session_token"],
                         "message": message,
                     },
                 )
@@ -260,7 +289,7 @@ def logout():
     """Log out the user."""
     global LOGGED_IN
     LOGGED_IN = False
-    for key in ("username", "password", "receiver", "", "email"):
+    for key in ("username", "password", "receiver", "session_token", "email"):
         GLOBAL_VARS[key] = ""
 
 
@@ -292,7 +321,7 @@ def homepage():
 
         # Generate the menu string
         menu = "\n".join(options)
-        header = f"Welcome to ChatCLI! [User: {GLOBAL_VARS['username'] if LOGGED_IN else 'Guest'}]"
+        header = f"Welcome to ChatCLI! [User: {GLOBAL_VARS['username']}]" if LOGGED_IN else "Welcome to ChatCLI!"
 
         # Use rich to display the menu
         console.print(

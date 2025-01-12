@@ -1,6 +1,6 @@
 import subprocess
 
-imports = ["asyncio", "aiomysql", "websockets","requests", "json", "rich", "mysql.connector", "cryptography"]
+imports = ["asyncio", "aiomysql", "websockets","requests", "json", "rich", "mysql.connector", "cryptography", "smtp", "bcrypt"]
 for install in imports:
     subprocess.Popen(f"pip install {install}", creationflags=subprocess.CREATE_NEW_CONSOLE)
 
@@ -29,7 +29,8 @@ async def setup_database():
                 username VARCHAR(20) NOT NULL UNIQUE,
                 password VARCHAR(128) NOT NULL,
                 email VARCHAR(100),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                email_verified BOOLEAN DEFAULT FALSE
             );
             """)
 
@@ -43,6 +44,17 @@ async def setup_database():
                 is_active BOOLEAN DEFAULT TRUE,
                 FOREIGN KEY (userID) REFERENCES users(userID)
             );
+            """)
+
+            await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS email_tokens (
+                tokenID INT AUTO_INCREMENT PRIMARY KEY,
+                userID INT,
+                email_token INT NOT NULL CHECK (email_token BETWEEN 100000 AND 999999),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userID) REFERENCES Users(userID)
+            );
+
             """)
 
             await cursor.execute("""

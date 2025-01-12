@@ -1,3 +1,5 @@
+import datetime
+import json
 import random
 import string
 from flask import Flask, request, jsonify, g
@@ -5,10 +7,19 @@ import re
 import mysql.connector
 import bcrypt
 import db_envs
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
 
 #waitress-serve --host=0.0.0.0 --port=5000 --threads=4 --workers=9 --ssl-certfile=/certifs/cert.pem --ssl-keyfile=/certifs/privkey.pem server_flask:app
 
 app = Flask(__name__)
+
+with open("mail_info.json", "r") as f:
+    data = json.load(f)
+    email_pssw = data["pssw"]
+    email_acc = data["acc"]
 
 # ---------------------------- DATABASE UTILITIES ----------------------------
 
@@ -134,18 +145,118 @@ def register():
         if cursor.fetchone():
             return return_statement("", f"User '{username}' already exists", 400)
 
-        # Insert the new user
         cursor.execute(
-            "INSERT INTO Users (username, password, email) VALUES (%s, %s, %s)",
-            (username, password, email)
+            "INSERT INTO Users (username, password, email, email_verified) VALUES (%s, %s, %s, FALSE)",
+            (username, password, email,)
         )
         conn.commit()
-        return return_statement(f"User '{username}' registered successfully!")
+        cursor.execute(
+            "SELECT * FROM Users WHERE username = %s", (username,)
+        )
+        last_entry = cursor.fetchone()
+        user_id = last_entry[0]
+
+        email_token = random.randint(100000,999999)
+
+        # Insert the new user
+        cursor.execute(
+            "INSERT INTO email_tokens (userID, email_token) VALUES (%s, %s)",
+            (user_id, email_token)
+        )
+        conn.commit()
+
+        # Compose the email
+        subject = "ChatCLI Account Verification Code"
+        body = f"""
+            Dear {username},
+
+            Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
+
+            Verification Code: {email_token}
+
+            This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
+
+            If you encounter any issues or need assistance, feel free to contact our support team on [github](https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
+
+            Best regards,
+            The ChatCLI Team
+            https://github.com/SciTechMC/ChatCLI
+            """
+
+        # Set up the email message
+        msg = MIMEMultipart()
+        msg['From'] = email_acc
+        msg['To'] = email
+        msg['Subject'] = subject
+
+        # Attach the body to the email
+        msg.attach(MIMEText(body, 'plain'))
+
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(email_acc, email_pssw)
+                text = msg.as_string()
+                server.sendmail(email_acc, email, text)
+                return return_statement("Email sent Successfully")
+        except Exception as e:
+            conn.rollback()
+            return return_statement("",f"Error sending email: {e}", 500)
+
+    except Exception as e:
+        conn.rollback()
+        return return_statement("", str(e), 500)
+    finally:
+        cursor.close()
+
+@app.route("/resend-email", methods=["POST"])
+def resend_email():
+    client = request.get_json()
+    username = client.get("username").lower()
+    client_token = client.get("email_token")
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        email_token = random.randint(100000, 999999)
+        cursor.execute("""
+        UPDATE email_tokens
+        SET email_token = %s
+        WHERE userID = (SELECT userID FROM users WHERE username = %s);
+        """, (email_token,username,))
     except mysql.connector.Error as e:
         return return_statement("", str(e), 500)
     finally:
         cursor.close()
 
+
+@app.route("/verify-email", methods=["POST"])
+def verify_email():
+    client = request.get_json()
+    username = client.get("username").lower()
+    client_token = client.get("email_token")
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+        SELECT email_token FROM email_tokens 
+        WHERE userID = (SELECT userID from users WHERE username = %s) 
+        AND NOW() <= DATE_ADD(created_at, INTERVAL 5 MINUTE)
+        ORDER BY created_at DESC;
+        """, (username,))
+        server_token = cursor.fetchone()
+        if server_token[0] == client_token:
+            return return_statement("", "Invalid code!", 400)
+        else:
+            cursor.execute("""
+            UPDATE users
+            SET email_verified = TRUE
+            WHERE username = %s;
+            """, (username,))
+            return return_statement("Email verified!")
+
+    except mysql.connector.Error as e:
+        return return_statement("", str(e), 500)
+    finally:
+        cursor.close()
 
 @app.route("/login", methods=["POST"])
 def login():
