@@ -1,18 +1,18 @@
 1. Implement minimum password reqs  DONE
-2. Implement password encryption    DONE
+2. Implement password encryption    DONE (have to do session_tokens as well)
 3. Set up HTTPS with Let's Encrypt  DONE
 4. Improve UI design
 5. Add pip install lines to init_server  DONE
-6. Check for tables update in SQL during init_server
+6. Check for tables update in SQL during init_server    (not very usefull, to check last)
 7. Provide special feedback if no chat is found (e.g., "No chat is found. Would you like to create one?")    DONE
 8. Check error message when pressing 'e' to exit the app    DONE
 9. Fix error message when manually closing WebSocket client
 10. Fix client_ws not closing on its own
 11. Ensure logic is correct during errors
-12. Fix 'client_2 not found' error (possibly directory searching or similar issue)
+12. Fix 'client_2 not found' error (possibly directory searching or similar issue)    DONE
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest
-15. Seperate table for session_tokens (user keys, rename) and email verif tokens    SESSION TOKENS DONE
+15. Seperate table for session_tokens (user keys, rename) and email verif tokens    SESSION TOKENS DONE (working on email_tokens)
 16. Fix username showing up when not logged in (after register)    DONE
 
 import smtplib
