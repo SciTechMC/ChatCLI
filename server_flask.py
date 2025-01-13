@@ -168,19 +168,19 @@ def register():
         # Compose the email
         subject = "ChatCLI Account Verification Code"
         body = f"""
-            Dear {username},
+Dear {username},
 
-            Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
+Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
 
-            Verification Code: {email_token}
+Verification Code: {email_token}
 
-            This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
+This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
 
-            If you encounter any issues or need assistance, feel free to contact our support team on [github](https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
+If you encounter any issues or need assistance, feel free to contact our support team on Github (https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
 
-            Best regards,
-            The ChatCLI Team
-            https://github.com/SciTechMC/ChatCLI
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI
             """
 
         # Set up the email message
