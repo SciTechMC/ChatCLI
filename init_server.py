@@ -52,6 +52,7 @@ async def setup_database():
                 userID INT,
                 email_token INT NOT NULL CHECK (email_token BETWEEN 100000 AND 999999),
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_disabled BOOLEAN DEFAULT FALSE,
                 FOREIGN KEY (userID) REFERENCES Users(userID)
             );
 

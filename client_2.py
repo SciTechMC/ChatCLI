@@ -15,7 +15,6 @@ username = ""
 session_token = ""
 looping = True
 
-
 async def check_looping():
     """
     Periodically checks the 'looping' flag from the data file and updates the global variable.
@@ -28,9 +27,8 @@ async def check_looping():
                 if not looping:
                     exit()
         except Exception as e:
-            print(f"Error checking looping flag: {e}")
+            pass
         await asyncio.sleep(5)  # Check every 5 seconds
-
 
 async def receive(ws):
     """
@@ -38,55 +36,30 @@ async def receive(ws):
 
     :param ws: WebSocket connection instance
     """
-    global looping
-
-    # Send initial authentication request
-    await ws.send(json.dumps({"username": username, "receiver": receiver, "session_token": session_token}))
-
     try:
-        # Start a background task to monitor the looping flag
-        asyncio.create_task(check_looping())
+        await ws.send(json.dumps({"username": username, "receiver": receiver, "session_token": session_token}))
 
         while looping:
-            with open(DATA_FILE_PATH, 'r') as f:
-                data = json.load(f)
-                if not data.get("looping"):
-                    exit()
+            try:
+                response = json.loads(await ws.recv())
 
+                if response.get("status_code") == 404:
+                    pass
+                if response.get("status_code") != 200:
+                    pass
+                else:
+                    for message in response.get("messages"):
+                        print(f"[{response.get("username")}] {response.get("message")}")
+            except websockets.ConnectionClosed:
+                break
     except Exception as e:
-        print(f"Error receiving messages: {e}")
+        pass
     finally:
         await ws.close()
-
 
 async def start():
     """
     Initializes the WebSocket connection and starts message handling.
-    """
-    try:
-        async with websockets.connect(SERVER_URL) as websocket:
-            await receive(websocket)
-    except Exception as e:
-        print(f"Connection error: {e}")
-
-
-def load_user_data():
-    """
-    Loads user data from the configuration file.
-
-    :return: Dictionary containing user data
-    """
-    try:
-        with open(DATA_FILE_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Error loading user data: {e}")
-        return {}
-
-
-def initialize():
-    """
-    Initializes the application, loading user data and preparing for connection.
     """
     global receiver, username, session_token, looping
 
@@ -100,13 +73,37 @@ def initialize():
     session_token = file_data.get("session_token", "")
     looping = file_data.get("looping", True)
 
+    if not all([receiver, username, session_token]):
+        return
+
+    try:
+        async with websockets.connect(SERVER_URL) as websocket:
+            # Run check_looping concurrently
+            loop_task = asyncio.create_task(check_looping())
+            # Handle receiving messages
+            await receive(websocket)
+            # Await check_looping completion (or stop it when needed)
+            await loop_task
+    except Exception as e:
+        pass
+
+def load_user_data():
+    """
+    Loads user data from the configuration file.
+
+    :return: Dictionary containing user data
+    """
+    try:
+        with open(DATA_FILE_PATH, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        return {}
 
 if __name__ == "__main__":
-    initialize()
     try:
         asyncio.run(start())
     except Exception as error:
-        print(f"Initialization error: {error}")
+        pass
 
     # Keep the program running for debugging purposes
     time.sleep(200)

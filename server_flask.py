@@ -1,4 +1,3 @@
-import datetime
 import json
 import random
 import string
@@ -52,7 +51,7 @@ def close_db(exception):
 
 def verif_user(username, session_token):
     """
-    Verifies if the user and key match.
+    Verifies if the user and session token match.
     """
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
@@ -65,7 +64,12 @@ def verif_user(username, session_token):
     """, (username,))
     user = cursor.fetchone()
     cursor.close()
-    return user and user["session_token"] == session_token
+    if not user:
+        return False  # No user or token found
+
+    # Check if the provided session token matches the stored hash
+    return bcrypt.checkpw(session_token.encode("utf-8"), user["session_token"].encode("utf-8"))
+
 
 
 def return_statement(response=None, error="", status_code=200, additional=None):
@@ -77,7 +81,6 @@ def return_statement(response=None, error="", status_code=200, additional=None):
         "error": error,
         **(dict([additional]) if additional else {})
     }), status_code
-
 
 # ---------------------------- ROUTES ----------------------------
 
@@ -116,6 +119,7 @@ def register():
     username = client.get("username").lower()
     password = client.get("password")
     email = client.get("email")
+    user_id = 0
 
     # Validate input fields
     if not username or not password:
@@ -141,15 +145,32 @@ def register():
     cursor = conn.cursor()
     try:
         # Check if the user already exists
-        cursor.execute("SELECT 1 FROM Users WHERE username = %s", (username,))
-        if cursor.fetchone():
+        cursor.execute("SELECT 1 FROM Users WHERE username = %s;", (username,))
+        user_fetched = cursor.fetchone()
+        if user_fetched and user_fetched[5] != 0:
             return return_statement("", f"User '{username}' already exists", 400)
 
-        cursor.execute(
-            "INSERT INTO Users (username, password, email, email_verified) VALUES (%s, %s, %s, FALSE)",
-            (username, password, email,)
-        )
+        if not user_fetched:
+            cursor.execute(
+                "INSERT INTO Users (username, password, email, email_verified) VALUES (%s, %s, %s, FALSE)",
+                (username, password, email,)
+            )
+        else:
+            cursor.execute("""
+            UPDATE users
+            SET username = %s, password = %s, email = %s, created_at = NOW()
+            WHERE userID = %s;
+                """,
+                (username, password, email, user_fetched[0],)
+            )
+            cursor.execute("""
+            UPDATE users
+            SET is_disabled = TRUE
+            WHERE NOW() <= DATE_ADD(created_at, INTERVAL 6 MINUTE) AND userID = %s;
+            """, (user_fetched[0],))
+
         conn.commit()
+
         cursor.execute(
             "SELECT * FROM Users WHERE username = %s", (username,)
         )
@@ -176,7 +197,7 @@ Verification Code: {email_token}
 
 This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
 
-If you encounter any issues or need assistance, feel free to contact our support team on Github (https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
+If you encounter any issues or need assistance, feel free to contact our support team on github (https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
 
 Best regards,
 The ChatCLI Team
@@ -227,7 +248,6 @@ def resend_email():
     finally:
         cursor.close()
 
-
 @app.route("/verify-email", methods=["POST"])
 def verify_email():
     client = request.get_json()
@@ -240,6 +260,7 @@ def verify_email():
         SELECT email_token FROM email_tokens 
         WHERE userID = (SELECT userID from users WHERE username = %s) 
         AND NOW() <= DATE_ADD(created_at, INTERVAL 5 MINUTE)
+        AND is_disabled = FALSE
         ORDER BY created_at DESC;
         """, (username,))
         server_token = cursor.fetchone()
@@ -281,12 +302,12 @@ def login():
 
         # Generate a new session token
         session_token = ''.join(random.choices(string.ascii_uppercase + string.digits, k=64))
-
+        session_token_encrypted = bcrypt.hashpw(session_token.encode("utf-8"), bcrypt.gensalt())
         # Insert the session token into the session_tokens table
         cursor.execute("""
             INSERT INTO session_tokens (userID, session_token, ip_address, is_active) 
             VALUES (%s, %s, %s, TRUE)
-        """, (user["userID"], session_token, request.remote_addr))
+        """, (user["userID"], session_token_encrypted, request.remote_addr))
         conn.commit()
 
         return return_statement("Login Successful!", additional=["session_token", session_token])

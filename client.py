@@ -3,13 +3,9 @@ import os
 import subprocess
 import requests
 import re
-
-from bottle import response
 from rich.console import Console
 from rich.panel import Panel
 from rich import print
-
-from client_2 import username
 
 # Global variables
 CHATCLI_FOLDER = os.path.join(os.getenv("APPDATA"), "ChatCLI")
@@ -57,7 +53,6 @@ def verify_connection():
         except requests.RequestException as e:
             return False
 
-# Features
 def register():
     """Register a new user."""
     while True:
@@ -129,13 +124,13 @@ def email_verification():
         elif not email_token.isdigit():
             print("Make sure your code only contains numbers!")
             continue
-        elif 100000 < int(email_token) < 999999:
+        elif not (100000 <= int(email_token) <= 999999):
             print("Invalid code format (xxxxxx)")
             continue
         else:
             try:
                 response = requests.post(
-                    GLOBAL_VARS["url"] + "register",
+                    GLOBAL_VARS["url"] + "verify-email",
                     json={
                         "username" : GLOBAL_VARS["username"],
                         "email_token" : email_token
@@ -152,6 +147,7 @@ def email_verification():
 def login():
     """Log in an existing user."""
     global LOGGED_IN
+    global GLOBAL_VARS
 
     username = input("Enter your username: ")
     if username.lower() in ("e", "exit"):
@@ -178,42 +174,42 @@ def login():
     except requests.RequestException as e:
         print(f"Error: {e}")
 
-
 def select_chat():
     """Select or create a chat."""
     try:
-        response = requests.post(
-            GLOBAL_VARS["url"] + "fetch-chats",
-            json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"]},
-        )
-        if response.status_code != 200:
-            print(response.json().get("error"), response.status_code)
-            return
-
-        user_list = response.json().get("response")
-        if not user_list:
-            print("No chats were found.")
-            while True:
-                receiver = input("Please enter the name of the person you'd like to start a conversation with: ")
-                if not receiver:
-                    continue
-                GLOBAL_VARS["receiver"] = receiver
-                response = response = requests.post(
-                    GLOBAL_VARS["url"] + "create-chat",
-                    json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"],
-                          "receiver": GLOBAL_VARS["receiver"]},
-                )
-                if response.status_code == 200:
-                    print(response.json().get("response"))
-                    break
-                else:
-                    print(response.json().get("error"), response.status_code)
-                    continue
-
-        for idx, user in enumerate(user_list, 1):
-            print(f"{idx}) {user}")
-
         while True:
+            response = requests.post(
+                GLOBAL_VARS["url"] + "fetch-chats",
+                json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"]},
+            )
+            if response.status_code != 200:
+                print(response.json().get("error"), response.status_code)
+                return
+
+            user_list = response.json().get("response")
+            if not user_list:
+                print("No chats were found.")
+                while True:
+                    receiver = input("Please enter the name of the person you'd like to start a conversation with: ")
+                    if not receiver:
+                        continue
+                    GLOBAL_VARS["receiver"] = receiver
+                    response = response = requests.post(
+                        GLOBAL_VARS["url"] + "create-chat",
+                        json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"],
+                              "receiver": GLOBAL_VARS["receiver"]},
+                    )
+                    if response.status_code == 200:
+                        print(response.json().get("response"))
+                        break
+                    else:
+                        print(response.json().get("error"), response.status_code)
+                        continue
+
+            for idx, user in enumerate(user_list, 1):
+                print(f"{idx}) {user}")
+
+
             choice = input("Select a user to chat with: ")
             if not choice:
                 print("Invalid choice!")
@@ -230,7 +226,7 @@ def select_chat():
                 if input("Would you like to create this chat(y/n)? ") == "y":
                     response = response = requests.post(
                         GLOBAL_VARS["url"] + "create-chat",
-                        json={"username": GLOBAL_VARS["username"], "": GLOBAL_VARS["session_token"], "receiver": GLOBAL_VARS["receiver"]},
+                        json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"], "receiver": GLOBAL_VARS["receiver"]},
                         )
                     if response.status_code == 200:
                         print(response.json().get("response"))
@@ -244,7 +240,6 @@ def select_chat():
     except requests.RequestException as e:
         print(f"Error: {e}")
 
-
 def in_chat():
     """Enter a chat session."""
     chat_data = {
@@ -253,6 +248,9 @@ def in_chat():
         "session_token": GLOBAL_VARS["session_token"],
         "looping": True,
     }
+
+    with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as f:
+        json.dump(chat_data, f, indent=4)
     
     files_dir = os.listdir()
     if "client_2.exe" in files_dir:
@@ -263,10 +261,18 @@ def in_chat():
         print("[red]Client_2 file not found! Make sure it is located in the same folder![/]")
         return
 
-    print("Type your message or type 'exit' to leave.")
+    print("Type your message or type 'e' or 'exit' to leave.")
     while True:
         message = input()
         if message.lower() in ("exit", "e"):
+            chat_data = {
+                "receiver": "",
+                "username": "",
+                "session_token": "",
+                "looping": False,
+            }
+            with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as f:
+                json.dump(chat_data, f, indent=4)
             break
         if message:
             try:
@@ -284,14 +290,12 @@ def in_chat():
             except requests.RequestException as e:
                 print(f"Error: {e}")
 
-
 def logout():
     """Log out the user."""
     global LOGGED_IN
     LOGGED_IN = False
     for key in ("username", "password", "receiver", "session_token", "email"):
         GLOBAL_VARS[key] = ""
-
 
 def homepage():
     while True:
@@ -352,8 +356,6 @@ def homepage():
                 exit()
             case _:
                 print("Invalid input!")
-
-
 
 if __name__ == "__main__":
     if verify_connection():

@@ -1,4 +1,6 @@
 import asyncio
+
+import bcrypt
 import websockets
 import json
 import aiomysql
@@ -36,7 +38,7 @@ async def main(data, ws):
                     """, (username,))
                     user_session = await cursor.fetchone()
 
-                    if not user_session or user_session["session_token"] != session_token:
+                    if not user_session or not bcrypt.checkpw(session_token.encode("utf-8"), user_session["session_token"].encode("utf-8")):
                         await ws.send(json.dumps({"error": "Invalid user or session token", "status_code": 400}))
                         return
 
@@ -54,7 +56,6 @@ async def main(data, ws):
                         (username, receiver)
                     )
                     result = await cursor.fetchone()
-
                     if not result:
                         await ws.send(json.dumps({"error": "Chat not found", "status_code": 404}))
                         return
@@ -62,41 +63,32 @@ async def main(data, ws):
                     chat_id = result["chatID"]
 
                 # Continuously fetch and send new messages
-                while True:
-                    async with conn.cursor(aiomysql.DictCursor) as cursor:
-                        # Fetch messages newer than the last processed message
-                        await cursor.execute(
-                            """
-                            SELECT 
-                                m.messageID, m.message, m.timestamp, u.username AS user 
-                            FROM Messages m
-                            JOIN Users u ON m.userID = u.userID
-                            WHERE m.chatID = %s AND m.messageID > %s
-                            ORDER BY m.messageID ASC
-                            LIMIT 200;
-                            """,
-                            (chat_id, last_msg_id)
-                        )
-                        messages = await cursor.fetchall()
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute("""
+                                SELECT m.messageID, m.message, m.timestamp, u.username AS user
+                                FROM Messages m
+                                JOIN Users u ON m.userID = u.userID
+                                WHERE m.chatID = %s AND m.messageID > %s
+                                ORDER BY m.messageID ASC
+                                LIMIT 200;
+                            """, (chat_id, last_msg_id))
+                    messages = await cursor.fetchall()
+                    if messages:
+                        last_msg_id = max(msg["messageID"] for msg in messages)
+                        for msg in messages:
+                            msg["timestamp"] = msg["timestamp"].isoformat()
+                            del msg["messageID"]
+                        await ws.send(json.dumps({"messages": messages, "status_code": 200}))
+                    else:
+                        await ws.send(json.dumps({"error" : "No messages found", "status_code": 404}))
 
-                        if messages:
-                            last_msg_id = max(msg["messageID"] for msg in messages)
-                            for msg in messages:
-                                msg["timestamp"] = msg["timestamp"].isoformat()  # Convert to ISO format
-                                del msg["messageID"]  # Remove internal ID
-
-                            # Send messages to the client
-                            await ws.send(json.dumps({"messages": messages, "status_code": 200}))
-
-                        await asyncio.sleep(2)  # Polling delay
-                    await conn.commit()
-
+                    await asyncio.sleep(2)
     except Exception as e:
-        print(f"Error occurred: {e}")
+        pass
     finally:
         # Ensure the WebSocket connection is closed
-        await ws.close()
-
+        if not ws.closed:
+            await ws.close()
 
 async def handler(ws):
     """
@@ -104,25 +96,25 @@ async def handler(ws):
 
     :param ws: WebSocket connection.
     """
-    print("Client connected.")
-    async for message in ws:
+    async for user in ws:
         try:
-            data = json.loads(message)
+            data = json.loads(user)
             required_keys = ("username", "receiver", "session_token")
             if all(data.get(key) for key in required_keys):
                 await main(data, ws)
             else:
                 await ws.send(json.dumps({"error": "Invalid data format", "status_code": 400}))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             await ws.send(json.dumps({"error": "Malformed JSON", "status_code": 400}))
-
+        except Exception as e:
+            pass
+        finally:
+            pass
 
 async def ws_start():
     """
     Start the WebSocket server with SSL.
     """
-    print("Starting WebSocket server on 0.0.0.0:8765...")
-
     # Create an SSL context with your certificates
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile='./certifs/fullchain.pem', keyfile='./certifs/privkey.pem')
