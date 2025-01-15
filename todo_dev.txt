@@ -1,6 +1,6 @@
 1. Implement minimum password reqs  DONE
 2. Implement password/session token encryption    DONE
-3. Set up HTTPS with Let's Encrypt  DONE
+3. Set up HTTPS with Let's Encrypt    DONE
 4. Improve UI design
 5. Add pip install lines to init_server  DONE
 6. Check for tables update in SQL during init_server    (not very usefull, to check last)
@@ -12,57 +12,5 @@
 12. Fix 'client_2 not found' error (possibly directory searching or similar issue)    DONE
 13. Check for display clearing with os.system('cls')
 14. Research encrypted at rest    DONE (to difficult, mysql pssw is enough for now)
-15. Seperate table for session_tokens (user keys, rename) and email verif tokens SESSION TOKENS DONE
+15. Seperate table for session_tokens (user keys, rename) and email verif tokens    DONE
 16. Fix username showing up when not logged in (after register)    DONE
-
-import smtplib
-import random
-from email.message import EmailMessage
-
-def generate_verification_code():
-    """Generate a 6-digit random verification code."""
-    return str(random.randint(100000, 999999))
-
-def send_verification_email(user_email, username, code):
-    """Send a verification email with the code."""
-    sender_email = "your_email@example.com"
-    sender_password = "your_email_password"
-
-    # Create the email
-    msg = EmailMessage()
-    msg["Subject"] = "Verify Your Email for ChatCLI"
-    msg["From"] = sender_email
-    msg["To"] = user_email
-
-    # Email body
-    msg.set_content(f"""
-    Hi {username},
-
-    Thank you for signing up for ChatCLI! To complete your registration, please verify your email address.
-
-    Your verification code is: {code}
-
-    Enter this code in the app to verify your email.
-
-    If you didn’t create an account, you can safely ignore this email.
-
-    Thanks,
-    The ChatCLI Team
-    """)
-
-    try:
-        # Connect to the SMTP server and send the email
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()  # Secure the connection
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-        print("Verification email sent successfully!")
-    except Exception as e:
-        print(f"Error sending email: {e}")
-
-# Example Usage
-username = "new_user"
-user_email = "new_user@example.com"
-code = generate_verification_code()
-send_verification_email(user_email, username, code)
-
