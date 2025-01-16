@@ -20,6 +20,7 @@ GLOBAL_VARS = {
     "receiver": "",
     "url": "https://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
+    "version" : "post-alpha-dev-build"
 }
 
 # Utility Functions
@@ -36,7 +37,7 @@ def verify_connection():
         # First attempt with the existing GLOBAL_VARS["url"]
         response = requests.post(
             GLOBAL_VARS["url"] + "verify-connection",
-            json={"version": "post-alpha-dev-build"}
+            json={"version": GLOBAL_VARS["url"]}
         )
         return True
     except requests.RequestException as e:
@@ -114,6 +115,7 @@ def register():
         print(f"Error: {e}")
 
 def email_verification():
+    global LOGGED_IN
     print("A verification code has been sent to your email.")
     while True:
         email_token = input("Enter the verification code: ")
@@ -137,10 +139,25 @@ def email_verification():
 
                     }
                 )
-                if response != 200:
+                if response.status_code != 200:
                     print(response.json().get("error"), response.status_code)
                 else:
                     print("Account registration completed!")
+                    print("Logging on...")
+                    try:
+                        response = requests.post(
+                            GLOBAL_VARS["url"] + "login",
+                            json={"username": GLOBAL_VARS["username"], "password": GLOBAL_VARS["password"]},
+                        )
+                        data = response.json()
+                        if response.status_code == 200:
+                            GLOBAL_VARS["session_token"] = data.get("session_token")
+                            LOGGED_IN = True
+                            print(data.get("response"))
+                        else:
+                            print(data.get("error"), response.status_code)
+                    except requests.RequestException as e:
+                        print(f"Error: {e}")
             except requests.RequestException as e:
                 print(f"Error: {e}")
 
@@ -205,10 +222,10 @@ def select_chat():
                     else:
                         print(response.json().get("error"), response.status_code)
                         continue
+                continue
 
             for idx, user in enumerate(user_list, 1):
                 print(f"{idx}) {user}")
-
 
             choice = input("Select a user to chat with: ")
             if not choice:
@@ -358,6 +375,9 @@ def homepage():
                 print("Invalid input!")
 
 if __name__ == "__main__":
+
+    os.system(f"title CHATCLI {GLOBAL_VARS["version"]}")
+
     if verify_connection():
         homepage()
     else:

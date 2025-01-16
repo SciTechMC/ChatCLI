@@ -46,10 +46,10 @@ async def receive(ws):
                 if response.get("status_code") == 404:
                     continue
                 elif response.get("status_code") != 200:
-                    print(response.get("error"), response.get("status_code")
+                    print(response.get("error"), response.get("status_code"))
                 else:
                     for message in response.get("messages"):
-                        print(f"[{message.get("username")}] {message.get("message")}")
+                        print(f"[{message.get("user")}] {message.get("message")}")
             except websockets.ConnectionClosed:
                 break
     except Exception as e:
@@ -100,6 +100,9 @@ def load_user_data():
         return {}
 
 if __name__ == "__main__":
+
+    os.system("title CHATCLI_2")
+
     try:
         asyncio.run(start())
     except Exception as error:

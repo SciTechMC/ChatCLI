@@ -1,5 +1,4 @@
 import asyncio
-
 import bcrypt
 import websockets
 import json
@@ -63,28 +62,30 @@ async def main(data, ws):
                     chat_id = result["chatID"]
 
                 # Continuously fetch and send new messages
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute("""
-                                SELECT m.messageID, m.message, m.timestamp, u.username AS user
-                                FROM Messages m
-                                JOIN Users u ON m.userID = u.userID
-                                WHERE m.chatID = %s AND m.messageID > %s
-                                ORDER BY m.messageID ASC
-                                LIMIT 200;
-                            """, (chat_id, last_msg_id))
-                    messages = await cursor.fetchall()
-                    if messages:
-                        last_msg_id = max(msg["messageID"] for msg in messages)
-                        for msg in messages:
-                            msg["timestamp"] = msg["timestamp"].isoformat()
-                            del msg["messageID"]
-                        await ws.send(json.dumps({"messages": messages, "status_code": 200}))
-                    else:
-                        await ws.send(json.dumps({"error" : "No messages found", "status_code": 404}))
+                while True:
+                    async with conn.cursor(aiomysql.DictCursor) as cursor:
+                        await cursor.execute("""
+                                    SELECT m.messageID, m.message, m.timestamp, u.username AS user
+                                    FROM Messages m
+                                    JOIN Users u ON m.userID = u.userID
+                                    WHERE m.chatID = %s AND m.messageID > %s
+                                    ORDER BY m.messageID ASC
+                                    LIMIT 200;
+                                """, (chat_id, last_msg_id))
+                        messages = await cursor.fetchall()
+                        if messages:
+                            last_msg_id = max(msg["messageID"] for msg in messages)
+                            for msg in messages:
+                                msg["timestamp"] = msg["timestamp"].isoformat()
+                                del msg["messageID"]
+                            await ws.send(json.dumps({"messages": messages, "status_code": 200}))
+                        else:
+                            await ws.send(json.dumps({"error" : "No messages found", "status_code": 404}))
 
-                    await asyncio.sleep(2)
+                        await asyncio.sleep(2)
+                    await conn.commit()
     except Exception as e:
-        pass
+        print(e)
     finally:
         # Ensure the WebSocket connection is closed
         if not ws.closed:
@@ -96,20 +97,31 @@ async def handler(ws):
 
     :param ws: WebSocket connection.
     """
-    async for user in ws:
-        try:
-            data = json.loads(user)
-            required_keys = ("username", "receiver", "session_token")
-            if all(data.get(key) for key in required_keys):
-                await main(data, ws)
-            else:
-                await ws.send(json.dumps({"error": "Invalid data format", "status_code": 400}))
-        except json.JSONDecodeError as e:
-            await ws.send(json.dumps({"error": "Malformed JSON", "status_code": 400}))
-        except Exception as e:
-            pass
-        finally:
-            pass
+    try:
+        async for user in ws:
+            print("User Connected!")
+            try:
+                data = json.loads(user)
+                required_keys = ("username", "receiver", "session_token")
+                if all(data.get(key) for key in required_keys):
+                    await main(data, ws)
+                else:
+                    await ws.send(json.dumps({"error": "Invalid data format", "status_code": 400}))
+            except json.JSONDecodeError as e:
+                await ws.send(json.dumps({"error": "Malformed JSON", "status_code": 400}))
+            except Exception as e:
+                print(f"Internal error: {e}")
+                await ws.send(json.dumps({"error": "Internal server error", "status_code": 500}))
+    except websockets.exceptions.ConnectionClosedOK:
+        print("Connection closed normally.")
+    except websockets.exceptions.ConnectionClosedError as e:
+        print(f"Connection closed with error: {e}")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    finally:
+        if not ws.closed:
+            await ws.close()
+        print("WebSocket connection closed.")
 
 async def ws_start():
     """
@@ -120,9 +132,11 @@ async def ws_start():
     ssl_context.load_cert_chain(certfile='./certifs/fullchain.pem', keyfile='./certifs/privkey.pem')
 
     # Start the WebSocket server with SSL context
-    async with websockets.serve(handler, "0.0.0.0", 8765, ssl=ssl_context):
-        await asyncio.Future()  # Keep the server running indefinitely
-
+    try:
+        async with websockets.serve(handler, "0.0.0.0", 8765, ssl=ssl_context):
+            await asyncio.Future()  # Keep the server running indefinitely
+    except Exception as e:
+        print(e)
 
 if __name__ == "__main__":
     asyncio.run(ws_start())
