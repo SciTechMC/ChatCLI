@@ -27,7 +27,7 @@ async def check_looping():
                 if not looping:
                     exit()
         except Exception as e:
-            pass
+            print(e)
         await asyncio.sleep(5)  # Check every 5 seconds
 
 async def receive(ws):
@@ -44,16 +44,16 @@ async def receive(ws):
                 response = json.loads(await ws.recv())
 
                 if response.get("status_code") == 404:
-                    pass
-                if response.get("status_code") != 200:
-                    pass
+                    continue
+                elif response.get("status_code") != 200:
+                    print(response.get("error"), response.get("status_code")
                 else:
                     for message in response.get("messages"):
-                        print(f"[{response.get("username")}] {response.get("message")}")
+                        print(f"[{message.get("username")}] {message.get("message")}")
             except websockets.ConnectionClosed:
                 break
     except Exception as e:
-        pass
+        print(e)
     finally:
         await ws.close()
 
@@ -85,7 +85,7 @@ async def start():
             # Await check_looping completion (or stop it when needed)
             await loop_task
     except Exception as e:
-        pass
+        print(e)
 
 def load_user_data():
     """
