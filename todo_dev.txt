@@ -6,8 +6,8 @@
 6. Check for tables update in SQL during init_server    (not very usefull, to check last)
 7. Provide special feedback if no chat is found (e.g., "No chat is found. Would you like to create one?")    DONE
 8. Check error message when pressing 'e' to exit the app    DONE
-9. Fix error message when manually closing WebSocket client
-10. Fix client_ws not closing on its own
+9. Fix error message when manually closing WebSocket client     (Not necessary)
+10. Fix client_ws not closing on its own    DONE
 11. Ensure logic is correct during errors
 12. Fix 'client_2 not found' error (possibly directory searching or similar issue)    DONE
 13. Check for display clearing with os.system('cls')
