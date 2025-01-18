@@ -15,3 +15,5 @@
 15. Seperate table for session_tokens (user keys, rename) and email verif tokens    DONE
 16. Fix username showing up when not logged in (after register)    DONE
 17. Save prev alpha db to csv file or other using script
+18. Fix resend_email function
+19. Make passw reset function
