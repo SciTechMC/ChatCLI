@@ -59,6 +59,16 @@ async def setup_database():
             """)
 
             await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pass_reset (
+                tokenID INT AUTO_INCREMENT PRIMARY KEY,
+                reset_token VARCHAR(128),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                userID INT,
+                FOREIGN KEY (userID) REFERENCES users(userID)
+            );
+            """)
+
+            await cursor.execute("""
             CREATE TABLE IF NOT EXISTS Chats (
                 chatID INT AUTO_INCREMENT PRIMARY KEY,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

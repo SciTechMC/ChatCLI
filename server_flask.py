@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, render_template_string
 import re
 import mysql.connector
 import bcrypt
@@ -46,7 +46,6 @@ def close_db(exception):
     if db is not None:
         db.close()
 
-
 # ---------------------------- UTILITY FUNCTIONS ----------------------------
 
 def verif_user(username, session_token):
@@ -70,8 +69,6 @@ def verif_user(username, session_token):
     # Check if the provided session token matches the stored hash
     return bcrypt.checkpw(session_token.encode("utf-8"), user["session_token"].encode("utf-8"))
 
-
-
 def return_statement(response=None, error="", status_code=200, additional=None):
     """
     Standardized JSON response.
@@ -81,6 +78,25 @@ def return_statement(response=None, error="", status_code=200, additional=None):
         "error": error,
         **(dict([additional]) if additional else {})
     }), status_code
+
+def send_email(message,subject,receiver):
+
+    msg = MIMEMultipart()
+    msg['From'] = email_acc
+    msg['To'] = receiver
+    msg['Subject'] = subject
+
+    # Attach the body to the email
+    msg.attach(MIMEText(message, 'plain'))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(email_acc, email_pssw)
+            text = msg.as_string()
+            server.sendmail(email_acc, receiver, text)
+            return True
+    except Exception as e:
+        return [False, str(e)]
 
 # ---------------------------- ROUTES ----------------------------
 
@@ -109,6 +125,7 @@ def verify_connection():
     # Fallback (should not be reached)
     return return_statement("", "Unsupported HTTP method!", 405)
 
+#ACCOUNT BS
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -316,6 +333,142 @@ def login():
     finally:
         cursor.close()
 
+@app.route("/reset-password-request", methods=["POST"])
+def reset_password_request():
+    client = request.json().get("data")
+    username = ""
+    have_username = False
+    email = ""
+    userID = 0
+    if not client:
+        return return_statement("", "Invalid input", 400)
+    token = 't0k3n' + ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+
+    if re.match(r'^[a-zA-Z0-9.+-]+@[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+$', client):
+        cursor = get_db().cursor(dictionary=True)
+        cursor.execute("""
+        SELECT username, userID FROM users
+        WHERE email = %s
+        """, (client,))
+        query = cursor.fetchall()
+
+        if len(query) > 1:
+            have_username = False
+        elif len(query) == 1:
+            username = query[0].get("username")
+            userID = query[0].get("userID")
+            have_username = True
+        else:
+            return return_statement("", "User not found", 404)
+
+    else:
+        username = client.get("data")
+        cursor = get_db().cursor(dictionary=True)
+        cursor.execute("""
+        SELECT email, userID FROM users
+        WHERE username = %s
+        """, (client,))
+        query = cursor.fetchone()
+        email = query.get("email")
+        have_username = True
+        userID = query.get("userID")
+        if not email:
+            return return_statement("", "User not found", 404)
+
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("""
+    INSERT INTO pass_reset (reset_token, userID)
+    (%,%s)
+    """, (token, userID,))
+
+    subject = "Password Reset Request for Your Account"
+    body = f"""
+Dear {username},
+
+We received a request to reset the password for your account associated with this email address. If you made this request, please click the link below to reset your password:
+
+Reset Password : https://fortbow.duckdns.org:5000/reset-password?token={token}&?username={have_username}
+
+This link will expire in [timeframe, e.g., 24 hours] for security reasons.
+
+If you did not request a password reset, please ignore this email or contact our support team if you have concerns about your account's security.
+
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI"""
+
+    sent_mail = send_email(body,subject,email)
+
+    if not sent_mail[0]:
+        db.rollback()
+        return return_statement("",sent_mail[1],500)
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    # Get token and username from query parameters
+    token = request.args.get('token')
+    username = request.args.get('username')
+    conn = get_db()
+    cursor = conn.cursor()
+    if request.method == 'POST':
+        if username == "False":  # Username verification form submitted
+            # Get the username from the form
+            username_input = request.form.get('username')
+
+            cursor.execute("SELECT * FROM users where username = %s", (username,))
+            # TODO: Verify if the username exists in the database
+            # Example response for demonstration purposes
+            user_exists = True  # Replace with actual database check
+            if user_exists:
+                return jsonify({"message": "Username verified. Proceed to password reset.", "username": username_input})
+            else:
+                return jsonify({"error": "Username does not exist"}), 404
+        else:  # Password reset form submitted
+            # Get the passwords from the form
+            password = request.form.get('password')
+            confirm_password = request.form.get('confirm_password')
+
+            # Check if the passwords match
+            if password != confirm_password:
+                return jsonify({"error": "Passwords do not match"}), 400
+
+            # TODO: Reset the user's password in the database
+            # Example response for demonstration purposes
+            return jsonify({"message": "Password reset successfully"})
+
+    # Handle GET request
+    if username == "False":
+        # Render the username verification page
+        return render_template_string("username_input.html")
+    else:
+        # Render the password reset form
+        return render_template_string("reset_password.html")
+
+    subject = "Password Reset Request for Your Account"
+    body = f"""
+    Dear {username},
+
+    We received a request to reset the password for your account associated with this email address. If you made this request, please click the link below to reset your password:
+
+    Reset Password : https://fortbow.duckdns.org:5000/reset-password?token={token}&?username={have_username}
+
+    This link will expire in [timeframe, e.g., 24 hours] for security reasons.
+
+    If you did not request a password reset, please ignore this email or contact our support team if you have concerns about your account's security.
+
+    Best regards,
+    The ChatCLI Team
+    https://github.com/SciTechMC/ChatCLI"""
+
+    sent_mail = send_email(body, subject, email)
+
+    if not sent_mail[0]:
+        db.rollback()
+        return return_statement("", sent_mail[1], 500)
+
+#CHATTING BS
 
 @app.route("/fetch-chats", methods=["POST"])
 def fetch_chats():
