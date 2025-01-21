@@ -575,4 +575,47 @@ def receive_message():
     client = request.get_json()
     username = client.get("username").lower()
     receiver = client.get("receiver").lower()
-   
+    session_token = client.get("session_token")  # Changed to session_token
+    message = client.get("message")
+
+    # Verify user with session token instead of user_key
+    if not verif_user(username, session_token):
+        return return_statement("", "Unable to verify user!", 400)
+
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+        SELECT chatID FROM Participants
+        WHERE userID IN (SELECT userID FROM Users WHERE username = %s)
+        AND chatID IN (
+            SELECT chatID FROM Participants
+            WHERE userID = (SELECT userID FROM Users WHERE username = %s)
+        )
+        """, (username, receiver,))
+        chat_id = cursor.fetchone()
+
+        if not chat_id:
+            return return_statement("", "No chat found between users!", 400)
+
+        chat_id = chat_id[0]
+
+        # Insert message
+        cursor.execute("""
+        INSERT INTO Messages (chatID, userID, message)
+        VALUES (%s, (SELECT userID FROM Users WHERE username = %s), %s)
+        """, (chat_id, username, message,))
+        conn.commit()
+        return return_statement("Message sent successfully!")
+    except mysql.connector.Error as e:
+        return return_statement("", str(e), 500)
+    finally:
+        cursor.close()
+
+# ---------------------------- RUN SERVER ----------------------------
+
+if __name__ == "__main__":
+    cert_path = '/etc/letsencrypt/live/<your-domain>/cert.pem'
+    key_path = '/etc/letsencrypt/live/<your-domain>/privkey.pem'
+
+    app.run(host="0.0.0.0",debug=True, ssl_context=('./certifs/fullchain.pem', './certifs/privkey.pem'))
