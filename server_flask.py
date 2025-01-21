@@ -221,24 +221,11 @@ The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
             """
 
-        # Set up the email message
-        msg = MIMEMultipart()
-        msg['From'] = email_acc
-        msg['To'] = email
-        msg['Subject'] = subject
-
-        # Attach the body to the email
-        msg.attach(MIMEText(body, 'plain'))
-
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                server.login(email_acc, email_pssw)
-                text = msg.as_string()
-                server.sendmail(email_acc, email, text)
-                return return_statement("Email sent Successfully")
-        except Exception as e:
-            conn.rollback()
-            return return_statement("",f"Error sending email: {e}", 500)
+        response = send_email(message,subject,email)
+        
+        if not response[0]:
+            return return_statement("",response[1],500)
+       return return_statement("Email sent successfully!")
 
     except Exception as e:
         conn.rollback()
@@ -256,10 +243,37 @@ def resend_email():
     try:
         email_token = random.randint(100000, 999999)
         cursor.execute("""
-        UPDATE email_tokens
-        SET email_token = %s
-        WHERE userID = (SELECT userID FROM users WHERE username = %s);
-        """, (email_token,username,))
+        SELECT userID FROM users WHERE username = %s
+        """, (username,))
+        cursor.execute(
+        "INSERT INTO email_tokens (userID, email_token) VALUES (%s, %s)"
+        ,(user_id, email_token,)
+        )
+        
+                subject = "ChatCLI Account Verification Code"
+        body = f"""
+Dear {username},
+
+Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
+
+Verification Code: {email_token}
+
+This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
+
+If you encounter any issues or need assistance, feel free to contact our support team on github (https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
+
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI
+            """
+
+        response = send_email(message,subject,email)
+        
+        if not response[0]:
+            return return_statement("",response[1],500)
+        return return_statement("Email sent successfully!")
+
+        
     except mysql.connector.Error as e:
         return return_statement("", str(e), 500)
     finally:
@@ -278,10 +292,11 @@ def verify_email():
         WHERE userID = (SELECT userID from users WHERE username = %s) 
         AND NOW() <= DATE_ADD(created_at, INTERVAL 5 MINUTE)
         AND is_disabled = FALSE
-        ORDER BY created_at DESC;
+        ORDER BY created_at DESC
+        LIMIT 1;
         """, (username,))
         server_token = cursor.fetchone()
-        if server_token[0] == client_token:
+        if server_token[0] != client_token:
             return return_statement("", "Invalid code!", 400)
         else:
             cursor.execute("""
@@ -560,47 +575,4 @@ def receive_message():
     client = request.get_json()
     username = client.get("username").lower()
     receiver = client.get("receiver").lower()
-    session_token = client.get("session_token")  # Changed to session_token
-    message = client.get("message")
-
-    # Verify user with session token instead of user_key
-    if not verif_user(username, session_token):
-        return return_statement("", "Unable to verify user!", 400)
-
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-        SELECT chatID FROM Participants
-        WHERE userID IN (SELECT userID FROM Users WHERE username = %s)
-        AND chatID IN (
-            SELECT chatID FROM Participants
-            WHERE userID = (SELECT userID FROM Users WHERE username = %s)
-        )
-        """, (username, receiver,))
-        chat_id = cursor.fetchone()
-
-        if not chat_id:
-            return return_statement("", "No chat found between users!", 400)
-
-        chat_id = chat_id[0]
-
-        # Insert message
-        cursor.execute("""
-        INSERT INTO Messages (chatID, userID, message)
-        VALUES (%s, (SELECT userID FROM Users WHERE username = %s), %s)
-        """, (chat_id, username, message,))
-        conn.commit()
-        return return_statement("Message sent successfully!")
-    except mysql.connector.Error as e:
-        return return_statement("", str(e), 500)
-    finally:
-        cursor.close()
-
-# ---------------------------- RUN SERVER ----------------------------
-
-if __name__ == "__main__":
-    cert_path = '/etc/letsencrypt/live/<your-domain>/cert.pem'
-    key_path = '/etc/letsencrypt/live/<your-domain>/privkey.pem'
-
-    app.run(host="0.0.0.0",debug=True, ssl_context=('./certifs/fullchain.pem', './certifs/privkey.pem'))
+   
