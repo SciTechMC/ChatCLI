@@ -37,8 +37,10 @@ def verify_connection():
         # First attempt with the existing GLOBAL_VARS["url"]
         response = requests.post(
             GLOBAL_VARS["url"] + "verify-connection",
-            json={"version": GLOBAL_VARS["url"]}
+            json={"version": GLOBAL_VARS["version"]}
         )
+        if response.status_code != 200:
+            print(response.json().get("error"))
         return True
     except requests.RequestException as e:
         print(f"First attempt failed: {e}")
@@ -158,6 +160,7 @@ def email_verification():
                             print(data.get("error"), response.status_code)
                     except requests.RequestException as e:
                         print(f"Error: {e}")
+                    break
             except requests.RequestException as e:
                 print(f"Error: {e}")
 
@@ -171,8 +174,16 @@ def login():
         return
     GLOBAL_VARS["username"] = username
 
-    password = input("Enter your password: ")
+    password = input("Enter your password ('f' if forgotten): ")
     if password.lower() in ("e", "exit"):
+        return
+    elif password.lower() in ("f"):
+        if not username:
+            GLOBAL_VARS["username"] = input("Enter your username or email: ")
+        response = requests.post(
+            GLOBAL_VARS["url"] + "reset-password-request", json={"data": GLOBAL_VARS["username"]}
+        )
+        print(response.json())
         return
     GLOBAL_VARS["password"] = password
 
@@ -210,6 +221,8 @@ def select_chat():
                     receiver = input("Please enter the name of the person you'd like to start a conversation with: ")
                     if not receiver:
                         continue
+                    if receiver.lower() in ("e", "exit"):
+                            return
                     GLOBAL_VARS["receiver"] = receiver
                     response = response = requests.post(
                         GLOBAL_VARS["url"] + "create-chat",

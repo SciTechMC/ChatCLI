@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from flask import Flask, request, jsonify, g, render_template_string
+from flask import Flask, request, jsonify, g, render_template
 import re
 import mysql.connector
 import bcrypt
@@ -70,13 +70,10 @@ def verif_user(username, session_token):
     return bcrypt.checkpw(session_token.encode("utf-8"), user["session_token"].encode("utf-8"))
 
 def return_statement(response=None, error="", status_code=200, additional=None):
-    """
-    Standardized JSON response.
-    """
     return jsonify({
         "response": response,
         "error": error,
-        **(dict([additional]) if additional else {})
+        **(dict([additional]) if additional else {}),
     }), status_code
 
 def send_email(message,subject,receiver):
@@ -162,7 +159,7 @@ def register():
     cursor = conn.cursor()
     try:
         # Check if the user already exists
-        cursor.execute("SELECT 1 FROM Users WHERE username = %s;", (username,))
+        cursor.execute("SELECT * FROM Users WHERE username = %s;", (username,))
         user_fetched = cursor.fetchone()
         if user_fetched and user_fetched[5] != 0:
             return return_statement("", f"User '{username}' already exists", 400)
@@ -181,7 +178,7 @@ def register():
                 (username, password, email, user_fetched[0],)
             )
             cursor.execute("""
-            UPDATE users
+            UPDATE email_tokens
             SET is_disabled = TRUE
             WHERE NOW() <= DATE_ADD(created_at, INTERVAL 6 MINUTE) AND userID = %s;
             """, (user_fetched[0],))
@@ -220,17 +217,28 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
             """
+    except Exception as e:
+        return return_statement("", str(e), 500)
 
-        response = send_email(message,subject,email)
-        
-        if not response[0]:
-            return return_statement("",response[1],500)
-       return return_statement("Email sent successfully!")
+    try:
+        response = send_email(body, subject, email)
+
+        # Check if the email was successfully sent
+        if isinstance(response, list) and not response[0]:
+            return return_statement("", response[1], 500)
+
+        # https://chatgpt.com/share/679a219d-1a24-800f-ba48-b93c4c403ac7
+
+        # If email sent successfully
+        return return_statement("Email sent successfully!")
 
     except Exception as e:
+        # If an exception occurs, roll back the transaction and return error
         conn.rollback()
         return return_statement("", str(e), 500)
+
     finally:
+        # Ensure the cursor is always closed to release resources
         cursor.close()
 
 @app.route("/resend-email", methods=["POST"])
@@ -243,15 +251,19 @@ def resend_email():
     try:
         email_token = random.randint(100000, 999999)
         cursor.execute("""
-        SELECT userID FROM users WHERE username = %s
+        SELECT userID, email FROM users WHERE username = %s
         """, (username,))
+
+        user_id = cursor.fetchone()[0]
+        email = cursor.fetchone()[1]
+
         cursor.execute(
         "INSERT INTO email_tokens (userID, email_token) VALUES (%s, %s)"
-        ,(user_id, email_token,)
+        ,(user_id, client_token,)
         )
         
-                subject = "ChatCLI Account Verification Code"
-        body = f"""
+        subject = "ChatCLI Account Verification Code"
+        message = f"""
 Dear {username},
 
 Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
@@ -267,11 +279,26 @@ The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
             """
 
-        response = send_email(message,subject,email)
-        
-        if not response[0]:
-            return return_statement("",response[1],500)
-        return return_statement("Email sent successfully!")
+        try:
+            response = send_email(message, subject, email)
+
+            # Check if the email was successfully sent
+            if isinstance(response, list) and not response[0]:
+                return return_statement("", response[1], 500)
+
+            # https://chatgpt.com/share/679a219d-1a24-800f-ba48-b93c4c403ac7
+
+            # If email sent successfully
+            return return_statement("Email sent successfully!")
+
+        except Exception as e:
+            # If an exception occurs, roll back the transaction and return error
+            conn.rollback()
+            return return_statement("", str(e), 500)
+
+        finally:
+            # Ensure the cursor is always closed to release resources
+            cursor.close()
 
         
     except mysql.connector.Error as e:
@@ -296,7 +323,7 @@ def verify_email():
         LIMIT 1;
         """, (username,))
         server_token = cursor.fetchone()
-        if server_token[0] != client_token:
+        if server_token is None or str(server_token[0]) != str(client_token):
             return return_statement("", "Invalid code!", 400)
         else:
             cursor.execute("""
@@ -350,138 +377,134 @@ def login():
 
 @app.route("/reset-password-request", methods=["POST"])
 def reset_password_request():
-    client = request.json().get("data")
-    username = ""
+    client = request.get_json()
+    username = client.get("data")
     have_username = False
     email = ""
     userID = 0
-    if not client:
+
+    if not username:
         return return_statement("", "Invalid input", 400)
+
     token = 't0k3n' + ''.join(random.choices(string.ascii_letters + string.digits, k=32))
 
-    if re.match(r'^[a-zA-Z0-9.+-]+@[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+$', client):
-        cursor = get_db().cursor(dictionary=True)
-        cursor.execute("""
-        SELECT username, userID FROM users
-        WHERE email = %s
-        """, (client,))
+    cursor = get_db().cursor(dictionary=True)
+
+    if re.match(r'^[a-zA-Z0-9.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', username):
+        cursor.execute("SELECT username, userID FROM users WHERE email = %s", (username,))
         query = cursor.fetchall()
 
         if len(query) > 1:
             have_username = False
         elif len(query) == 1:
-            username = query[0].get("username")
-            userID = query[0].get("userID")
+            username = query[0]["username"]
+            userID = query[0]["userID"]
             have_username = True
         else:
             return return_statement("", "User not found", 404)
-
     else:
-        username = client.get("data")
-        cursor = get_db().cursor(dictionary=True)
-        cursor.execute("""
-        SELECT email, userID FROM users
-        WHERE username = %s
-        """, (client,))
+        cursor.execute("SELECT email, userID FROM users WHERE username = %s", (username,))
         query = cursor.fetchone()
-        email = query.get("email")
-        have_username = True
-        userID = query.get("userID")
-        if not email:
+
+        if query:
+            email = query["email"]
+            userID = query["userID"]
+            have_username = True
+        else:
             return return_statement("", "User not found", 404)
 
     db = get_db()
     cursor = db.cursor()
 
-    cursor.execute("""
-    INSERT INTO pass_reset (reset_token, userID)
-    (%,%s)
-    """, (token, userID,))
+    cursor.execute("INSERT INTO pass_reset (reset_token, userID) VALUES (%s, %s)", (token, userID,))
+    db.commit()
 
     subject = "Password Reset Request for Your Account"
+
+    if have_username:
+        reset_link = f"https://fortbow.duckdns.org:5000/reset-password?token={token}&username={username}"
+    else:
+        reset_link = f"https://fortbow.duckdns.org:5000/verify-username?token={token}"
+
     body = f"""
 Dear {username},
 
-We received a request to reset the password for your account associated with this email address. If you made this request, please click the link below to reset your password:
+We received a request to reset the password for your account. If you made this request, click the link below to reset your password:
 
-Reset Password : https://fortbow.duckdns.org:5000/reset-password?token={token}&?username={have_username}
+Reset Password: {reset_link}
 
-This link will expire in [timeframe, e.g., 24 hours] for security reasons.
+If you did not request this, ignore this email.
 
-If you did not request a password reset, please ignore this email or contact our support team if you have concerns about your account's security.
+Best regards,  
+The ChatCLI Team  
+https://github.com/SciTechMC/ChatCLI
+    """
 
-Best regards,
-The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI"""
+    try:
+        response = send_email(body, subject, email)
 
-    sent_mail = send_email(body,subject,email)
+        if isinstance(response, list) and not response[0]:
+            return return_statement("", response[1], 500)
 
-    if not sent_mail[0]:
+        return return_statement("Email sent successfully!")
+
+    except Exception as e:
         db.rollback()
-        return return_statement("",sent_mail[1],500)
+        return return_statement("", str(e), 500)
+    finally:
+        cursor.close()
 
-@app.route('/reset-password', methods=['GET', 'POST'])
+@app.route("/reset-password", methods=["GET", "POST"])
 def reset_password():
-    # Get token and username from query parameters
     token = request.args.get('token')
     username = request.args.get('username')
+
+    # If it's a POST request, try getting the username from the form data
+    if request.method == 'POST' and not username:
+        username = request.form.get('username')
+
+    # Check if username is still None
+    if not username:
+        return jsonify({"error": "Missing username in request"}), 400
+
     conn = get_db()
     cursor = conn.cursor()
+
     if request.method == 'POST':
-        if username == "False":  # Username verification form submitted
-            # Get the username from the form
-            username_input = request.form.get('username')
+        cursor.execute("SELECT userID FROM users WHERE username = %s", (username,))
+        user = cursor.fetchone()
 
-            cursor.execute("SELECT * FROM users where username = %s", (username,))
-            # TODO: Verify if the username exists in the database
-            # Example response for demonstration purposes
-            user_exists = True  # Replace with actual database check
-            if user_exists:
-                return jsonify({"message": "Username verified. Proceed to password reset.", "username": username_input})
-            else:
-                return jsonify({"error": "Username does not exist"}), 404
-        else:  # Password reset form submitted
-            # Get the passwords from the form
-            password = request.form.get('password')
-            confirm_password = request.form.get('confirm_password')
+        if not user:
+            return jsonify({"error": f"User does not exist: {username}"}), 404
 
-            # Check if the passwords match
-            if password != confirm_password:
-                return jsonify({"error": "Passwords do not match"}), 400
+        user_id = user[0]
 
-            # TODO: Reset the user's password in the database
-            # Example response for demonstration purposes
-            return jsonify({"message": "Password reset successfully"})
+        # Get passwords
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
 
-    # Handle GET request
-    if username == "False":
-        # Render the username verification page
-        return render_template_string("username_input.html")
-    else:
-        # Render the password reset form
-        return render_template_string("reset_password.html")
+        # Validate passwords
+        if password != confirm_password:
+            return jsonify({"error": "Passwords do not match"}), 400
 
-    subject = "Password Reset Request for Your Account"
-    body = f"""
-    Dear {username},
+        if (
+            len(password) < 8 or
+            not any(char.isupper() for char in password) or
+            not any(char.islower() for char in password) or
+            not any(char.isdigit() for char in password) or
+            not any(char in string.punctuation for char in password)
+        ):
+            return jsonify({"error": "Password must contain at least 8 characters, an uppercase letter, a lowercase letter, a number, and a special character!"}), 400
 
-    We received a request to reset the password for your account associated with this email address. If you made this request, please click the link below to reset your password:
+        # Hash and update password
+        hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-    Reset Password : https://fortbow.duckdns.org:5000/reset-password?token={token}&?username={have_username}
+        cursor.execute("UPDATE users SET password = %s WHERE userID = %s", (hashed_password, user_id))
+        conn.commit()
 
-    This link will expire in [timeframe, e.g., 24 hours] for security reasons.
+        return jsonify({"message": "Password reset successfully"}), 200
 
-    If you did not request a password reset, please ignore this email or contact our support team if you have concerns about your account's security.
-
-    Best regards,
-    The ChatCLI Team
-    https://github.com/SciTechMC/ChatCLI"""
-
-    sent_mail = send_email(body, subject, email)
-
-    if not sent_mail[0]:
-        db.rollback()
-        return return_statement("", sent_mail[1], 500)
+    return render_template("reset_password.html", username=username, token=token)
 
 #CHATTING BS
 
