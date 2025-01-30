@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import time
 import websockets
 import os
@@ -25,7 +26,7 @@ async def check_looping():
             with open(DATA_FILE_PATH, "r") as file:
                 looping = json.load(file).get("looping")
                 if not looping:
-                    exit()
+                    sys.exit()
         except Exception as e:
             print(e)
         await asyncio.sleep(5)  # Check every 5 seconds

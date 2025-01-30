@@ -1,6 +1,10 @@
+import atexit
 import json
 import os
+import signal
 import subprocess
+import sys
+
 import requests
 import re
 from rich.console import Console
@@ -110,7 +114,7 @@ def register():
             },
         )
         if response.status_code != 200:
-            print(response.json().get("error"), response.status_code)
+            print(response.json().get("error"))
         else:
             email_verification()
     except requests.RequestException as e:
@@ -142,7 +146,7 @@ def email_verification():
                     }
                 )
                 if response.status_code != 200:
-                    print(response.json().get("error"), response.status_code)
+                    print(response.json().get("error"))
                 else:
                     print("Account registration completed!")
                     print("Logging on...")
@@ -157,7 +161,7 @@ def email_verification():
                             LOGGED_IN = True
                             print(data.get("response"))
                         else:
-                            print(data.get("error"), response.status_code)
+                            print(data.get("error"))
                     except requests.RequestException as e:
                         print(f"Error: {e}")
                     break
@@ -183,7 +187,10 @@ def login():
         response = requests.post(
             GLOBAL_VARS["url"] + "reset-password-request", json={"data": GLOBAL_VARS["username"]}
         )
-        print(response.json())
+        if response.status_code != 200:
+            print(response.json().get("error"))
+        else:
+            print(response.json().get("response"))
         return
     GLOBAL_VARS["password"] = password
 
@@ -198,7 +205,7 @@ def login():
             LOGGED_IN = True
             print(data.get("response"))
         else:
-            print(data.get("error"), response.status_code)
+            print(data.get("error"))
     except requests.RequestException as e:
         print(f"Error: {e}")
 
@@ -211,7 +218,7 @@ def select_chat():
                 json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"]},
             )
             if response.status_code != 200:
-                print(response.json().get("error"), response.status_code)
+                print(response.json().get("error"))
                 return
 
             user_list = response.json().get("response")
@@ -233,7 +240,7 @@ def select_chat():
                         print(response.json().get("response"))
                         break
                     else:
-                        print(response.json().get("error"), response.status_code)
+                        print(response.json().get("error"))
                         continue
                 continue
 
@@ -261,7 +268,7 @@ def select_chat():
                     if response.status_code == 200:
                         print(response.json().get("response"))
                     else:
-                        print(response.json().get("error"), response.status_code)
+                        print(response.json().get("error"))
                         continue
                 else:
                     continue
@@ -316,7 +323,7 @@ def in_chat():
                     },
                 )
                 if response.status_code != 200:
-                    print(response.json().get("error"), response.status_code)
+                    print(response.json().get("error"))
             except requests.RequestException as e:
                 print(f"Error: {e}")
 
@@ -387,11 +394,33 @@ def homepage():
             case _:
                 print("Invalid input!")
 
+def cleanup():
+    chat_data = {
+        "receiver": "",
+        "username": "",
+        "session_token": "",
+        "looping": False,
+    }
+
+    with open(os.path.join(CHATCLI_FOLDER, "data.json"), "w") as f:
+        json.dump(chat_data, f, indent=4)
+
+def signal_handler(sig, frame):
+    cleanup()
+    sys.exit(0)
+
 if __name__ == "__main__":
 
     os.system(f"title CHATCLI {GLOBAL_VARS["version"]}")
 
+    atexit.register(cleanup)
+    signal.signal(signal.SIGINT, signal_handler)  # Handles Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Handles process termination
+
     if verify_connection():
-        homepage()
+        try:
+            homepage()
+        except EOFError:
+            cleanup()
     else:
         print("[red]Unable to establish a connection![/]")

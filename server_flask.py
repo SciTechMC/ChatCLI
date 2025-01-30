@@ -241,71 +241,6 @@ https://github.com/SciTechMC/ChatCLI
         # Ensure the cursor is always closed to release resources
         cursor.close()
 
-@app.route("/resend-email", methods=["POST"])
-def resend_email():
-    client = request.get_json()
-    username = client.get("username").lower()
-    client_token = client.get("email_token")
-    conn = get_db()
-    cursor = conn.cursor()
-    try:
-        email_token = random.randint(100000, 999999)
-        cursor.execute("""
-        SELECT userID, email FROM users WHERE username = %s
-        """, (username,))
-
-        user_id = cursor.fetchone()[0]
-        email = cursor.fetchone()[1]
-
-        cursor.execute(
-        "INSERT INTO email_tokens (userID, email_token) VALUES (%s, %s)"
-        ,(user_id, client_token,)
-        )
-        
-        subject = "ChatCLI Account Verification Code"
-        message = f"""
-Dear {username},
-
-Thank you for registering with ChatCLI. To complete your registration, please use the verification code provided below.
-
-Verification Code: {email_token}
-
-This code is valid for the next 5 minutes. Please enter it in the application. If you did not request this code, please disregard this email.
-
-If you encounter any issues or need assistance, feel free to contact our support team on github (https://github.com/SciTechMC/ChatCLI/issues/new/choose) or by email using chatcli.official+support@gmail.com.
-
-Best regards,
-The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
-            """
-
-        try:
-            response = send_email(message, subject, email)
-
-            # Check if the email was successfully sent
-            if isinstance(response, list) and not response[0]:
-                return return_statement("", response[1], 500)
-
-            # https://chatgpt.com/share/679a219d-1a24-800f-ba48-b93c4c403ac7
-
-            # If email sent successfully
-            return return_statement("Email sent successfully!")
-
-        except Exception as e:
-            # If an exception occurs, roll back the transaction and return error
-            conn.rollback()
-            return return_statement("", str(e), 500)
-
-        finally:
-            # Ensure the cursor is always closed to release resources
-            cursor.close()
-
-        
-    except mysql.connector.Error as e:
-        return return_statement("", str(e), 500)
-    finally:
-        cursor.close()
-
 @app.route("/verify-email", methods=["POST"])
 def verify_email():
     client = request.get_json()
@@ -378,6 +313,7 @@ def login():
 @app.route("/reset-password-request", methods=["POST"])
 def reset_password_request():
     client = request.get_json()
+    print(client)
     username = client.get("data")
     have_username = False
     email = ""
@@ -418,7 +354,7 @@ def reset_password_request():
 
     cursor.execute("INSERT INTO pass_reset (reset_token, userID) VALUES (%s, %s)", (token, userID,))
     db.commit()
-
+    print("commited")
     subject = "Password Reset Request for Your Account"
 
     if have_username:
@@ -452,6 +388,7 @@ https://github.com/SciTechMC/ChatCLI
         db.rollback()
         return return_statement("", str(e), 500)
     finally:
+        print("email sent", email)
         cursor.close()
 
 @app.route("/reset-password", methods=["GET", "POST"])
