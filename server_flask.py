@@ -27,7 +27,7 @@ def get_db():
     :return: A MySQL database connection stored in Flask's 'g' object.
     """
     if 'db' not in g:
-        env = db_envs.dev()  # Fetch database credentials
+        env = db_envs.prod()  # Fetch database credentials
         g.db = mysql.connector.connect(
             host="localhost",
             user=env["user"],
@@ -110,7 +110,7 @@ def verify_connection():
             return return_statement("", "Invalid request!", 400)
 
         version = client_data.get("version")
-        if version == "post-alpha-dev-build":
+        if version == "alpha 0.2.0":
             return return_statement(response="Hello World!")
         else:
             return return_statement("", "Incompatible client version!", 400)

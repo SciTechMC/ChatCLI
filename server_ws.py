@@ -6,7 +6,7 @@ import aiomysql
 import db_envs
 import ssl
 
-env = db_envs.dev()
+env = db_envs.prod()
 
 async def main(data, ws):
     """

@@ -24,7 +24,7 @@ GLOBAL_VARS = {
     "receiver": "",
     "url": "https://fortbow.duckdns.org:5000/",
     "action_list": ["register", "login", "start chatting", "logout", "exit"],
-    "version" : "post-alpha-dev-build"
+    "version" : "alpha 0.2.0"
 }
 
 # Utility Functions
