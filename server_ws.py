@@ -87,9 +87,7 @@ async def main(data, ws):
     except Exception as e:
         print(e)
     finally:
-        # Ensure the WebSocket connection is closed
-        if not ws.closed:
-            await ws.close()
+        await ws.close()
 
 async def handler(ws):
     """

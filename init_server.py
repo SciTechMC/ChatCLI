@@ -10,7 +10,7 @@ import db_envs  # Importing the module to get database credentials
 
 
 async def setup_database():
-    db_config = (db_envs.dev())
+    db_config = (db_envs.prod())
     conn = await aiomysql.connect(
         host="localhost",
         user='root',
@@ -23,6 +23,14 @@ async def setup_database():
             await cursor.execute(f"USE {db_config['db']};")
 
             # Create tables
+            await cursor.execute("""
+            CREATE TABLE IF NOT EXISTS email_subscribers (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
             await cursor.execute("""
             CREATE TABLE IF NOT EXISTS Users (
                 userID INT AUTO_INCREMENT PRIMARY KEY,

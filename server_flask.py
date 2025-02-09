@@ -1,7 +1,7 @@
 import json
 import random
 import string
-from flask import Flask, request, jsonify, g, render_template
+from flask import Flask, request, jsonify, g, render_template, redirect, url_for, flash
 import re
 import mysql.connector
 import bcrypt
@@ -9,11 +9,13 @@ import db_envs
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+from waitress import serve
+import secrets
 
 #waitress-serve --host=0.0.0.0 --port=5000 --threads=4 --workers=9 --ssl-certfile=/certifs/cert.pem --ssl-keyfile=/certifs/privkey.pem server_flask:app
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
 
 with open("mail_info.json", "r") as f:
     data = json.load(f)
@@ -96,6 +98,49 @@ def send_email(message,subject,receiver):
         return [False, str(e)]
 
 # ---------------------------- ROUTES ----------------------------
+
+@app.route("/", methods=["POST", "GET"])
+def base():
+    return render_template("welcome.html")
+
+import traceback  # Add this for detailed error logging
+@app.route("/subscribe", methods=["GET", "POST"])
+def subscribe():
+    if request.method == "POST":
+        email = request.form.get("email")
+
+        if not email:
+            flash("Email is required!", "error")
+            return redirect(url_for("subscribe"))
+
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            # Check if the email already exists
+            cursor.execute("SELECT email FROM email_subscribers WHERE email = %s", (email,))
+            existing_email = cursor.fetchone()
+            if existing_email:
+                flash("This email is already subscribed!", "warning")
+                return redirect(url_for("subscribe"))
+
+            # Insert the new email into the database
+            cursor.execute("INSERT INTO email_subscribers (email) VALUES (%s)", (email,))
+            conn.commit()
+            flash("You have successfully subscribed!", "success")
+        except mysql.connector.Error as err:
+            flash(f"Database error: {err}", "error")
+            print(f"Database error: {err}")  # Print the error to the console
+            traceback.print_exc()  # Print the full stack trace
+        except Exception as e:
+            flash(f"An unexpected error occurred: {e}", "error")
+            print(f"Unexpected error: {e}")  # Print the error to the console
+            traceback.print_exc()
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template("subscribe.html")
+
 
 @app.route("/verify-connection", methods=["POST", "GET"])
 def verify_connection():
@@ -313,7 +358,6 @@ def login():
 @app.route("/reset-password-request", methods=["POST"])
 def reset_password_request():
     client = request.get_json()
-    print(client)
     username = client.get("data")
     have_username = False
     email = ""
@@ -354,13 +398,12 @@ def reset_password_request():
 
     cursor.execute("INSERT INTO pass_reset (reset_token, userID) VALUES (%s, %s)", (token, userID,))
     db.commit()
-    print("commited")
     subject = "Password Reset Request for Your Account"
 
     if have_username:
-        reset_link = f"https://fortbow.duckdns.org:5000/reset-password?token={token}&username={username}"
+        reset_link = f"https://chat.puam.be/reset-password?token={token}&username={username}"
     else:
-        reset_link = f"https://fortbow.duckdns.org:5000/verify-username?token={token}"
+        reset_link = f"https://chat.puam.be/verify-username?token={token}"
 
     body = f"""
 Dear {username},
@@ -388,7 +431,7 @@ https://github.com/SciTechMC/ChatCLI
         db.rollback()
         return return_statement("", str(e), 500)
     finally:
-        print("email sent", email)
+        print("email sent to", email)
         cursor.close()
 
 @app.route("/reset-password", methods=["GET", "POST"])
@@ -575,7 +618,5 @@ def receive_message():
 # ---------------------------- RUN SERVER ----------------------------
 
 if __name__ == "__main__":
-    cert_path = '/etc/letsencrypt/live/<your-domain>/cert.pem'
-    key_path = '/etc/letsencrypt/live/<your-domain>/privkey.pem'
-
-    app.run(host="0.0.0.0",debug=True, ssl_context=('./certifs/fullchain.pem', './certifs/privkey.pem'))
+    print("Serving with waitress")
+    serve(app, host="0.0.0.0", port=5123, threads=9, url_scheme='https')
