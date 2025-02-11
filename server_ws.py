@@ -82,7 +82,7 @@ async def main(data, ws):
                         else:
                             await ws.send(json.dumps({"error" : "No messages found", "status_code": 404}))
 
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(1)
                     await conn.commit()
     except Exception as e:
         print(e)
@@ -117,8 +117,10 @@ async def handler(ws):
     except Exception as e:
         print(f"Unexpected error: {e}")
     finally:
-        if not ws.closed:
+        try:
             await ws.close()
+        except Exception:
+            return
         print("WebSocket connection closed.")
 
 async def ws_start():
