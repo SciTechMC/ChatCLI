@@ -603,6 +603,9 @@ def receive_message():
 
         chat_id = chat_id[0]
 
+        if len(message) > 1000:
+            return return_statement("",f"Message is to long! ({len(message)} chars/1000)", 400)
+
         # Insert message
         cursor.execute("""
         INSERT INTO Messages (chatID, userID, message)
