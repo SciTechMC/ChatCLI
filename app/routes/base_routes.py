@@ -1,5 +1,5 @@
 from flask import Blueprint
-import chatcli.app.services.base_services as base_s
+import app.services.base_services as base_s
 from flask import render_template
 
 base = Blueprint("base", __name__)

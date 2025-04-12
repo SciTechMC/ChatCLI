@@ -1,5 +1,5 @@
-from chatcli.app.services.base_services import return_statement, get_db
-from chatcli.app.services.mail_services import send_email
+from app.services.base_services import return_statement, get_db
+from app.services.mail_services import send_email
 from flask import request, jsonify, render_template
 import mysql.connector
 import random

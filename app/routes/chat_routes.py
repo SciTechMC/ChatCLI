@@ -1,5 +1,5 @@
 from flask import Blueprint
-from chatcli.app.services.chat_services import fetch_chats,create_chat,receive_message
+from app.services.chat_services import fetch_chats,create_chat,receive_message
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
 

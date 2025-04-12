@@ -1,5 +1,5 @@
 from flask import request
-from chatcli.app.services.base_services import verif_user,return_statement,get_db
+from app.services.base_services import verif_user,return_statement,get_db
 import mysql.connector
 
 def fetch_chats():

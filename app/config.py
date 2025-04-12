@@ -1,4 +1,4 @@
-from chatcli.app.dev import email, db_acc
+from app.dev import email, db_acc
 
 def email_acc():
     return email()

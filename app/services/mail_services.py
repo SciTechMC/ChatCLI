@@ -1,5 +1,5 @@
-from chatcli.app.services.base_services import get_db
-from chatcli.app.config import email_pssw, email_acc
+from app.services.base_services import get_db
+from app.config import email_pssw, email_acc
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart

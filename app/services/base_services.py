@@ -1,4 +1,4 @@
-from chatcli.app.database.db_helper import get_db
+from app.database.db_helper import get_db
 from flask import jsonify
 import bcrypt
 import mysql.connector
