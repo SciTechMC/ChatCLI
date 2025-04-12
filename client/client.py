@@ -38,9 +38,8 @@ def verify_connection():
     """Verify server connection."""
     print("Connecting to the server...")
     try:
-        # First attempt with the existing GLOBAL_VARS["url"]
         response = requests.post(
-            GLOBAL_VARS["url"] + "verify-connection",
+            GLOBAL_VARS["url"] + "verify-connection",  # Updated
             json={"version": GLOBAL_VARS["version"]}
         )
         if response.status_code != 200:
@@ -49,10 +48,9 @@ def verify_connection():
     except requests.RequestException as e:
         print(f"First attempt failed: {e}")
         try:
-            # Fallback to localhost
             GLOBAL_VARS["url"] = "https://localhost:5000/"
             response = requests.post(
-                GLOBAL_VARS["url"] + "verify-connection",
+                GLOBAL_VARS["url"] + "verify-connection",  # Updated
                 json={"version": "post-alpha-dev-build"}
             )
             print("[green]Connected to localhost![/]")
@@ -106,7 +104,7 @@ def register():
 
     try:
         response = requests.post(
-            GLOBAL_VARS["url"] + "register",
+            GLOBAL_VARS["url"] + "user/register",  # Updated
             json={
                 "username": GLOBAL_VARS["username"],
                 "password": GLOBAL_VARS["password"],
@@ -138,7 +136,7 @@ def email_verification():
         else:
             try:
                 response = requests.post(
-                    GLOBAL_VARS["url"] + "verify-email",
+                    GLOBAL_VARS["url"] + "user/verify-email",
                     json={
                         "username" : GLOBAL_VARS["username"],
                         "email_token" : email_token
@@ -152,7 +150,7 @@ def email_verification():
                     print("Logging on...")
                     try:
                         response = requests.post(
-                            GLOBAL_VARS["url"] + "login",
+                            GLOBAL_VARS["url"] + "user/login",
                             json={"username": GLOBAL_VARS["username"], "password": GLOBAL_VARS["password"]},
                         )
                         data = response.json()
@@ -185,7 +183,7 @@ def login():
         if not username:
             GLOBAL_VARS["username"] = input("Enter your username or email: ")
         response = requests.post(
-            GLOBAL_VARS["url"] + "reset-password-request", json={"data": GLOBAL_VARS["username"]}
+            GLOBAL_VARS["url"] + "user/reset-password-request", json={"data": GLOBAL_VARS["username"]}
         )
         if response.status_code != 200:
             print(response.json().get("error"))
@@ -196,7 +194,7 @@ def login():
 
     try:
         response = requests.post(
-            GLOBAL_VARS["url"] + "login",
+            GLOBAL_VARS["url"] + "user/login",
             json={"username": GLOBAL_VARS["username"], "password": GLOBAL_VARS["password"]},
         )
         data = response.json()
@@ -214,7 +212,7 @@ def select_chat():
     try:
         while True:
             response = requests.post(
-                GLOBAL_VARS["url"] + "fetch-chats",
+                GLOBAL_VARS["url"] + "chat/fetch-chats",
                 json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"]},
             )
             if response.status_code != 200:
@@ -232,7 +230,7 @@ def select_chat():
                             return
                     GLOBAL_VARS["receiver"] = receiver
                     response = response = requests.post(
-                        GLOBAL_VARS["url"] + "create-chat",
+                        GLOBAL_VARS["url"] + "chat/create-chat",
                         json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"],
                               "receiver": GLOBAL_VARS["receiver"]},
                     )
@@ -262,7 +260,7 @@ def select_chat():
                 GLOBAL_VARS["receiver"] = choice
                 if input("Would you like to create this chat(y/n)? ") == "y":
                     response = response = requests.post(
-                        GLOBAL_VARS["url"] + "create-chat",
+                        GLOBAL_VARS["url"] + "chat/create-chat",
                         json={"username": GLOBAL_VARS["username"], "session_token": GLOBAL_VARS["session_token"], "receiver": GLOBAL_VARS["receiver"]},
                         )
                     if response.status_code == 200:
@@ -314,7 +312,7 @@ def in_chat():
         if message:
             try:
                 response = requests.post(
-                    GLOBAL_VARS["url"] + "receive-message",
+                    GLOBAL_VARS["url"] + "chat/receive-message",
                     json={
                         "username": GLOBAL_VARS["username"],
                         "receiver": GLOBAL_VARS["receiver"],
