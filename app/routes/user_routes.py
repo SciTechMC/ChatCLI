@@ -1,5 +1,5 @@
 from flask import Blueprint
-from chatcli.app.services.user_services import register, verify_email, login, reset_password, reset_password_request
+from app.services.user_services import register, verify_email, login, reset_password, reset_password_request
 
 user = Blueprint("user", __name__, url_prefix="/user")
 

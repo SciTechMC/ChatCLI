@@ -1,6 +1,8 @@
 from app import create_app
 from app.database.db_helper import close_db
+import os
 
+dbuser=os.getenv("DB_USER")
 app = create_app()
 
 @app.teardown_appcontext

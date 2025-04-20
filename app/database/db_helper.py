@@ -1,6 +1,6 @@
 from flask import g
 import mysql.connector
-from chatcli.app.config import db_login
+from app.config import db_login
 
 def get_db():
     """

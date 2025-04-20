@@ -3,7 +3,7 @@ def email(value = "account"):
     args: value = password/account
     """
     if value == "password":
-        return str("itln wqsp pisn bvkq ")
+        return str("")
     else:
         return str("chatcli.official@gmail.com")
 

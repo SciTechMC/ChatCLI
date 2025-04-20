@@ -1,3 +1,3 @@
 @echo off
-python init_server.py
+python server_flask.py
 pause
