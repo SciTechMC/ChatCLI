@@ -1,0 +1,7 @@
+aiomysql==0.2.0
+Flask==3.1.0
+mysql_connector_repackaged==0.3.1
+python_bcrypt==0.3.2
+Requests==2.32.3
+rich==14.0.0
+waitress==3.0.2
