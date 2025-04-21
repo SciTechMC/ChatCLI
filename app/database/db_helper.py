@@ -1,18 +1,18 @@
 from flask import g
 import mysql.connector
-from app.config import db_login
+import os
 
 def get_db():
     """
     :return: A MySQL database connection stored in Flask's 'g' object.
     """
     if 'db' not in g:
-        env = db_login()
         g.db = mysql.connector.connect(
-            host="localhost",
-            user=env["user"],
-            password=env["password"],
-            database=env["db"]
+            host=os.getenv("DB_HOST", "localhost"),
+            user=os.getenv("DB_DEV_USER"),
+            password=os.getenv("DB_DEV_PASSWORD"),
+            database=os.getenv("DB_NAME_DEV"),
+            port=int(os.getenv("DB_PORT", 3306))
         )
     return g.db
 

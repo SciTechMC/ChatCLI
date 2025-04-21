@@ -1,10 +1,12 @@
+import os
 from app.services.base_services import get_db
-from app.config import email_pssw, email_acc
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 def send_email(subject, body, recipient):
+    email_acc = os.getenv("EMAIL_USER")
+    email_pssw = os.getenv("EMAIL_PASSWORD")
 
     msg = MIMEMultipart()
     msg['From'] = email_acc
@@ -14,8 +16,8 @@ def send_email(subject, body, recipient):
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(str(email_acc), str(email_pssw))
-            server.sendmail(str(email_acc), recipient, msg.as_string())
+            server.login(email_acc, email_pssw)
+            server.sendmail(email_acc, recipient, msg.as_string())
             print(f"Email sent to {recipient}")
     except Exception as e:
         print(f"Failed to send email to {recipient}: {e}")

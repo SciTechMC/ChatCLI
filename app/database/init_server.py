@@ -1,4 +1,5 @@
 import subprocess
+import os
 
 imports = ["asyncio", "aiomysql", "websockets","requests", "json", "rich", "mysql.connector", "cryptography", "smtp", "bcrypt"]
 for install in imports:
@@ -10,11 +11,17 @@ import dev
 
 
 async def setup_database():
-    db_config = (dev())
+    db_config = {
+        "user": os.getenv("DB_DEV_USER"),
+        "password": os.getenv("DB_DEV_PASSWORD"),
+        "db": os.getenv("DB_NAME_DEV"),
+        "host": os.getenv("DB_HOST", "localhost"),
+        "port": int(os.getenv("DB_PORT", 3306))
+    }
     conn = await aiomysql.connect(
-        host="localhost",
-        user='root',
-        password='1234'
+        host=db_config["host"],
+        user="root",
+        password="1234"
     )
     try:
         async with conn.cursor() as cursor:
