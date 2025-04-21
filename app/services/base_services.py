@@ -82,7 +82,10 @@ def verify_connection():
     Test route to verify server is reachable.
     """
     # Handle POST request
-    if request.method == "POST":
+    if request.method == "GET":
+        return return_statement("", "Incompatible client version!", 400)
+    
+    elif request.method == "POST":
         # Ensure the JSON body exists
         client_data = request.get_json()
         if not client_data:
@@ -93,10 +96,6 @@ def verify_connection():
             return return_statement(response="Hello World!")
         else:
             return return_statement("", "Incompatible client version!", 400)
-
-    # Handle GET request
-    elif request.method == "GET":
-        return return_statement("", "Incompatible client version!", 400)
-
+        
     # Fallback (should not be reached)
     return return_statement("", "Unsupported HTTP method!", 405)
