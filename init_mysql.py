@@ -131,5 +131,7 @@ def setup_database():
 
 if __name__ == "__main__":
     setup_database()
-    subprocess.run(["python", "main.py"], check=True)
-    
+    try:
+        subprocess.run(["python", "main.py"], check=True)
+    except Exception as e:
+        print(f"Error: {e}")

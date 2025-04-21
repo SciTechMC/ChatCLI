@@ -21,7 +21,7 @@ if %errorlevel% neq 0 (
     echo Installing dependencies...
     python -m pip install -r requirements.txt
 )
-
+cls
 REM Check if python-dotenv is installed
 python -m pip show python-dotenv >nul 2>&1
 if %errorlevel% neq 0 (
@@ -30,7 +30,7 @@ if %errorlevel% neq 0 (
 ) else (
     echo python-dotenv is already installed.
 )
-
+cls
 REM Run the main script
-python main.py
+python init_mysql.py
 pause
