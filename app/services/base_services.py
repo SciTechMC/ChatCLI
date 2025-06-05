@@ -92,7 +92,7 @@ def verify_connection():
             return return_statement("", "Invalid request!", 400)
 
         version = client_data.get("version")
-        if version == "alpha 0.2.0":
+        if version == "electron_app":
             return return_statement(response="Hello World!")
         else:
             return return_statement("", "Incompatible client version!", 400)
