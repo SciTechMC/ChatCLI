@@ -12,41 +12,67 @@
 <body>
   <h2>Starting Up…</h2>
   <div id="error" class="error"></div>
-  <script>
-    function goToHomePage() {
-      window.location.href = "home.html";
-    }
+<script>
+  function goToHomePage() {
+    console.log("Success! Redirecting to home.html...");
+    window.location.href = "home.html";
+  }
 
-    function verifyConnection() {
-      fetch(window.API_URLS.VERIFY_CONNECTION, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ version: "electron_app" }),
-      })
-      .then(async (response) => {
-        if (response.status === 200) {
-          goToHomePage();
-        } else if (response.status === 500) {
-          document.getElementById("error").textContent = "Internal server error. Retrying in 5 seconds...";
-          setTimeout(verifyConnection, 5000);
-        } else {
-          let msg = `Error: ${response.status}`;
-          try {
-            const data = await response.json();
-            if (data && data.message) msg = data.message;
-          } catch (e) { /* ignore */ }
-          document.getElementById("error").textContent = msg + " Retrying in 5 seconds...";
-          setTimeout(verifyConnection, 5000);
-        }
-      })
-      .catch(() => {
-        document.getElementById("error").textContent = "Could not connect to server. Retrying in 5 seconds...";
+  function verifyConnection() {
+    if (!window.API_URLS || !window.API_URLS.VERIFY_CONNECTION) {
+      document.getElementById("error").textContent = "API URLS not loaded!";
+      return;
+    }
+    console.log("Trying connection to:", window.API_URLS.VERIFY_CONNECTION);
+    fetch(window.API_URLS.VERIFY_CONNECTION, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: "electron_app" }),
+    })
+    .then(async (response) => {
+      console.log("Got response with status", response.status);
+      if (response.status === 200) {
+        goToHomePage();
+      } else if (response.status === 500) {
+        document.getElementById("error").textContent = "Internal server error. Retrying in 5 seconds...";
         setTimeout(verifyConnection, 5000);
-      });
-    }
+      } else {
+        let msg = `Error: ${response.status}`;
+        try {
+          const data = await response.json();
+          if (data && data.message) msg = data.message;
+        } catch (e) { /* ignore */ }
+        document.getElementById("error").textContent = msg + " Retrying in 5 seconds...";
+        setTimeout(verifyConnection, 5000);
+      }
+    })
+    .catch((e) => {
+      console.log("Fetch error:", e);
+      document.getElementById("error").textContent = "Could not connect to server. Retrying in 5 seconds...";
+      setTimeout(verifyConnection, 5000);
+    });
+  }
 
-    // Start the first connection attempt on page load
-    verifyConnection();
-  </script>
+  verifyConnection();
+</script>
+
+
+<button id="dev-skip" style="
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 0.4em 1em;
+  background: #eee;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1em;
+">Dev Skip</button>
+<script>
+  document.getElementById("dev-skip").addEventListener("click", () => {
+    window.location.href = "home.html";
+  });
+</script>
+
 </body>
 </html>
