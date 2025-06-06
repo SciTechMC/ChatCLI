@@ -1,6 +1,6 @@
 {
   "name": "chatcli",
-  "version": "1.0.0",
+  "version": "dev-electron-app",
   "description": "",
   "main": "main.js",
   "scripts": {
