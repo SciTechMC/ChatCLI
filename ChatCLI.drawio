@@ -1,0 +1,365 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0" version="27.1.6">
+  <diagram name="Page-1" id="IyOl1JzqoVD-4Wc97Tee">
+    <mxGraphModel dx="2377" dy="1665" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="#ffffff" math="0" shadow="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-1" target="SQyUVofRYkzOnYcD2kUR-2" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-1" value="Server" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="20" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-2" target="SQyUVofRYkzOnYcD2kUR-4" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-2" value="run.bat" style="html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="120" y="25" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-4" target="SQyUVofRYkzOnYcD2kUR-9" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="335" y="150" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-24" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-4" target="SQyUVofRYkzOnYcD2kUR-8" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="335" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-4" value="init mysql database" style="html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="280" y="25" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-22" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-8" target="SQyUVofRYkzOnYcD2kUR-21" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-8" value="Start Flask Process" style="html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="440" y="25" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-26" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-9" target="SQyUVofRYkzOnYcD2kUR-25" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-9" value="Start FastAPI WS process" style="html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="440" y="80" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-21" target="SQyUVofRYkzOnYcD2kUR-29" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="SQyUVofRYkzOnYcD2kUR-21" target="SQyUVofRYkzOnYcD2kUR-28" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-21" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;&lt;b&gt;Flask API&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Base routes &quot;/&quot;&lt;br&gt;Chat routes &quot;/chat&quot;&lt;br&gt;User routes &quot;/user&quot;&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="590" y="5" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-25" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;&lt;b&gt;WS routes (to implement)&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="415" y="180" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-27" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;Base routes &quot;/&quot;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/&quot; &amp;gt; Home Page&lt;br&gt;&quot;/verify-connection&quot; &amp;gt; Verify the connection between the server and the user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/subscribe&quot; &amp;gt; Page to subscribe to new releases&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="830" y="-85" width="440" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="SQyUVofRYkzOnYcD2kUR-28" target="PghMe-fX01TkS8W1eZBI-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-28" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;User routes &quot;/user&quot;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/register&quot; &amp;gt; Register a user to the database&lt;br&gt;&quot;/verify-email&quot; &amp;gt; Second step in user registration, verify user email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/login&quot; &amp;gt; Log the user into the correct account&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/reset-password-request&quot; &amp;gt; Sent an email to reset the password&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/reset-password&quot; &amp;gt; logic to reset the user&#39;s password&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="830" y="94" width="440" height="106" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="SQyUVofRYkzOnYcD2kUR-29" target="PghMe-fX01TkS8W1eZBI-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-29" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;Chat routes &quot;/chat&quot;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/fetch-chats&quot; &amp;gt; Fetch the user&#39;s chat&lt;br&gt;&quot;/create-chat&quot; &amp;gt; Create a chat between users (2)&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&quot;/receive-message&quot; &amp;gt; Messages sent by the client (depracated)&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" parent="1" vertex="1">
+          <mxGeometry x="830" y="4" width="440" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-21" target="SQyUVofRYkzOnYcD2kUR-27" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-37" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-35" target="SQyUVofRYkzOnYcD2kUR-38" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="130" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-35" value="User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="40" y="420" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-40" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-38" target="SQyUVofRYkzOnYcD2kUR-39" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-38" value="&lt;div&gt;Electron app&lt;/div&gt;" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="130" y="425" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-42" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-39" target="SQyUVofRYkzOnYcD2kUR-41" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-39" target="SQyUVofRYkzOnYcD2kUR-43" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-39" value="Home Page" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="280" y="425" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-46" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-41" target="SQyUVofRYkzOnYcD2kUR-45" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-52" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-41" target="SQyUVofRYkzOnYcD2kUR-51" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-41" value="Login" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="430" y="425" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-49" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-43" target="SQyUVofRYkzOnYcD2kUR-41" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-43" value="Register" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="280" y="500" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" parent="1" source="SQyUVofRYkzOnYcD2kUR-45" target="SQyUVofRYkzOnYcD2kUR-41" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-45" value="Reset Password" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="430" y="340" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;shadow=0;" edge="1" parent="1" source="SQyUVofRYkzOnYcD2kUR-51" target="PghMe-fX01TkS8W1eZBI-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="SQyUVofRYkzOnYcD2kUR-51" value="&lt;div&gt;Main Page&lt;/div&gt;" style="html=1;whiteSpace=wrap;shadow=0;" parent="1" vertex="1">
+          <mxGeometry x="580" y="425" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-5" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;&lt;b&gt;Page Layout&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Top left (profile) / logout&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Left : list of chats&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Right : Open chat&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;shadow=0;" vertex="1" parent="1">
+          <mxGeometry x="740" y="405" width="160" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-7" target="PghMe-fX01TkS8W1eZBI-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-7" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Fetch Chats&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- Session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user&#39;s username/session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;retrieve chats form db&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="-360" width="220" height="128" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-8" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-7">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-9" target="PghMe-fX01TkS8W1eZBI-31">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-9" target="PghMe-fX01TkS8W1eZBI-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-63" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-9" target="PghMe-fX01TkS8W1eZBI-56">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-83" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-9" target="PghMe-fX01TkS8W1eZBI-65">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-84" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-9" target="PghMe-fX01TkS8W1eZBI-75">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-9" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;User services&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;register&lt;br&gt;verify_email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;login&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;reset_password_request&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;reset_password&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="94" width="150" height="107" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-12" target="PghMe-fX01TkS8W1eZBI-19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-12" target="PghMe-fX01TkS8W1eZBI-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-12" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;Chat routes &quot;/chat&quot;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;fetch_chats&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;create_chat&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1310" y="17.5" width="150" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-15" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve chats&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1585" y="-203.5" width="90" height="58.5" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-16" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-15">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-19" target="PghMe-fX01TkS8W1eZBI-21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-19" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Create chat&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- Session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- receiver(s)&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify receiver&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;check no chat exists&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;create chat with appropriate users&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="-123.5" width="220" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-20" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-19">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-21" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve chats&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Insert chat&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1585" y="76.5" width="90" height="73.5" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-22" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-21">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-30" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-31" target="PghMe-fX01TkS8W1eZBI-33">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-31" target="PghMe-fX01TkS8W1eZBI-35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-31" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Register&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- password&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify reception fields integrity&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user doesn&#39;t exist&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;insert user with encrypted passw&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;flag as &quot;not verified&quot;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;send email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="160" width="220" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-32" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-31">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-33" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve users&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Insert new user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1630" y="371" width="95" height="73.5" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-34" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-33">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-35" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Mail&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Send verif email&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1530" y="371" width="100" height="73.5" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-36" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-35">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-38" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-40" target="PghMe-fX01TkS8W1eZBI-42">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-40" target="PghMe-fX01TkS8W1eZBI-44">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1630" y="600" />
+              <mxPoint x="1560" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-40" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Verify email&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- email_token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify email token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;flag user as &quot;verified&quot;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="450" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-41" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-40">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-42" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve email tokens&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Update user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1635" y="615" width="125" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-43" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-42">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-44" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Mail&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Send confirmation email&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1495" y="615" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-45" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-44">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-62" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-56" target="PghMe-fX01TkS8W1eZBI-58">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-56" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Login&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- password&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;create session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="720" width="220" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-57" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-56">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-58" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve users&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Insert new session code&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1556.25" y="870" width="147.5" height="73.5" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-59" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-58">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-65" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;reset_password_request&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;generate reset token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;send email&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="960" width="220" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-66" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-65">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-69" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" target="PghMe-fX01TkS8W1eZBI-71" source="PghMe-fX01TkS8W1eZBI-65">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1630" y="1100" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="1630" y="1120" />
+              <mxPoint x="1702" y="1120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-70" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" target="PghMe-fX01TkS8W1eZBI-73">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1630" y="1100" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="1630" y="1120" />
+              <mxPoint x="1560" y="1120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-71" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve email tokens&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Update user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1630" y="1135" width="125" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-72" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-71">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-73" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Mail&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Send reset email&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="1135" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-74" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-73">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-75" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;reset_password&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify token/username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;if post:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&amp;gt;verify password / repeat pssw&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&amp;gt;insert new encrypted pssw&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;if &quot;get&quot;:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&amp;gt; html page with pssw form&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1520" y="1240" width="220" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-76" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-75">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-77" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="PghMe-fX01TkS8W1eZBI-75" target="PghMe-fX01TkS8W1eZBI-79">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1630" y="1380" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="1630" y="1420" />
+              <mxPoint x="1703" y="1420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" target="PghMe-fX01TkS8W1eZBI-81" source="PghMe-fX01TkS8W1eZBI-75">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1630" y="1380" as="sourcePoint" />
+            <Array as="points">
+              <mxPoint x="1630" y="1420" />
+              <mxPoint x="1560" y="1420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-79" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve email tokens&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Update user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1630" y="1440" width="125" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-80" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-79">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-81" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Mail&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Send confirmation email&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="1440" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="PghMe-fX01TkS8W1eZBI-82" value="" style="shape=component;jettyWidth=8;jettyHeight=4;" vertex="1" parent="PghMe-fX01TkS8W1eZBI-81">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-24" y="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
