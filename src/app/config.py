@@ -14,3 +14,14 @@ def db_login():
         "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 3306))
     }
+    
+VALID_TABLES = {
+    "users",
+    "email_subscribers",
+    "session_tokens",
+    "email_tokens",
+    "pass_reset_tokens",
+    "chats",
+    "participants",
+    "messages",
+}

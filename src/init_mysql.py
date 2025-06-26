@@ -29,7 +29,7 @@ def create_database_and_tables():
                     """
                     CREATE TABLE IF NOT EXISTS email_subscribers (
                       id             INT AUTO_INCREMENT PRIMARY KEY,
-                      email          VARCHAR(255) NOT NULL,
+                      email          VARCHAR(255) NOT NULL UNIQUE,
                       subscribed_at  DATETIME DEFAULT CURRENT_TIMESTAMP
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,

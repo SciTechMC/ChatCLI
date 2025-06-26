@@ -1,4 +1,4 @@
-from app.database.db_helper import get_db
+from app.database.db_helper import fetch_records, insert_record
 from flask import jsonify
 import bcrypt
 import mysql.connector
@@ -6,26 +6,44 @@ from flask import request, render_template, redirect, flash, url_for
 
 
 
-def verif_user(username, session_token):
-    """
-    Verifies if the user and session token match.
-    """
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-    SELECT session_token 
-    FROM session_tokens 
-    WHERE userID = (SELECT userID FROM Users WHERE username = %s)
-    ORDER BY created_at DESC 
-    LIMIT 1;
-    """, (username,))
-    user = cursor.fetchone()
-    cursor.close()
-    if not user:
-        return False  # No user or token found
+import bcrypt
+import logging
 
-    # Check if the provided session token matches the stored hash
-    return bcrypt.checkpw(session_token.encode("utf-8"), user["session_token"].encode("utf-8"))
+def verif_user(username: str, session_token: str) -> bool:
+    """
+    Verifies that the given username’s most recent session token matches.
+    """
+    # Fetch at most one record (the latest) for this user
+    cursor = fetch_records(
+        table="session_tokens",
+        where_clause=(
+            "userID = ("
+            "SELECT userID FROM users WHERE username = %s"
+            ")"
+        ),
+        params=(username,),
+        order_by="created_at DESC",
+        limit=1,
+        fetch_all=False     # return the raw cursor so we can do .fetchone()
+    )
+
+    try:
+        row = cursor.fetchone()
+    except Exception as e:
+        logging.error(f"[verif_user] failed to fetch session token for {username}: {e}")
+        return False
+
+    if not row:
+        return False  # no such user or no tokens at all
+
+    stored_hash = row["session_token"]
+    # Compare the provided token against the stored bcrypt hash
+    try:
+        return bcrypt.checkpw(session_token.encode("utf-8"),
+                              stored_hash.encode("utf-8"))
+    except ValueError as e:
+        logging.error(f"[verif_user] bcrypt error for user {username}: {e}")
+        return False
 
 def return_statement(response=None, error="", status_code=200, additional=None):
     return jsonify({
@@ -47,31 +65,29 @@ def subscribe():
             flash("Email is required!", "error")
             return redirect(url_for("subscribe"))
 
-        conn = get_db()
-        cursor = conn.cursor()
         try:
-            # Check if the email already exists
-            cursor.execute("SELECT email FROM email_subscribers WHERE email = %s", (email,))
-            existing_email = cursor.fetchone()
-            if existing_email:
+            # Use fetch_records to check if the email already exists
+            existing_emails = fetch_records(
+                table="email_subscribers",
+                where_clause="email = %s",
+                params=(email,),
+                fetch_all=True
+            )
+            if existing_emails:
                 flash("This email is already subscribed!", "warning")
                 return redirect(url_for("subscribe"))
 
-            # Insert the new email into the database
-            cursor.execute("INSERT INTO email_subscribers (email) VALUES (%s)", (email,))
-            conn.commit()
+            # Use insert_record to add the new email
+            insert_record("email_subscribers", {"email": email})
             flash("You have successfully subscribed!", "success")
         except mysql.connector.Error as err:
             flash(f"Database error: {err}", "error")
-            print(f"Database error: {err}")  # Print the error to the console
-            traceback.print_exc()  # Print the full stack trace
+            print(f"Database error: {err}")
+            traceback.print_exc()
         except Exception as e:
             flash(f"An unexpected error occurred: {e}", "error")
-            print(f"Unexpected error: {e}")  # Print the error to the console
+            print(f"Unexpected error: {e}")
             traceback.print_exc()
-        finally:
-            cursor.close()
-            conn.close()
     else:
         return render_template("subscribe.html")
 
