@@ -8,9 +8,9 @@ def email_pssw():
 
 def db_login():
     return {
-        "user": os.getenv("DB_DEV_USER"),
-        "password": os.getenv("DB_DEV_PASSWORD"),
-        "db": os.getenv("DB_NAME_DEV"),
-        "host": os.getenv("DB_HOST"),
+        "user": os.getenv("DB_USER"),
+        "password": os.getenv("DB_PASSWORD"),
+        "db": os.getenv("DB_NAME", "chatcli"),
+        "host": os.getenv("DB_HOST", "localhost"),
         "port": int(os.getenv("DB_PORT", 3306))
     }
