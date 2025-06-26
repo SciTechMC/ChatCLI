@@ -1,137 +1,155 @@
-import mysql.connector
-from mysql.connector import Error
+import os
+import logging
 import subprocess
+from mysql.connector import connect, Error
 
-def setup_database():
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# Load configuration from environment variables
+DB_HOST       = os.getenv("DB_HOST", "localhost")
+DB_ROOT_USER  = os.getenv("DB_ROOT_USER", "root")
+DB_ROOT_PASS  = os.getenv("DB_ROOT_PASSWORD")
+DB_NAME       = os.getenv("DB_NAME", "chatcli")
+DB_USER       = os.getenv("DB_USER", "chatcli_access")
+DB_PASSWORD   = os.getenv("DB_PASSWORD")
+
+def create_database_and_tables():
+    """Create database and tables if they don't exist."""
     try:
-        # Connect to MySQL as root
-        connection = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="Bunny-S3crEt"
-        )
+        with connect(host=DB_HOST, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
+            conn.autocommit = False
+            with conn.cursor() as cursor:
+                logging.info("Connected to MySQL server as root.")
+                cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                cursor.execute(f"USE `{DB_NAME}`;")
 
-        if connection.is_connected():
-            print("Connected to MySQL server as root.")
+                table_statements = [
+                    # email_subscribers (email not unique)
+                    """
+                    CREATE TABLE IF NOT EXISTS email_subscribers (
+                      id             INT AUTO_INCREMENT PRIMARY KEY,
+                      email          VARCHAR(255) NOT NULL,
+                      subscribed_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            cursor = connection.cursor()
+                    # users
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                      userID         INT AUTO_INCREMENT PRIMARY KEY,
+                      username       VARCHAR(20)  NOT NULL UNIQUE,
+                      password       VARCHAR(128) NOT NULL,
+                      email          VARCHAR(100),
+                      created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
+                      email_verified BOOLEAN      DEFAULT FALSE
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            # Create the database if it doesn't exist
-            cursor.execute("CREATE DATABASE IF NOT EXISTS chatcli_access;")
-            print("Database 'chatcli_access' created or already exists.")
+                    # session_tokens
+                    """
+                    CREATE TABLE IF NOT EXISTS session_tokens (
+                      tokenID        INT AUTO_INCREMENT PRIMARY KEY,
+                      userID         INT NOT NULL,
+                      session_token  VARCHAR(128) NOT NULL UNIQUE,
+                      created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
+                      expires_at     DATETIME     NOT NULL,
+                      revoked        BOOLEAN     DEFAULT FALSE,
+                      ip_address     VARCHAR(45),
+                      INDEX idx_sess_user (userID)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            # Use the database
-            cursor.execute("USE chatcli_access;")
+                    # email_tokens
+                    """
+                    CREATE TABLE IF NOT EXISTS email_tokens (
+                      tokenID      INT AUTO_INCREMENT PRIMARY KEY,
+                      userID       INT NOT NULL,
+                      email_token  CHAR(6)        NOT NULL UNIQUE,
+                      created_at   DATETIME       DEFAULT CURRENT_TIMESTAMP,
+                      expires_at   DATETIME       NOT NULL,
+                      revoked      BOOLEAN        DEFAULT FALSE,
+                      INDEX idx_email_user (userID)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            # Create tables
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS email_subscribers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                email VARCHAR(255) NOT NULL UNIQUE,
-                subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            """)
+                    # pass_reset_tokens
+                    """
+                    CREATE TABLE IF NOT EXISTS pass_reset_tokens (
+                      tokenID      INT AUTO_INCREMENT PRIMARY KEY,
+                      userID       INT NOT NULL,
+                      reset_token  VARCHAR(128)   NOT NULL UNIQUE,
+                      created_at   DATETIME       DEFAULT CURRENT_TIMESTAMP,
+                      expires_at   DATETIME       NOT NULL,
+                      revoked      BOOLEAN        DEFAULT FALSE,
+                      INDEX idx_reset_user (userID)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Users (
-                userID INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(20) NOT NULL UNIQUE,
-                password VARCHAR(128) NOT NULL,
-                email VARCHAR(100),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                email_verified BOOLEAN DEFAULT FALSE
-            );
-            """)
+                    # chats
+                    """
+                    CREATE TABLE IF NOT EXISTS chats (
+                      chatID     INT AUTO_INCREMENT PRIMARY KEY,
+                      created_at DATETIME          DEFAULT CURRENT_TIMESTAMP,
+                      type       ENUM('private','group') NOT NULL DEFAULT 'private'
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS session_tokens (
-                tokenID INT AUTO_INCREMENT PRIMARY KEY,
-                userID INT,
-                session_token VARCHAR(128),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                ip_address VARCHAR(45),
-                is_active BOOLEAN DEFAULT TRUE,
-                FOREIGN KEY (userID) REFERENCES Users(userID)
-            );
-            """)
+                    # participants
+                    """
+                    CREATE TABLE IF NOT EXISTS participants (
+                      chatID INT NOT NULL,
+                      userID INT NOT NULL,
+                      PRIMARY KEY (chatID, userID),
+                      INDEX idx_part_user (userID, chatID)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS email_tokens (
-                tokenID INT AUTO_INCREMENT PRIMARY KEY,
-                userID INT,
-                email_token INT NOT NULL CHECK (email_token BETWEEN 100000 AND 999999),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_disabled BOOLEAN DEFAULT FALSE,
-                FOREIGN KEY (userID) REFERENCES Users(userID)
-            );
-            """)
+                    # messages
+                    """
+                    CREATE TABLE IF NOT EXISTS messages (
+                      messageID INT AUTO_INCREMENT PRIMARY KEY,
+                      chatID    INT NOT NULL,
+                      userID    INT NOT NULL,
+                      message   TEXT,
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      INDEX idx_msg_chat_ts (chatID, timestamp)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """
+                ]
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pass_reset (
-                tokenID INT AUTO_INCREMENT PRIMARY KEY,
-                reset_token VARCHAR(128),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                userID INT,
-                FOREIGN KEY (userID) REFERENCES Users(userID)
-            );
-            """)
+                # execute each CREATE
+                for stmt in table_statements:
+                    cursor.execute(stmt)
+                logging.info("All tables created or verified successfully.")
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Chats (
-                chatID INT AUTO_INCREMENT PRIMARY KEY,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                type ENUM('group', 'private') DEFAULT 'private',
-                last_message DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-            """)
+                # application user privileges
+                cursor.execute(
+                    "CREATE USER IF NOT EXISTS %s@%s IDENTIFIED BY %s;",
+                    (DB_USER, DB_HOST, DB_PASSWORD)
+                )
+                cursor.execute(
+                    f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{DB_NAME}`.* TO %s@%s;",
+                    (DB_USER, DB_HOST)
+                )
+                logging.info(f"User '{DB_USER}' granted privileges on `{DB_NAME}`.")
 
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Participants (
-                chatID INT,
-                userID INT,
-                FOREIGN KEY (chatID) REFERENCES Chats(chatID) ON DELETE CASCADE,
-                FOREIGN KEY (userID) REFERENCES Users(userID) ON DELETE CASCADE,
-                PRIMARY KEY (chatID, userID)
-            );
-            """)
-
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS Messages (
-                messageID INT AUTO_INCREMENT PRIMARY KEY,
-                chatID INT,
-                userID INT,
-                message TEXT(2000),
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (chatID) REFERENCES Chats(chatID) ON DELETE CASCADE,
-                FOREIGN KEY (userID) REFERENCES Users(userID) ON DELETE CASCADE
-            );
-            """)
-
-            print("Tables created successfully.")
-
-            # Create a MySQL user and grant privileges
-            cursor.execute("""
-            CREATE USER IF NOT EXISTS 'chatcli_user'@'localhost' IDENTIFIED BY 'S3cret#Code1234';
-            """)
-            cursor.execute("""
-            GRANT SELECT, INSERT, UPDATE, DELETE ON chatcli_access.* TO 'chatcli_user'@'localhost';
-            """)
-            print("User 'chatcli_user' created and granted privileges.")
-
-            # Commit changes
-            connection.commit()
+                conn.commit()
+                logging.info("Database setup committed.")
 
     except Error as e:
-        print(f"Error: {e}")
-    finally:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-            print("MySQL connection closed.")
+        logging.error(f"MySQL Error during setup: {e}")
+        raise
+
+def run_application(entry_script="main.py"):
+    """Launch the main application script after DB is ready."""
+    try:
+        logging.info(f"Starting application: {entry_script}")
+        subprocess.run(["python", entry_script], check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Application exited with error: {e}")
+        raise
 
 if __name__ == "__main__":
-    setup_database()
-    try:
-        subprocess.run(["python", "main.py"], check=True)
-    except Exception as e:
-        print(f"Error: {e}")
+    create_database_and_tables()
+    run_application()
