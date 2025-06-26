@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:139.0) Gecko/20100101 Firefox/139.0" version="27.1.6">
   <diagram name="Page-1" id="IyOl1JzqoVD-4Wc97Tee">
-    <mxGraphModel dx="1501" dy="1199" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="#ffffff" math="0" shadow="1">
+    <mxGraphModel dx="1019" dy="942" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -393,13 +393,11 @@
         <mxCell id="rxhAza5yXYQSZnTs4GWU-4" value="&lt;p style=&quot;margin: 4px 0px 0px; text-align: center; text-decoration: underline;&quot;&gt;&lt;b&gt;Base Services&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;auth&lt;br&gt;post_msg&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;broadcast_msg&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;join_chat&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;leave_chat&lt;/p&gt;" style="verticalAlign=top;align=left;overflow=fill;html=1;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
           <mxGeometry x="200" y="1341.25" width="110" height="107.5" as="geometry" />
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="rxhAza5yXYQSZnTs4GWU-8">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="490" y="1470" as="targetPoint" />
-          </mxGeometry>
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-53" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="rxhAza5yXYQSZnTs4GWU-8" target="rxhAza5yXYQSZnTs4GWU-11">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-8" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Auth&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="380" y="1340" width="220" height="110.00000000000001" as="geometry" />
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-8" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;Auth&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;save connection to dict&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1330" width="220" height="130" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-9" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-8">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
@@ -410,18 +408,15 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-11" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Retrieve users / session tokens&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="400" y="1470" width="180" height="50" as="geometry" />
+          <mxGeometry x="400" y="1480" width="180" height="50" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-12" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-11">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
             <mxPoint x="-24" y="4" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=default;" edge="1" parent="1" source="rxhAza5yXYQSZnTs4GWU-8" target="rxhAza5yXYQSZnTs4GWU-11">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-16" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;post_msg&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- msg content&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;clean msg content&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;insert new message&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;call funciton broadcast_msg()&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="380" y="1540" width="220" height="180" as="geometry" />
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-16" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;post_msg&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- msg content&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;clean msg content&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;insert new message&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;call funciton broadcast_msg()&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1540" width="220" height="140" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-17" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-16">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
@@ -429,7 +424,7 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-18" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;insert message&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="400" y="1740" width="180" height="50" as="geometry" />
+          <mxGeometry x="400" y="1700" width="180" height="50" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-19" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-18">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
@@ -439,8 +434,8 @@
         <mxCell id="rxhAza5yXYQSZnTs4GWU-20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=default;" edge="1" parent="1" source="rxhAza5yXYQSZnTs4GWU-16" target="rxhAza5yXYQSZnTs4GWU-18">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-33" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;broadcast_msg&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- msg id&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chat id&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;&lt;br&gt;&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;retrieve msg from db&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;broadcast message to subscribed users&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="640" y="1565" width="230" height="130" as="geometry" />
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-33" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;broadcast_msg&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- msg id&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chat id&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;retrieve msg from db&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;broadcast message to subscribed users&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
+          <mxGeometry x="620" y="1552.5" width="230" height="115" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-34" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-33">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
@@ -451,7 +446,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-36" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;DB&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;retrieve message&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="700" y="1730" width="110" height="60" as="geometry" />
+          <mxGeometry x="680" y="1690" width="110" height="60" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-37" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-36">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
@@ -461,16 +456,16 @@
         <mxCell id="rxhAza5yXYQSZnTs4GWU-38" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="rxhAza5yXYQSZnTs4GWU-33" target="rxhAza5yXYQSZnTs4GWU-36">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-39" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;join chat&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/chat/token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;add user id and chatid to sub dict&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="380" y="1810" width="220" height="140" as="geometry" />
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-39" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;join chat&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;add user id and chatid to sub dict&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1760" width="220" height="110" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-40" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-39">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
             <mxPoint x="-24" y="4" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="rxhAza5yXYQSZnTs4GWU-44" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;leave chat&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- username&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- session token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user/chat/token&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;remove user id and chatid from sub dict&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
-          <mxGeometry x="380" y="1970" width="220" height="140" as="geometry" />
+        <mxCell id="rxhAza5yXYQSZnTs4GWU-44" value="&lt;p style=&quot;margin:0px;margin-top:6px;text-align:center;&quot;&gt;&lt;b&gt;leave chat&lt;/b&gt;&lt;/p&gt;&lt;hr size=&quot;1&quot; style=&quot;border-style:solid;&quot;&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;Receive:&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;- chatid&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;verify user&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;remove user id and chatid from sub dict&lt;/p&gt;&lt;p style=&quot;margin:0px;margin-left:8px;&quot;&gt;return appropriate info/code&lt;/p&gt;" style="align=left;overflow=fill;html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;flipH=0;flipV=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1880" width="220" height="110" as="geometry" />
         </mxCell>
         <mxCell id="rxhAza5yXYQSZnTs4GWU-45" value="" style="shape=component;jettyWidth=8;jettyHeight=4;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="rxhAza5yXYQSZnTs4GWU-44">
           <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
