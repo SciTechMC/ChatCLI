@@ -4,7 +4,8 @@ from mysql.connector import Error
 import logging
 import os
 from app.config import VALID_TABLES
-
+from dotenv import load_dotenv
+load_dotenv()
 def get_db():
     """
     :return: A MySQL database connection stored in Flask's 'g' object.
@@ -12,9 +13,9 @@ def get_db():
     if 'db' not in g:
         g.db = mysql.connector.connect(
             host=os.getenv("DB_HOST", "localhost"),
-            user=os.getenv("DB_DEV_USER"),
-            password=os.getenv("DB_DEV_PASSWORD"),
-            database=os.getenv("DB_NAME_DEV"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME"),
             port=int(os.getenv("DB_PORT", 3306))
         )
     return g.db

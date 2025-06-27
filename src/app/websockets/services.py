@@ -5,6 +5,7 @@ from app.services.base_services import verif_user
 from app.database.db_helper import fetch_records, insert_record
 from app.database.db_helper import get_db   # for DELETE in leave_chat
 import logging
+import bcrypt
 
 # In-memory connection & subscription registries
 active_connections: dict[str, WebSocket] = {}
@@ -12,16 +13,50 @@ chat_subscriptions: dict[int, set[WebSocket]] = {}
 
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     """
-    Handle the initial auth message. 
-    On success, stores websocket under the username and returns it.
-    Otherwise closes the socket and returns None.
+    Token-only auth. Client must send:
+      { "type":"auth", "token":"<plain-text session token>" }
+
+    We look up the matching bcrypt hash in session_tokens,
+    load the user’s username, register the WS, and return it.
+    Otherwise we close immediately.
     """
-    username = msg.get("username", "").lower()
-    token    = msg.get("token")
-    if not (username and token and verif_user(username, token)):
+    token = msg.get("token")
+    if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
+    # Find the session whose hash matches this token and is still valid
+    sessions = fetch_records(
+        table="session_tokens",
+        where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+        fetch_all=True
+    )
+
+    matched = None
+    for s in sessions:
+        try:
+            if bcrypt.checkpw(token.encode("utf-8"), s["session_token"].encode("utf-8")):
+                matched = s
+                break
+        except ValueError:
+            continue
+
+    if not matched:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return None
+
+    # Lookup the username for that session’s userID
+    users = fetch_records(
+        table="users",
+        where_clause="userID = %s",
+        params=(matched["userID"],),
+        fetch_all=True
+    )
+    if not users:
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return None
+
+    username = users[0]["username"]
     active_connections[username] = websocket
     return username
 

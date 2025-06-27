@@ -1,28 +1,34 @@
-from flask import request, jsonify, render_template
-from app.services.base_services import return_statement, verif_user
-from app.services.mail_services import send_verification_email, send_password_reset_email
-from app.database.db_helper import fetch_records, insert_record, update_records
+# app/services/user_services.py
+
 import random
 import string
-import bcrypt
 import re
-from datetime import datetime
+import bcrypt
+from datetime import datetime, timedelta
+
+from flask import request, jsonify, render_template, current_app
+from app.services.base_services import return_statement
+from app.services.mail_services import send_verification_email, send_password_reset_email
+from app.database.db_helper import fetch_records, insert_record, update_records
+
 
 def register():
     """
-    Registers a new user in the system.
+    Registers a new user and sends a verification code.
     """
-    client   = request.get_json() or {}
-    username = (client.get("username") or "").lower()
-    password = client.get("password")
-    email    = client.get("email")
+    data     = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip().lower()
+    password = data.get("password")
+    email    = (data.get("email") or "").strip()
 
-    # Validate input fields
+    # 400: missing/invalid input
     if not username or not password:
         return return_statement("", "Username and password are required", 400)
     if any(ch in r'"%\'()*+,/:;<=>?@[\]^{|}~` ' for ch in username):
-        return return_statement("", "Username includes bad characters", 400)
-    if not re.match(r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$', email):
+        return return_statement("", "Username includes invalid characters", 400)
+    if not email:
+        return return_statement("", "Email is required", 400)
+    if not re.match(r'^[\w\.\+-]+@[\w-]+\.[\w\.-]+$', email):
         return return_statement("", "Invalid email address", 400)
     if (
         len(password) < 8 or
@@ -37,43 +43,39 @@ def register():
             400
         )
 
-    hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-
     try:
-        # see if user exists
-        existing = fetch_records(
+        # hash password
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+        # check existing user
+        users = fetch_records(
             table="users",
             where_clause="username = %s",
             params=(username,),
             fetch_all=True
         )
-        if existing:
-            user = existing[0]
+
+        if users:
+            user = users[0]
             if user["email_verified"]:
                 return return_statement("", f"User '{username}' already exists", 400)
-
+            user_id = user["userID"]
             # update unverified user
             update_records(
                 table="users",
-                data={
-                    "username": username,
-                    "password": hashed,
-                    "email": email,
-                    "created_at": datetime.now()
-                },
+                data={"password": hashed, "email": email, "created_at": datetime.utcnow()},
                 where_clause="userID = %s",
-                where_params=(user["userID"],)
+                where_params=(user_id,)
             )
-            # disable any recent tokens
+            # revoke any recent tokens
             update_records(
                 table="email_tokens",
                 data={"revoked": True},
-                where_clause="NOW() <= DATE_ADD(created_at, INTERVAL 6 MINUTE) AND userID = %s",
-                where_params=(user["userID"],)
+                where_clause="userID = %s AND expires_at > %s",
+                where_params=(user_id, datetime.utcnow())
             )
-            user_id = user["userID"]
         else:
-            # create new user
+            # insert new user
             user_id = insert_record(
                 "users",
                 {
@@ -84,67 +86,89 @@ def register():
                 }
             )
 
-        # generate & store verification code
-        email_token = str(random.randint(100000, 999999))
+        # create verification token
+        email_token = f"{random.randint(100000, 999999)}"
+        expiry      = datetime.utcnow() + timedelta(minutes=5)
         insert_record(
             "email_tokens",
-            {"userID": user_id, "email_token": email_token}
+            {
+                "userID":      user_id,
+                "email_token": email_token,
+                "expires_at":  expiry,
+                "revoked":     False
+            }
         )
-    except Exception as e:
-        return return_statement("", str(e), 500)
 
-    # send the code via centralized mail service
+    except Exception:
+        current_app.logger.exception("Error during user registration")
+        return return_statement("", "Internal server error", 500)
+
+    # send code
     if not send_verification_email(username, email_token, email):
         return return_statement("", "Failed to send verification email", 500)
-    return return_statement("Email sent successfully!")
+
+    return return_statement("Verification email sent!")
 
 
 def verify_email():
-    client_code = request.get_json().get("email_token")
-    username    = request.get_json().get("username", "").lower()
+    """
+    Consumes a verification token and marks the user verified.
+    """
+    data        = request.get_json(silent=True) or {}
+    username    = (data.get("username") or "").strip().lower()
+    client_code = data.get("email_token")
 
     if not username or not client_code:
-        return return_statement("", "username and email_token are required", 400)
+        return return_statement("", "Username and email_token are required", 400)
 
     try:
-        # fetch latest valid token
-        cur = fetch_records(
+        # fetch the latest valid token
+        cursor = fetch_records(
             table="email_tokens",
             where_clause=(
                 "userID = (SELECT userID FROM users WHERE username = %s) "
-                "AND NOW() <= DATE_ADD(created_at, INTERVAL 5 MINUTE) "
-                "AND revoked = FALSE"
+                "AND revoked = FALSE AND expires_at > %s"
             ),
-            params=(username,),
+            params=(username, datetime.utcnow()),
             order_by="created_at DESC",
             limit=1,
             fetch_all=False
         )
-        row = cur.fetchone()
+        row = cursor.fetchone()
         if not row or str(row["email_token"]) != str(client_code):
-            return return_statement("", "Invalid code!", 400)
+            return return_statement("", "Invalid or expired code!", 400)
 
+        # mark token revoked
+        update_records(
+            table="email_tokens",
+            data={"revoked": True},
+            where_clause="tokenID = %s",
+            where_params=(row["tokenID"],)
+        )
+        # mark user verified
         update_records(
             table="users",
             data={"email_verified": True},
-            where_clause="username = %s",
-            where_params=(username,)
+            where_clause="userID = %s",
+            where_params=(row["userID"],)
         )
         return return_statement("Email verified!")
-    except Exception as e:
-        return return_statement("", str(e), 500)
+
+    except Exception:
+        current_app.logger.exception("Error during email verification")
+        return return_statement("", "Internal server error", 500)
 
 
 def login():
     """
-    Logs in a user and issues a session token.
+    Authenticates credentials and issues a session token.
     """
-    client   = request.get_json() or {}
-    username = (client.get("username") or "").lower()
-    password = client.get("password")
+    data     = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip().lower()
+    password = data.get("password")
 
     if not username or not password:
-        return return_statement("", "username and password required", 400)
+        return return_statement("", "Username and password required", 400)
 
     try:
         users = fetch_records(
@@ -160,63 +184,83 @@ def login():
         if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
             return return_statement("", "Invalid password", 400)
 
-        # generate session token
-        token_plain = ''.join(random.choices(string.ascii_uppercase + string.digits, k=64))
+        # issue session token
+        token_plain = ''.join(random.choices(string.ascii_letters + string.digits, k=64))
         token_hash  = bcrypt.hashpw(token_plain.encode("utf-8"), bcrypt.gensalt())
+        expiry      = datetime.utcnow() + timedelta(days=7)  # adjust if needed
 
         insert_record(
             "session_tokens",
             {
-                "userID": user["userID"],
+                "userID":        user["userID"],
                 "session_token": token_hash,
-                "ip_address": request.remote_addr,
-                "is_active": True
+                "expires_at":    expiry,
+                "revoked":       False,
+                "ip_address":    request.remote_addr
             }
         )
-        return return_statement("Login successful!", additional=["session_token", token_plain])
-    except Exception as e:
-        return return_statement("", str(e), 500)
+
+        return return_statement(
+            "", 
+            "Login successful",
+            200,
+            additional=["session_token", token_plain]
+        )
+
+    except Exception:
+        current_app.logger.exception("Error during login")
+        return return_statement("", "Internal server error", 500)
 
 
 def reset_password_request():
     """
-    Sends a password reset email to the user.
+    Generates a reset token and emails a reset link.
     """
-    data       = request.get_json() or {}
-    identifier = data.get("data")
+    data       = request.get_json(silent=True) or {}
+    identifier = (data.get("data") or "").strip()
     if not identifier:
         return return_statement("", "Invalid input", 400)
 
     try:
-        # look up by email or username
+        # find user by email or username
         if re.match(r'^[^@]+@[^@]+\.[^@]+$', identifier):
             users = fetch_records("users", "email = %s", (identifier,), fetch_all=True)
         else:
             users = fetch_records("users", "username = %s", (identifier,), fetch_all=True)
+
         if not users:
             return return_statement("", "User not found", 404)
 
-        user    = users[0]
-        username, email, user_id = user["username"], user["email"], user["userID"]
+        user      = users[0]
+        username  = user["username"]
+        email     = user["email"]
+        user_id   = user["userID"]
+        reset_tok = 't0k3n' + ''.join(random.choices(string.ascii_letters + string.digits, k=32))
+        expiry    = datetime.utcnow() + timedelta(hours=1)
 
-        # create reset token
-        token = 't0k3n' + ''.join(random.choices(string.ascii_letters + string.digits, k=32))
         insert_record(
             "pass_reset_tokens",
-            {"userID": user_id, "reset_token": token}
+            {
+                "userID":      user_id,
+                "reset_token": reset_tok,
+                "expires_at":  expiry,
+                "revoked":     False
+            }
         )
-    except Exception as e:
-        return return_statement("", str(e), 500)
 
-    # send reset link
-    if not send_password_reset_email(username, token, email):
+    except Exception:
+        current_app.logger.exception("Error during password-reset request")
+        return return_statement("", "Internal server error", 500)
+
+    if not send_password_reset_email(username, reset_tok, email):
         return return_statement("", "Failed to send password reset email", 500)
-    return return_statement("Email sent successfully!")
+
+    return return_statement("Password reset email sent!")
 
 
 def reset_password():
     """
-    Renders or handles the password-reset form.
+    Renders form (GET) or applies new password (POST), revoking the reset token.
     """
     token    = request.args.get('token')
     username = request.args.get('username')
@@ -224,7 +268,8 @@ def reset_password():
     if request.method == 'POST':
         password = request.form.get('password')
         confirm  = request.form.get('confirm_password')
-        if not username or not token:
+
+        if not (username and token):
             return jsonify({"error": "Missing username or token"}), 400
         if password != confirm:
             return jsonify({"error": "Passwords do not match"}), 400
@@ -238,20 +283,40 @@ def reset_password():
             return jsonify({"error": "Password must be ≥8 chars, include upper, lower, digit & special"}), 400
 
         try:
-            users = fetch_records("users", "username = %s", (username,), fetch_all=True)
-            if not users:
-                return jsonify({"error": f"User does not exist: {username}"}), 404
+            # verify reset token
+            cursor = fetch_records(
+                table="pass_reset_tokens",
+                where_clause="reset_token = %s AND revoked = FALSE AND expires_at > %s",
+                params=(token, datetime.utcnow()),
+                order_by="created_at DESC",
+                limit=1,
+                fetch_all=False
+            )
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Invalid or expired reset link"}), 400
 
+            # update password
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
             update_records(
-                "users",
-                {"password": hashed},
+                table="users",
+                data={"password": hashed},
                 where_clause="userID = %s",
-                where_params=(users[0]["userID"],)
+                where_params=(row["userID"],)
             )
-            return jsonify({"message": "Password reset successfully"}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            # revoke token
+            update_records(
+                table="pass_reset_tokens",
+                data={"revoked": True},
+                where_clause="tokenID = %s",
+                where_params=(row["tokenID"],)
+            )
 
-    # GET: render the form
+            return jsonify({"message": "Password reset successfully"}), 200
+
+        except Exception:
+            current_app.logger.exception("Error during password reset")
+            return jsonify({"error": "Internal server error"}), 500
+
+    # GET: show reset form
     return render_template("reset_password.html", username=username, token=token)

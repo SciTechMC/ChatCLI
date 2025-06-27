@@ -97,6 +97,7 @@
       font-size: 0.98rem;
     }
   </style>
+  <script src="api.js"></script>
 </head>
 <body>
   <button class="back-btn" onclick="window.location.href='home.html'">&larr; Back</button>
@@ -151,8 +152,8 @@
         body: JSON.stringify({username, email, password})
         });
         const data = await res.json();
-        if (res.ok) {
-        alert("Registration successful!");
+        if (res.status === 201) {
+        alert("Registration successful! Verification email sent.");
         // Optionally redirect: window.location.href = "login.html";
         } else {
         errorDiv.textContent = data.message || "Registration failed.";

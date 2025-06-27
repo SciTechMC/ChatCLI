@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from app.websockets.services import authenticate, join_chat, leave_chat, post_msg, active_connections, chat_subscriptions
+from app.websockets.services import authenticate, join_chat, leave_chat, post_msg, chat_subscriptions
 
 app = FastAPI()
 

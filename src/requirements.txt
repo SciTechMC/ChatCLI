@@ -1,7 +1,5 @@
-aiomysql==0.2.0
-Flask==3.1.0
+fastapi==0.115.14
+Flask==3.1.1
 mysql-connector-python==8.4.0
-python_bcrypt==0.3.2
-Requests==2.32.3
-rich==14.0.0
+bcrypt==4.3.0
 waitress==3.0.2
