@@ -9,41 +9,45 @@ from flask import request, render_template, redirect, flash, url_for
 import bcrypt
 import logging
 
-def verif_user(username: str, session_token: str) -> bool:
+def authenticate_token(session_token: str) -> bool:
     """
-    Verifies that the given username’s most recent session token matches.
+    Given a plain session token, find the matching unrevoked, unexpired
+    row in `session_tokens`, then return its username. Otherwise return None.
     """
-    # Fetch at most one record (the latest) for this user
-    cursor = fetch_records(
+    # 1) Grab all live sessions
+    rows = fetch_records(
         table="session_tokens",
-        where_clause=(
-            "userID = ("
-            "SELECT userID FROM users WHERE username = %s"
-            ")"
-        ),
-        params=(username,),
-        order_by="created_at DESC",
-        limit=1,
-        fetch_all=False     # return the raw cursor so we can do .fetchone()
+        where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+        fetch_all=True
     )
 
-    try:
-        row = cursor.fetchone()
-    except Exception as e:
-        logging.error(f"[verif_user] failed to fetch session token for {username}: {e}")
-        return False
+    # 2) Find the one whose bcrypt hash matches
+    match = None
+    for r in rows:
+        try:
+            if bcrypt.checkpw(
+                session_token.encode("utf-8"),
+                r["session_token"].encode("utf-8")
+            ):
+                match = r
+                break
+        except ValueError:
+            continue
 
-    if not row:
-        return False  # no such user or no tokens at all
+    if not match:
+        return None
 
-    stored_hash = row["session_token"]
-    # Compare the provided token against the stored bcrypt hash
-    try:
-        return bcrypt.checkpw(session_token.encode("utf-8"),
-                              stored_hash.encode("utf-8"))
-    except ValueError as e:
-        logging.error(f"[verif_user] bcrypt error for user {username}: {e}")
-        return False
+    # 3) Lookup that session’s username
+    users = fetch_records(
+        table="users",
+        where_clause="userID = %s AND email_verified = TRUE",
+        params=(match["userID"],),
+        fetch_all=True
+    )
+    if not users:
+        return None
+
+    return users[0]["username"]
 
 def return_statement(response=None, error="", status_code=200, additional=None):
     return jsonify({
@@ -97,21 +101,22 @@ def verify_connection():
     """
     Test route to verify server is reachable.
     """
+    return return_statement(response="Server is reachable!")
     # Handle POST request
-    if request.method == "GET":
-        return return_statement("", "Incompatible client version!", 400)
+    # if request.method == "GET":
+    #     return return_statement("", "Incompatible client version!", 400)
     
-    elif request.method == "POST":
-        # Ensure the JSON body exists
-        client_data = request.get_json()
-        if not client_data:
-            return return_statement("", "Invalid request!", 400)
+    # elif request.method == "POST":
+    #     # Ensure the JSON body exists
+    #     client_data = request.get_json()
+    #     if not client_data:
+    #         return return_statement("", "Invalid request!", 400)
 
-        version = client_data.get("version")
-        if version == "electron_app":
-            return return_statement(response="Hello World!")
-        else:
-            return return_statement("", "Incompatible client version!", 400)
+    #     version = client_data.get("version")
+    #     if version == "electron_app":
+    #         return return_statement(response="Hello World!")
+    #     else:
+    #         return return_statement("", "Incompatible client version!", 400)
         
-    # Fallback (should not be reached)
-    return return_statement("", "Unsupported HTTP method!", 405)
+    # # Fallback (should not be reached)
+    # return return_statement("", "Unsupported HTTP

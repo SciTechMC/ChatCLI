@@ -1,16 +1,16 @@
 # app/services/user_services.py
-
-import random
 import string
 import re
 import bcrypt
-from datetime import datetime, timedelta
-
+from datetime import datetime, timedelta, timezone
+import secrets
+import hashlib
 from flask import request, jsonify, render_template, current_app
 from app.services.base_services import return_statement
 from app.services.mail_services import send_verification_email, send_password_reset_email
 from app.database.db_helper import fetch_records, insert_record, update_records
 
+alphabet = string.ascii_letters + string.digits
 
 def register():
     """
@@ -63,7 +63,7 @@ def register():
             # update unverified user
             update_records(
                 table="users",
-                data={"password": hashed, "email": email, "created_at": datetime.utcnow()},
+                data={"password": hashed, "email": email, "created_at": datetime.now(timezone.utc)},
                 where_clause="userID = %s",
                 where_params=(user_id,)
             )
@@ -72,7 +72,7 @@ def register():
                 table="email_tokens",
                 data={"revoked": True},
                 where_clause="userID = %s AND expires_at > %s",
-                where_params=(user_id, datetime.utcnow())
+                where_params=(user_id, datetime.now(timezone.utc))
             )
         else:
             # insert new user
@@ -87,13 +87,14 @@ def register():
             )
 
         # create verification token
-        email_token = f"{random.randint(100000, 999999)}"
-        expiry      = datetime.utcnow() + timedelta(minutes=5)
+        email_token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(email_token.encode()).hexdigest()
+        expiry      = datetime.now(timezone.utc) + timedelta(minutes=5)
         insert_record(
             "email_tokens",
             {
                 "userID":      user_id,
-                "email_token": email_token,
+                "email_token": token_hash,
                 "expires_at":  expiry,
                 "revoked":     False
             }
@@ -117,10 +118,13 @@ def verify_email():
     data        = request.get_json(silent=True) or {}
     username    = (data.get("username") or "").strip().lower()
     client_code = data.get("email_token")
+    
 
     if not username or not client_code:
         return return_statement("", "Username and email_token are required", 400)
 
+    client_code = hashlib.sha256(client_code.encode()).hexdigest()
+    
     try:
         # fetch the latest valid token
         cursor = fetch_records(
@@ -129,7 +133,7 @@ def verify_email():
                 "userID = (SELECT userID FROM users WHERE username = %s) "
                 "AND revoked = FALSE AND expires_at > %s"
             ),
-            params=(username, datetime.utcnow()),
+            params=(username, datetime.now(timezone.utc)),
             order_by="created_at DESC",
             limit=1,
             fetch_all=False
@@ -185,9 +189,9 @@ def login():
             return return_statement("", "Invalid password", 400)
 
         # issue session token
-        token_plain = ''.join(random.choices(string.ascii_letters + string.digits, k=64))
-        token_hash  = bcrypt.hashpw(token_plain.encode("utf-8"), bcrypt.gensalt())
-        expiry      = datetime.utcnow() + timedelta(days=7)  # adjust if needed
+        token_plain = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(token_plain.encode()).hexdigest()
+        expiry      = datetime.now(timezone.utc) + timedelta(days=7)  # adjust if needed
 
         insert_record(
             "session_tokens",
@@ -235,14 +239,15 @@ def reset_password_request():
         username  = user["username"]
         email     = user["email"]
         user_id   = user["userID"]
-        reset_tok = 't0k3n' + ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-        expiry    = datetime.utcnow() + timedelta(hours=1)
+        reset_tok = 't0k3n' + secrets.token_urlsafe(16)
+        hashed_tok = hashlib.sha256(reset_tok.encode()).hexdigest()
+        expiry    = datetime.now(timezone.utc) + timedelta(hours=1)
 
         insert_record(
             "pass_reset_tokens",
             {
                 "userID":      user_id,
-                "reset_token": reset_tok,
+                "reset_token": hashed_tok,
                 "expires_at":  expiry,
                 "revoked":     False
             }
@@ -281,13 +286,13 @@ def reset_password():
             not any(ch in string.punctuation for ch in password)
         ):
             return jsonify({"error": "Password must be ≥8 chars, include upper, lower, digit & special"}), 400
-
+        token = hashlib.sha256(token.encode()).hexdigest()
         try:
             # verify reset token
             cursor = fetch_records(
                 table="pass_reset_tokens",
                 where_clause="reset_token = %s AND revoked = FALSE AND expires_at > %s",
-                params=(token, datetime.utcnow()),
+                params=(token, datetime.now(timezone.utc)),
                 order_by="created_at DESC",
                 limit=1,
                 fetch_all=False

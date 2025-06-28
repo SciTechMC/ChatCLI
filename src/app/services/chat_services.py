@@ -1,5 +1,5 @@
 from flask import request
-from app.services.base_services import verif_user, return_statement
+from app.services.base_services import authenticate_token, return_statement
 from app.database.db_helper import fetch_records, insert_record
 
 def fetch_chats():
@@ -7,11 +7,11 @@ def fetch_chats():
     Fetches chat participants for a user.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
     session_token = client.get("session_token")
 
     # Verify the session token instead of user_key
-    if not verif_user(username, session_token):
+    username = authenticate_token(session_token)
+    if not username:
         return return_statement("", "Unable to verify user!", 400)
 
     try:
@@ -69,7 +69,6 @@ def create_chat():
     Creates a new chat between two users.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
     receiver = client.get("receiver", "").lower()
     session_token = client.get("session_token")
 
@@ -77,7 +76,8 @@ def create_chat():
         return return_statement("", "Some statements are empty", 404)
 
     # Verify the session token
-    if not verif_user(username, session_token):
+    username = authenticate_token(session_token)
+    if not username:
         return return_statement("", "Unable to verify user!", 400)
 
     try:
@@ -117,13 +117,13 @@ def receive_message():
     Stores a message sent from one user to another.
     """
     client = request.get_json()
-    username = client.get("username", "").lower()
     receiver = client.get("receiver", "").lower()
     session_token = client.get("session_token")
     message = client.get("message", "")
 
     # Verify the session token
-    if not verif_user(username, session_token):
+    username = authenticate_token(session_token)
+    if not username:
         return return_statement("", "Unable to verify user!", 400)
 
     try:
@@ -200,7 +200,8 @@ def get_messages():
         return return_statement("", "limit must be between 1 and 200", 400)
 
     # 1) Verify credentials
-    if not verif_user(username, session_token):
+    username = authenticate_token(session_token)
+    if not username:
         return return_statement("", "Unable to verify user!", 401)
 
     # 2) Check participation

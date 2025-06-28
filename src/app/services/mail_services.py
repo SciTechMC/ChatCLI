@@ -44,11 +44,11 @@ def send_verification_email(username: str, token: str, recipient: str) -> bool:
     body = f"""
 Dear {username},
 
-Thank you for registering with ChatCLI. To complete your registration, please use the verification code below:
+Thank you for registering with ChatCLI! To complete your registration, please enter the verification code below:
 
-Verification Code: {token}
+Verification code: {token}
 
-This code is valid for the next 5 minutes. If you did not request this code, please ignore this email.
+This code is valid for 5 minutes. If you didn’t request it, you can safely ignore this email.
 
 Best regards,
 The ChatCLI Team
@@ -66,12 +66,11 @@ def send_password_reset_email(username: str, token: str, recipient: str) -> bool
     body = f"""
 Dear {username},
 
-We received a request to reset the password for your account.
-To reset your password, click the link below:
+We received a request to reset the password for your ChatCLI account. To continue, click the link below:
 
 {reset_link}
 
-If you did not request this, please ignore this email.
+If you didn’t request this, simply ignore this email.
 
 Best regards,
 The ChatCLI Team
@@ -95,19 +94,20 @@ def send_release_notification():
 
     subject = "🎉 New ChatCLI Release Available!"
     body = """
-Hello,
+Hello!
 
-We're excited to announce a new release of ChatCLI! Here are some highlights:
-- New features
-- Bug fixes
-- Performance improvements
+We’re excited to announce a new ChatCLI release! Highlights include:
+• New features
+• Bug fixes
+• Performance improvements
 
-Visit our GitHub page for more details: https://github.com/SciTechMC/ChatCLI
+For full details, visit our GitHub repository:
+https://github.com/SciTechMC/ChatCLI
 
-Thank you for staying with us!
+Thank you for using ChatCLI!
 
-Best,
-ChatCLI Team
+Best regards,
+The ChatCLI Team
 """
     success = True
     for email in emails:
