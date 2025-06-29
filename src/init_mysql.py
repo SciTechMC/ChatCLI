@@ -64,17 +64,17 @@ def create_database_and_tables():
 
                     # refresh_tokens
                     """
-                    CREATE TABLE refresh_tokens (
-                      id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                      user_id         BIGINT UNSIGNED    NOT NULL,
-                      token           CHAR(64)           NOT NULL   UNIQUE,
-                      created_at      DATETIME           NOT NULL   DEFAULT CURRENT_TIMESTAMP,
-                      expires_at      DATETIME           NOT NULL,
-                      revoked         BOOLEAN            NULL       DEFAULT FALSE,
-                      INDEX (user_id),
-                      INDEX (expires_at),
-                      FOREIGN KEY (user_id) REFERENCES users(id
-                    );
+                    CREATE TABLE IF NOT EXISTS refresh_tokens (
+                      id            BIGINT UNSIGNED      AUTO_INCREMENT PRIMARY KEY,
+                      user_id       INT                  NOT NULL,
+                      token         CHAR(64)             NOT NULL UNIQUE,
+                      created_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      expires_at    DATETIME             NOT NULL,
+                      revoked       BOOLEAN              NOT NULL DEFAULT FALSE,
+                      INDEX idx_ref_user    (user_id),
+                      INDEX idx_ref_expires (expires_at),
+                      FOREIGN KEY (user_id) REFERENCES users(userID)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 
                     # email_tokens

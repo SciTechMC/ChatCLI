@@ -1,17 +1,19 @@
+// src/client/electronapp/main.js
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const keytar = require('keytar');
 
-const SERVICE = 'MyChatApp';
+const SERVICE = 'ChatCLI-Electron';
 let mainWindow;
 
-async function createWindow() {
+function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true
+      contextIsolation: true,
+      nodeIntegration: false
     }
   });
   mainWindow.loadFile(path.join(__dirname, 'pages', 'index.html'));
@@ -19,23 +21,26 @@ async function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// Secure session storage via keytar
-ipcMain.handle('store-session', async (_, { username, refreshToken }) => {
-  await keytar.setPassword(SERVICE, username, refreshToken);
-});
-
-ipcMain.handle('get-session', async () => {
-  // For simplicity, assume a single saved account; in prod you’d track last user
-  const accounts = await keytar.findCredentials(SERVICE);
-  if (!accounts.length) return null;
-  const { account: username, password: refreshToken } = accounts[0];
-  return { username, refreshToken };
-});
-
-ipcMain.handle('clear-session', async (_, { username }) => {
-  await keytar.deletePassword(SERVICE, username);
-});
-
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// — Secure session storage via Keytar —
+
+// Save the refresh token under the given username
+ipcMain.handle('store-session', async (_, { username, token }) => {
+  await keytar.setPassword(SERVICE, username, token);
+});
+
+// Load a saved session: return { username, token } or null
+ipcMain.handle('get-session', async () => {
+  const creds = await keytar.findCredentials(SERVICE);
+  if (creds.length === 0) return null;
+  const { account: username, password: token } = creds[0];
+  return { username, token };
+});
+
+// Clear a session for the given username
+ipcMain.handle('clear-session', async (_, { username }) => {
+  await keytar.deletePassword(SERVICE, username);
 });
