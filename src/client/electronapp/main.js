@@ -1,46 +1,58 @@
-// src/client/electronapp/main.js
 const { app, BrowserWindow, ipcMain } = require('electron');
+app.disableHardwareAcceleration();                 // software rendering
+app.commandLine.appendSwitch('disable-gpu');       // belt-and-braces
+
 const path = require('path');
 const keytar = require('keytar');
 
-const SERVICE = 'ChatCLI-Electron';
-let mainWindow;
+const SERVICE = 'my-chat-app';
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+      sandbox: false
+    },
   });
-  mainWindow.loadFile(path.join(__dirname, 'pages', 'index.html'));
+
+  win.loadFile(path.join(__dirname, 'pages', 'index.html'));
+  console.log('[main] GPU off?',
+            app.commandLine.hasSwitch('disable-gpu'));
+
+  win.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[main] renderer gone → reason:', details.reason, 'exitCode:', details.exitCode);
+  });
 }
 
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
 });
 
-// — Secure session storage via Keytar —
-
-// Save the refresh token under the given username
-ipcMain.handle('store-session', async (_, { username, token }) => {
-  await keytar.setPassword(SERVICE, username, token);
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
 
-// Load a saved session: return { username, token } or null
-ipcMain.handle('get-session', async () => {
-  const creds = await keytar.findCredentials(SERVICE);
-  if (creds.length === 0) return null;
-  const { account: username, password: token } = creds[0];
-  return { username, token };
+/* ---------------- SecureStore IPC ---------------- */
+ipcMain.handle('secureStore:set', async (_evt, account, token) => {
+  await keytar.setPassword(SERVICE, account, token);
+  return true;
 });
 
-// Clear a session for the given username
-ipcMain.handle('clear-session', async (_, { username }) => {
-  await keytar.deletePassword(SERVICE, username);
+ipcMain.handle('secureStore:get', async (_evt, account) => {
+  return await keytar.getPassword(SERVICE, account);
+});
+
+ipcMain.handle('secureStore:delete', async (_evt, account) => {
+  await keytar.deletePassword(SERVICE, account);
+  return true;
 });

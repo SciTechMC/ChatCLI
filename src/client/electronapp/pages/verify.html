@@ -1,17 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Verify Email</title></head>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <title>Verify Email • MyChatApp</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
 <body>
-  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
-    <span id="statusMsg"></span>
-    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
-  </div>
-  <h2>Email Verification</h2>
-  <form id="verifyForm">
-    <label>Token:<br><input id="token" required></label><br>
-    <button type="submit">Verify</button>
-  </form>
-  <p><a href="login.html">Back to Log In</a></p>
+  <header>
+    <h1>Email Verification</h1>
+    <span id="server-status">Checking server…</span>
+  </header>
+  <main>
+    <form id="verify-form">
+      <input id="token" type="text" placeholder="Verification token" required />
+      <button type="submit" data-requires-online disabled>Verify</button>
+    </form>
+    <a onclick="alert('Coming soon')">Resend verification email</a>
+  </main>
   <script src="../renderer.js"></script>
+  <script>
+    const submitBtn = document.querySelector('[type="submit"]');
+    window.addEventListener('online-status-changed', ({detail}) => { submitBtn.disabled = !detail; });
+    document.getElementById('verify-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await window.api.verifyEmail({ token: document.getElementById('token').value.trim() });
+        alert(res.message || 'Email verified. You can now log in.');
+        location.href = 'login.html';
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
 </body>
 </html>

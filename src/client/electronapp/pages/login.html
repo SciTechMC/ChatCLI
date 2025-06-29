@@ -1,19 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Log In</title></head>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <title>Log In • MyChatApp</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
 <body>
-  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
-    <span id="statusMsg"></span>
-    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
-  </div>
-  <h2>Log In</h2>
-  <form id="loginForm">
-    <label>Username:<br><input name="username" required></label><br>
-    <label>Password:<br><input type="password" name="password" required></label><br>
-    <button type="submit">Log In</button>
-  </form>
-  <p><a href="register.html">Don't have an account? Register</a></p>
-  <p><a href="verify.html">Verify your email</a> | <a href="#">Forgot password?</a></p>
+  <header>
+    <h1>Log In</h1>
+    <span id="server-status">Checking server…</span>
+  </header>
+  <main>
+    <form id="login-form">
+      <input id="username" type="text"     placeholder="Username" required />
+      <input id="password" type="password" placeholder="Password" required />
+      <button type="submit" data-requires-online disabled>Log In</button>
+    </form>
+    <a onclick="location.href='register.html'">Don't have an account? Register →</a>
+  </main>
   <script src="../renderer.js"></script>
+  <script>
+    const submitBtn = document.querySelector('[type="submit"]');
+    window.addEventListener('online-status-changed', ({detail}) => { submitBtn.disabled = !detail; });
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await window.api.login({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        /* Store refresh token securely */
+        await window.secureStore.set('refresh_token', res.refresh_token);
+        /* Proceed to main chat UI */
+        location.href = 'main.html';
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
 </body>
 </html>

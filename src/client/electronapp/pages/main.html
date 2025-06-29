@@ -1,19 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Chat</title></head>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <title>Main Chat • MyChatApp</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
 <body>
-  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
-    <span id="statusMsg"></span>
-    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
-  </div>
-  <h1>MyChatApp</h1>
-  <button id="btnLogout">Log Out</button>
-  <div id="chatList" style="margin-top:20px;"></div>
-  <div id="messageWindow" style="margin-top:20px;"></div>
-  <div id="messageInput" style="margin-top:20px;">
-    <input id="newMsg" placeholder="Type a message...">
-    <button id="btnSend">Send</button>
-  </div>
+  <header>
+    <h1>MyChatApp</h1>
+    <button onclick="logout()">Logout</button>
+  </header>
+  <main>
+    <p>Chat UI coming soon…</p>
+  </main>
   <script src="../renderer.js"></script>
+  <script>
+    async function logout() {
+      await window.secureStore.delete('refresh_token');
+      location.href = 'login.html';
+    }
+  </script>
 </body>
 </html>

@@ -1,24 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self';" />
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <title>Welcome to MyChatApp</title>
+  <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
-  <h1>Welcome to MyChatApp</h1>
-
-  <div id="status"
-       style="position:absolute; top:1rem; right:1rem;">
-    Checking server…
-  </div>
-  <button id="btnRetry"
-          style="position:absolute; top:3rem; right:1rem;">
-    Retry
-  </button>
-
-  <button id="btnLogin" disabled>Log In</button>
-  <button id="btnRegister" disabled>Register</button>
-
+  <header>
+    <h1>Welcome to MyChatApp</h1>
+    <span id="server-status">Checking server…</span>
+  </header>
+  <main>
+    <button id="retry-btn">Retry</button>
+    <div class="actions">
+      <button id="login-btn" data-requires-online disabled>Log In</button>
+      <button id="register-btn" data-requires-online disabled>Register</button>
+    </div>
+  </main>
   <script src="../renderer.js"></script>
 </body>
 </html>

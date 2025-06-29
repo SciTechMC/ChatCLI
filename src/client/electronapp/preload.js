@@ -1,25 +1,29 @@
-// src/client/electronapp/preload.js
-const path = require('path');
+//  G:\ChatCLI\src\client\electronapp\preload.js
+
+// OPTIONAL: keep these two lines for sanity logs
+console.log('[preload] starting, __dirname =', __dirname);
+
 const { contextBridge, ipcRenderer } = require('electron');
+const api = require('./api.js');               // stays CommonJS
 
-// Require your api wrapper by absolute path
-const api = require(path.join(__dirname, 'api.js'));
-
+/* -------- Expose REST API wrapper -------- */
 contextBridge.exposeInMainWorld('api', {
+  request:          api.request,
+  verifyConnection: api.verifyConnection,
   login:            api.login,
   register:         api.register,
   verifyEmail:      api.verifyEmail,
-  verifyConnection: api.verifyConnection,
   fetchChats:       api.fetchChats,
   fetchMessages:    api.fetchMessages,
-  createChat:       api.createChat
+  createChat:       api.createChat,
+  refreshToken:     api.refreshToken,
 });
 
+/* -------- Expose secureStore via keytar -------- */
 contextBridge.exposeInMainWorld('secureStore', {
-  saveSession: (username, token) =>
-    ipcRenderer.invoke('store-session', { username, token }),
-  loadSession: () =>
-    ipcRenderer.invoke('get-session'),
-  clearSession: username =>
-    ipcRenderer.invoke('clear-session', { username })
+  set:    (account, token) => ipcRenderer.invoke('secureStore:set', account, token),
+  get:    (account)        => ipcRenderer.invoke('secureStore:get', account),
+  delete: (account)        => ipcRenderer.invoke('secureStore:delete', account),
 });
+
+console.log('[preload] expose complete');

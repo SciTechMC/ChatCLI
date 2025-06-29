@@ -1,19 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>Register</title></head>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <title>Register • MyChatApp</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
 <body>
-  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
-    <span id="statusMsg"></span>
-    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
-  </div>
-  <h2>Register</h2>
-  <form id="registerForm">
-    <label>Username:<br><input id="regUsername" required></label><br>
-    <label>Email:<br><input id="regEmail" type="email" required></label><br>
-    <label>Password:<br><input id="regPassword" type="password" required></label><br>
-    <button type="submit">Register</button>
-  </form>
-  <p><a href="login.html">Already have an account? Log In</a></p>
+  <header>
+    <h1>Register</h1>
+    <span id="server-status">Checking server…</span>
+  </header>
+  <main>
+    <form id="register-form">
+      <input id="username"   type="text"     placeholder="Username" required />
+      <input id="email"      type="email"    placeholder="Email"    required />
+      <input id="password"   type="password" placeholder="Password" required />
+      <button type="submit" data-requires-online disabled>Register</button>
+    </form>
+    <a onclick="location.href='login.html'">Already have an account? Log In →</a>
+  </main>
   <script src="../renderer.js"></script>
+  <script>
+    const submitBtn = document.querySelector('[type="submit"]');
+    window.addEventListener('online-status-changed', ({detail}) => { submitBtn.disabled = !detail; });
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await window.api.register({
+          username: document.getElementById('username').value.trim(),
+          email:    document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        alert(res.message || 'Registration successful. Please verify your email.');
+        location.href = 'verify.html';
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  </script>
 </body>
 </html>
