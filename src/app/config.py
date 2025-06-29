@@ -24,4 +24,5 @@ VALID_TABLES = {
     "chats",
     "participants",
     "messages",
+    "session_tokens"
 }

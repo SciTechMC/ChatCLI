@@ -163,9 +163,12 @@ def verify_email():
         return return_statement("", "Internal server error", 500)
 
 
+def hash_token(token_plain: str) -> str:
+    return hashlib.sha256(token_plain.encode("utf-8")).hexdigest()
+
 def login():
     """
-    Authenticates credentials and issues a session token.
+    Authenticates credentials and issues an access token + refresh token.
     """
     data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip().lower()
@@ -188,33 +191,136 @@ def login():
         if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
             return return_statement("", "Invalid password", 400)
 
-        # issue session token
-        token_plain = secrets.token_urlsafe(48)
-        token_hash = hashlib.sha256(token_plain.encode()).hexdigest()
-        expiry      = datetime.now(timezone.utc) + timedelta(days=7)  # adjust if needed
+        now = datetime.now(timezone.utc)
+
+        # ——— Generate Access Token ———
+        access_plain  = secrets.token_urlsafe(48)
+        access_hash   = hash_token(access_plain)
+        access_expiry = now + timedelta(days=7)
 
         insert_record(
             "session_tokens",
             {
                 "userID":        user["userID"],
-                "session_token": token_hash,
-                "expires_at":    expiry,
+                "session_token": access_hash,
+                "expires_at":    access_expiry,
                 "revoked":       False,
                 "ip_address":    request.remote_addr
             }
         )
 
+        # ——— Generate Refresh Token ———
+        refresh_plain  = secrets.token_urlsafe(64)
+        refresh_hash   = hash_token(refresh_plain)
+        refresh_expiry = now + timedelta(days=30)
+
+        insert_record(
+            "refresh_tokens",
+            {
+                "user_id":    user["userID"],
+                "token":      refresh_hash,
+                "expires_at": refresh_expiry,
+                "revoked":    False
+            }
+        )
+
+        # ——— Return both tokens to client ———
         return return_statement(
             "", 
             "Login successful",
             200,
-            additional=["session_token", token_plain]
+            additional=[
+              "access_token",  access_plain,
+              "refresh_token", refresh_plain
+            ]
         )
 
     except Exception:
         current_app.logger.exception("Error during login")
         return return_statement("", "Internal server error", 500)
 
+def refresh_token():
+    """
+    Rotates a valid refresh token and issues a new access token + refresh token.
+    """
+    data          = request.get_json(silent=True) or {}
+    refresh_plain = data.get("refresh_token")
+    if not refresh_plain:
+        return return_statement("", "Refresh token required", 400)
+
+    try:
+        now = datetime.now(timezone.utc)
+        refresh_hash = hash_token(refresh_plain)
+
+        # 1. Lookup & validate existing refresh token
+        rows = fetch_records(
+            table="refresh_tokens",
+            where_clause="token = %s",
+            params=(refresh_hash,),
+            fetch_all=True
+        )
+        if not rows:
+            return return_statement("", "Invalid refresh token", 401)
+
+        row = rows[0]
+        if row["revoked"] or row["expires_at"] < now:
+            return return_statement("", "Refresh token expired or revoked", 401)
+
+        user_id = row["user_id"]
+
+        # 2. Revoke old refresh token
+        update_record(
+            "refresh_tokens",
+            {"revoked": True},
+            where_clause="id = %s",
+            params=(row["id"],)
+        )
+
+        # 3. Generate & store new refresh token
+        new_refresh_plain  = secrets.token_urlsafe(64)
+        new_refresh_hash   = hash_token(new_refresh_plain)
+        new_refresh_expiry = now + timedelta(days=30)
+
+        insert_record(
+            "refresh_tokens",
+            {
+              "user_id":    user_id,
+              "token":      new_refresh_hash,
+              "expires_at": new_refresh_expiry,
+              "revoked":    False
+            }
+        )
+
+        # 4. Generate & store new access token
+        new_access_plain  = secrets.token_urlsafe(48)
+        new_access_hash   = hash_token(new_access_plain)
+        new_access_expiry = now + timedelta(days=7)
+
+        insert_record(
+            "session_tokens",
+            {
+              "userID":        user_id,
+              "session_token": new_access_hash,
+              "expires_at":    new_access_expiry,
+              "revoked":       False,
+              "ip_address":    request.remote_addr
+            }
+        )
+
+        # 5. Return new tokens
+        return return_statement(
+            "",
+            "Token refreshed",
+            200,
+            additional=[
+              "access_token",  new_access_plain,
+              "refresh_token", new_refresh_plain
+            ]
+        )
+
+    except Exception:
+        current_app.logger.exception("Error during token refresh")
+        return return_statement("", "Internal server error", 500)
 
 def reset_password_request():
     """

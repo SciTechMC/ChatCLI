@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Log In</title></head>
+<body>
+  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
+    <span id="statusMsg"></span>
+    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
+  </div>
+  <h2>Log In</h2>
+  <form id="loginForm">
+    <label>Username:<br><input name="username" required></label><br>
+    <label>Password:<br><input type="password" name="password" required></label><br>
+    <button type="submit">Log In</button>
+  </form>
+  <p><a href="register.html">Don't have an account? Register</a></p>
+  <p><a href="verify.html">Verify your email</a> | <a href="#">Forgot password?</a></p>
+  <script src="../renderer.js"></script>
+</body>
+</html>

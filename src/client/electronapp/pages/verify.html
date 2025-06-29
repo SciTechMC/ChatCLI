@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Verify Email</title></head>
+<body>
+  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
+    <span id="statusMsg"></span>
+    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
+  </div>
+  <h2>Email Verification</h2>
+  <form id="verifyForm">
+    <label>Token:<br><input id="token" required></label><br>
+    <button type="submit">Verify</button>
+  </form>
+  <p><a href="login.html">Back to Log In</a></p>
+  <script src="../renderer.js"></script>
+</body>
+</html>

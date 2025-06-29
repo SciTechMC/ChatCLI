@@ -62,6 +62,21 @@ def create_database_and_tables():
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 
+                    # refresh_tokens
+                    """
+                    CREATE TABLE refresh_tokens (
+                      id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                      user_id         BIGINT UNSIGNED    NOT NULL,
+                      token           CHAR(64)           NOT NULL   UNIQUE,
+                      created_at      DATETIME           NOT NULL   DEFAULT CURRENT_TIMESTAMP,
+                      expires_at      DATETIME           NOT NULL,
+                      revoked         BOOLEAN            NULL       DEFAULT FALSE,
+                      INDEX (user_id),
+                      INDEX (expires_at),
+                      FOREIGN KEY (user_id) REFERENCES users(id
+                    );
+                    """,
+
                     # email_tokens
                     """
                     CREATE TABLE IF NOT EXISTS email_tokens (

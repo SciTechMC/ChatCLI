@@ -1,5 +1,5 @@
 from flask import Blueprint
-from app.services.user_services import register, verify_email, login, reset_password, reset_password_request
+from app.services.user_services import register, verify_email, login, reset_password, reset_password_request, refresh_token
 
 user = Blueprint("user", __name__, url_prefix="/user")
 
@@ -26,3 +26,7 @@ def route_reset_password_request():
 @user.route("/reset-password", methods=["GET", "POST"])
 def route_reset_password():
     return reset_password()
+
+user.route("/refresh-token")
+def route_refresh_token():
+    return refresh_token()

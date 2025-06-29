@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Register</title></head>
+<body>
+  <div id="connStatus" style="position:fixed; top:10px; right:10px; padding:5px; border:1px solid #ccc; background:#fff;">
+    <span id="statusMsg"></span>
+    <button id="retryBtn" style="display:none; margin-left:5px;">Retry</button>
+  </div>
+  <h2>Register</h2>
+  <form id="registerForm">
+    <label>Username:<br><input id="regUsername" required></label><br>
+    <label>Email:<br><input id="regEmail" type="email" required></label><br>
+    <label>Password:<br><input id="regPassword" type="password" required></label><br>
+    <button type="submit">Register</button>
+  </form>
+  <p><a href="login.html">Already have an account? Log In</a></p>
+  <script src="../renderer.js"></script>
+</body>
+</html>
