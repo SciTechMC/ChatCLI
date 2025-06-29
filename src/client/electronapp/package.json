@@ -1,15 +1,11 @@
 {
-  "name": "chatcli",
-  "version": "dev-electron-app",
-  "description": "",
+  "name": "chatcli-electron",
+  "version": "0.1.0",
   "main": "main.js",
   "scripts": {
     "start": "electron ."
   },
-  "keywords": [],
-  "author": "SciTechMC",
-  "license": "ISC",
-  "devDependencies": {
-    "electron": "^36.4.0"
+  "dependencies": {
+    "electron": "^26.0.0"
   }
 }

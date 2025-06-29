@@ -1,15 +1,62 @@
-const API_BASE = "http://localhost:5123";
+const BASE_URL = 'http://localhost:5123';
 
-window.API_URLS = {
-  VERIFY_CONNECTION: `${API_BASE}/verify-connection`,
-  USER_LOGIN: `${API_BASE}/user/login`,
-  USER_REGISTER: `${API_BASE}/user/register`,
-  USER_RESET_PASSWORD_REQUEST: `${API_BASE}/user/reset-password-request`,
-  USER_VERIFY_EMAIL: `${API_BASE}/user/verify-email`,
-  USER_RESET_PASSWORD: `${API_BASE}/user/reset-password`,
-  CHAT_INDEX: `${API_BASE}/chat/`,
-  CHAT_FETCH_CHATS: `${API_BASE}/chat/fetch-chats`,
-  CHAT_CREATE_CHAT: `${API_BASE}/chat/create-chat`,
-  CHAT_MESSAGES: `${API_BASE}/chat/messages`,
-  // add more as needed
-};
+async function request(path, options = {}) {
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+export function login({ username, password }) {
+  return request('/user/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  });
+}
+
+export function register({ username, email, password }) {
+  return request('/user/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, email, password })
+  });
+}
+
+export function verifyEmail({ token }) {
+  return request('/user/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token })
+  });
+}
+
+export function fetchChats(username, token) {
+  return request('/chat/fetch-chats', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ username })
+  });
+}
+
+export function createChat(participants, token) {
+  return request('/chat/create-chat', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ participants })
+  });
+}
+
+export function fetchMessages(chatID, token, limit = 50, order = 'ASC') {
+  return request('/chat/messages', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ chatID, limit, order })
+  });
+}
