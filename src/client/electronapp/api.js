@@ -57,10 +57,10 @@ async function verifyEmail({ token }) {
   });
 }
 
-async function verifyConnection(version = 'electron_app') {
+async function verifyConnection() {
   return request('/verify-connection', {
     method: 'POST',
-    body: JSON.stringify({ version })
+    body: JSON.stringify({})
   });
 }
 
