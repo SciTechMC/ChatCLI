@@ -18,6 +18,23 @@
       <button id="register-btn" data-requires-online disabled>Register</button>
     </div>
   </main>
+
+  <!-- 1) shared server-check and button-enable logic -->
   <script src="../renderer.js"></script>
+
+  <!-- 2) navigation handlers for Log In / Register -->
+  <script>
+    // grab the two buttons by ID
+    const loginBtn    = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+
+    // when clicked, go to the right page
+    loginBtn?.addEventListener('click', () => {
+      window.location.href = 'login.html';
+    });
+    registerBtn?.addEventListener('click', () => {
+      window.location.href = 'register.html';
+    });
+  </script>
 </body>
 </html>

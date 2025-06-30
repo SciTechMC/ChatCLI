@@ -2,42 +2,54 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self'"
+  >
   <title>Log In • MyChatApp</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
   <header>
-    <h1>Log In</h1>
+    <h1>Log In</h1>
     <span id="server-status">Checking server…</span>
   </header>
+
   <main>
     <form id="login-form">
-      <input id="username" type="text"     placeholder="Username" required />
-      <input id="password" type="password" placeholder="Password" required />
-      <button type="submit" data-requires-online disabled>Log In</button>
+      <input
+        id="username"
+        type="text"
+        placeholder="Username"
+        required
+      />
+      <input
+        id="password"
+        type="password"
+        placeholder="Password"
+        required
+      />
+      <button
+        id="login-submit"
+        type="submit"
+        data-requires-online
+        disabled
+      >
+        Log In
+      </button>
     </form>
-    <a onclick="location.href='register.html'">Don't have an account? Register →</a>
+
+    <div class="links">
+      <a id="login-register-link" href="register.html">
+        Don’t have an account? Register →
+      </a>
+      <a id="login-forgot-link" href="reset-password-request.html">
+        Forgot password?
+      </a>
+    </div>
   </main>
+
+  <!-- shared logic for server‐check + form‐handlers + navigation -->
   <script src="../renderer.js"></script>
-  <script>
-    const submitBtn = document.querySelector('[type="submit"]');
-    window.addEventListener('online-status-changed', ({detail}) => { submitBtn.disabled = !detail; });
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      try {
-        const res = await window.api.login({
-          username: document.getElementById('username').value.trim(),
-          password: document.getElementById('password').value,
-        });
-        /* Store refresh token securely */
-        await window.secureStore.set('refresh_token', res.refresh_token);
-        /* Proceed to main chat UI */
-        location.href = 'main.html';
-      } catch (err) {
-        alert(err.message);
-      }
-    });
-  </script>
 </body>
 </html>
