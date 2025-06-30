@@ -53,7 +53,7 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS session_tokens (
                       tokenID        INT AUTO_INCREMENT PRIMARY KEY,
                       userID         INT NOT NULL,
-                      session_token  VARCHAR(128) NOT NULL UNIQUE,
+                      session_token  CHAR(64) NOT NULL UNIQUE,  # SHA-256 hex
                       created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
                       expires_at     DATETIME     NOT NULL,
                       revoked        BOOLEAN     DEFAULT FALSE,
@@ -67,7 +67,7 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS refresh_tokens (
                       id            BIGINT UNSIGNED      AUTO_INCREMENT PRIMARY KEY,
                       user_id       INT                  NOT NULL,
-                      token         CHAR(256)            NOT NULL UNIQUE,
+                      token         CHAR(64)             NOT NULL UNIQUE,  # SHA-256 hex
                       created_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
                       expires_at    DATETIME             NOT NULL,
                       revoked       BOOLEAN              NOT NULL DEFAULT FALSE,
@@ -82,7 +82,7 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS email_tokens (
                       tokenID      INT AUTO_INCREMENT PRIMARY KEY,
                       userID       INT NOT NULL,
-                      email_token  VARCHAR(128)        NOT NULL UNIQUE,
+                      email_token  CHAR(6)        NOT NULL,  # 6-digit code
                       created_at   DATETIME       DEFAULT CURRENT_TIMESTAMP,
                       expires_at   DATETIME       NOT NULL,
                       revoked      BOOLEAN        DEFAULT FALSE,
@@ -95,7 +95,7 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS pass_reset_tokens (
                       tokenID      INT AUTO_INCREMENT PRIMARY KEY,
                       userID       INT NOT NULL,
-                      reset_token  VARCHAR(128)   NOT NULL UNIQUE,
+                      reset_token  CHAR(64)   NOT NULL UNIQUE,  # SHA-256 hex
                       created_at   DATETIME       DEFAULT CURRENT_TIMESTAMP,
                       expires_at   DATETIME       NOT NULL,
                       revoked      BOOLEAN        DEFAULT FALSE,

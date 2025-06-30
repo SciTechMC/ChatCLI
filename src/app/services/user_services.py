@@ -5,6 +5,7 @@ import bcrypt
 from datetime import datetime, timedelta, timezone
 import secrets
 import hashlib
+import random
 from flask import request, jsonify, render_template, current_app
 from app.services.base_services import return_statement
 from app.services.mail_services import send_verification_email, send_password_reset_email
@@ -17,7 +18,7 @@ def register():
     Registers a new user and sends a verification code.
     """
     data     = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip().lower()
+    username = (data.get("username") or "").strip()
     password = data.get("password")
     email    = (data.get("email") or "").strip()
 
@@ -47,10 +48,10 @@ def register():
         # hash password
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-        # check existing user
+        # check existing user (case-insensitive)
         users = fetch_records(
             table="users",
-            where_clause="username = %s",
+            where_clause="LOWER(username) = LOWER(%s)",
             params=(username,),
             fetch_all=True
         )
@@ -75,7 +76,7 @@ def register():
                 where_params=(user_id, datetime.now(timezone.utc))
             )
         else:
-            # insert new user
+            # insert new user (preserve capitalization)
             user_id = insert_record(
                 "users",
                 {
@@ -86,15 +87,14 @@ def register():
                 }
             )
 
-        # create verification token
-        email_token = secrets.token_urlsafe(48)
-        token_hash = hashlib.sha256(email_token.encode()).hexdigest()
+        # create verification token (6-digit code)
+        email_token = f"{random.randint(100000, 999999):06d}"
         expiry      = datetime.now(timezone.utc) + timedelta(minutes=5)
         insert_record(
             "email_tokens",
             {
                 "userID":      user_id,
-                "email_token": token_hash,
+                "email_token": email_token,
                 "expires_at":  expiry,
                 "revoked":     False
             }
@@ -107,7 +107,6 @@ def register():
     # send code
     if not send_verification_email(username, email_token, email):
         return return_statement("", "Failed to send verification email", 500)
-
     return return_statement("Verification email sent!")
 
 
@@ -117,7 +116,9 @@ def verify_email():
     """
     data        = request.get_json(silent=True) or {}
     username    = (data.get("username") or "").strip().lower()
-    client_code = data.get("email_token")
+    client_code = (data.get("email_token") or "").strip()
+    print(client_code)
+    print(username)
     
 
     if not username or not client_code:

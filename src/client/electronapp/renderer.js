@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
         location.href = 'main.html';
       } catch (err) {
         console.error('[login] error', err);
-        alert(err.message);
       }
     });
   }
@@ -92,38 +91,42 @@ document.addEventListener('DOMContentLoaded', () => {
           password: document.getElementById('password').value,
         });
         console.log('[register] response', res);
-        alert(res.message || 'Please verify your email.');
         location.href = 'verify.html';
       } catch (err) {
         console.error('[register] error', err);
-        alert(err.message);
       }
     });
   }
 
-  /* — Verify Email page — */
-  const verifyForm = document.getElementById('verify-form');
-  if (verifyForm) {
+  /* — Verify Email page (CSP-safe) — */
+  (() => {
+    const verifyForm = document.getElementById('verify-form');
+    if (!verifyForm) return;       // only run on verify.html
+
+    // parse username from the URL: verify.html?username=alice
+    const params   = new URLSearchParams(window.location.search);
+    const username = params.get('username'); 
+
     const verifyBtn = document.getElementById('verify-submit');
     window.addEventListener('online-status-changed', ({ detail }) => {
       verifyBtn.disabled = !detail;
     });
+
     verifyForm.addEventListener('submit', async e => {
       e.preventDefault();
-      console.log('[verify] submitting');
+      const token = document.getElementById('token').value.trim();
+      console.log('[verify] submitting', { username, token });
+
       try {
-        const res = await window.api.verifyEmail({
-          token: document.getElementById('token').value.trim(),
-        });
+        const res = await window.api.verifyEmail({ username, token });
         console.log('[verify] response', res);
-        alert(res.message || 'Email verified!');
         location.href = 'login.html';
       } catch (err) {
         console.error('[verify] error', err);
-        alert(err.message);
+        // you can display an inline error here if you like
       }
     });
-  }
+  })();
 
   /* — Reset Password page — */
   const resetForm = document.getElementById('reset-request-form');
@@ -142,11 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
           { body: JSON.stringify({ email }) }
         );
         console.log('[reset] response', res);
-        alert(res.message || 'Reset link sent! Check your email.');
         location.href = 'index.html';
       } catch (err) {
         console.error('[reset] error', err);
-        alert(err.message);
       }
     });
   }

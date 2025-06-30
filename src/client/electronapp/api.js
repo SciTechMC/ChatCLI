@@ -33,7 +33,7 @@ async function request(path, options = {}) {
 const verifyConnection = (body)              => request('/verify-connection', { body: JSON.stringify(body) });
 const login            = ({ username, password })   => request('/user/login',    { body: JSON.stringify({ username, password }) });
 const register         = ({ username, email, password }) => request('/user/register', { body: JSON.stringify({ username, email, password }) });
-const verifyEmail      = ({ token })         => request('/user/verify-email', { body: JSON.stringify({ token }) });
+const verifyEmail      = ({ username, token }) => request('/user/verify-email', { body: JSON.stringify({ username, token }) });
 const fetchChats       = (username)          => request('/chat/fetch-chats',  { body: JSON.stringify({ username }) });
 const fetchMessages    = (chatID, limit=100, order='ASC') => request('/chat/messages', { body: JSON.stringify({ chatID, limit, order }) });
 const createChat       = (participants)      => request('/chat/create-chat',  { body: JSON.stringify({ participants }) });

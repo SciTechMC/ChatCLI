@@ -2,10 +2,8 @@
 <html>
 <head>
   <meta charset="UTF-8" />
-  <meta
-    http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self'"
-  >
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'">
   <title>Register • MyChatApp</title>
   <link rel="stylesheet" href="../styles.css">
 </head>
@@ -16,7 +14,7 @@
   </header>
   <main>
     <form id="register-form">
-      <input id="username" type="text" placeholder="Username" required />
+      <input id="username" type="text"     placeholder="Username" required />
       <input id="email"    type="email"    placeholder="Email"    required />
       <input id="password" type="password" placeholder="Password" required />
       <button id="register-submit" type="submit" data-requires-online disabled>
@@ -24,13 +22,36 @@
       </button>
     </form>
     <div class="links">
-      <a id="register-login-link" href="login.html">
-        Already have an account? Log In →
-      </a>
+      <a href="login.html">Already have an account? Log In →</a>
     </div>
   </main>
 
-  <!-- shared logic and page-specific handlers -->
+  <!-- shared logic + registration handler -->
   <script src="../renderer.js"></script>
+  <script>
+  (function(){
+    const btn = document.getElementById('register-submit');
+    window.addEventListener('online-status-changed', ({ detail }) => {
+      btn.disabled = !detail;
+    });
+
+    document.getElementById('register-form')
+      .addEventListener('submit', async e => {
+        e.preventDefault();
+        const username = document.getElementById('username').value.trim();
+        const email    = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        try {
+          const res = await window.api.register({ username, email, password });
+          console.log('[register] response:', res);
+          // → pass the username via URL to verify.html
+          location.href = `verify.html?username=${encodeURIComponent(username)}`;
+        } catch (err) {
+          console.error('[register] error:', err);
+        }
+      });
+  })();
+  </script>
 </body>
 </html>

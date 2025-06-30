@@ -16,17 +16,27 @@
   </header>
   <main>
     <form id="verify-form">
-      <input id="token" type="text" placeholder="Verification token" required />
-      <button id="verify-submit" type="submit" data-requires-online disabled>
+      <input
+        id="token"
+        type="text"
+        placeholder="Verification code"
+        required
+      />
+      <button
+        id="verify-submit"
+        type="submit"
+        data-requires-online
+        disabled
+      >
         Verify
       </button>
     </form>
     <div class="links">
-      <a id="verify-login-link" href="login.html">Back to Log In</a>
+      <a href="login.html">← Back to Log In</a>
     </div>
   </main>
 
-  <!-- shared logic and page-specific handlers -->
+  <!-- only this one script tag allowed by CSP -->
   <script src="../renderer.js"></script>
 </body>
 </html>
