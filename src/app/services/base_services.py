@@ -49,12 +49,13 @@ def authenticate_token(session_token: str) -> bool:
 
     return users[0]["username"]
 
-def return_statement(response=None, error="", status_code=200, additional=None):
+def return_statement(response, message="", status=200, additional=None):
     return jsonify({
+        "status": "ok" if status == 200 else "error",
+        "message": message,
         "response": response,
-        "error": error,
-        **(dict([additional]) if additional else {}),
-    }), status_code
+        **(additional if additional else {})
+    }), status
 
 def index():
     return render_template("welcome.html")

@@ -124,14 +124,13 @@ def verify_email():
     if not username or not client_code:
         return return_statement("", "Username and email_token are required", 400)
 
-    client_code = hashlib.sha256(client_code.encode()).hexdigest()
     
     try:
         # fetch the latest valid token
         cursor = fetch_records(
             table="email_tokens",
             where_clause=(
-                "userID = (SELECT userID FROM users WHERE username = %s) "
+                "userID = (SELECT userID FROM users WHERE LOWER(username) = LOWER(%s)) "
                 "AND revoked = FALSE AND expires_at > %s"
             ),
             params=(username, datetime.now(timezone.utc)),
@@ -230,10 +229,10 @@ def login():
             "", 
             "Login successful",
             200,
-            additional=[
-              "access_token",  access_plain,
-              "refresh_token", refresh_plain
-            ]
+            additional={
+              "access_token":  access_plain,
+              "refresh_token": refresh_plain
+            }
         )
 
     except Exception:
@@ -270,7 +269,7 @@ def refresh_token():
         user_id = row["user_id"]
 
         # 2. Revoke old refresh token
-        update_record(
+        update_records(
             "refresh_tokens",
             {"revoked": True},
             where_clause="id = %s",

@@ -34,18 +34,16 @@ These routes handle generic pages and server connectivity.
   ```
 * **Response**:
 
-  * `200 OK` with JSON `{"status": "ok", "message": "Hello World!"}` on success.
+  * `200 OK` with JSON `{"response": "Server is reachable!", "error": ""}` on success.
   * `400 Bad Request` on missing/invalid JSON or incompatible version.
 
 #### `GET, POST /subscribe`
 
 * **Description**: Subscribes an email address to notifications.
-* **Request (POST)**:
+* **Request (POST)**: Form data
 
-  ```json
-  {
-    "email": "user@example.com"
-  }
+  ```
+  email=user@example.com
   ```
 * **Response**:
 
@@ -67,14 +65,14 @@ User management: registration, email verification, login, and password reset.
 
   ```json
   {
-    "username": "string",  // unique
+    "username": "string",  // unique, no spaces or special chars
     "email": "string",     // valid email
     "password": "string"   // plain-text, will be hashed
   }
   ```
 * **Response**:
 
-  * `201 Created` with JSON `{ "status": "ok", "message": "Registration successful. Verification email sent." }`
+  * `200 OK` with JSON `{ "response": "Verification email sent!", "error": "" }`
   * `400 Bad Request` if email/username invalid or already exists.
 
 #### `POST /user/verify-email`
@@ -84,17 +82,18 @@ User management: registration, email verification, login, and password reset.
 
   ```json
   {
-    "token": "string"      // emailed token
+    "username": "string",
+    "email_token": "string"      // emailed code
   }
   ```
 * **Response**:
 
-  * `200 OK` with JSON `{ "status": "ok", "message": "Email verified." }`
+  * `200 OK` with JSON `{ "response": "Email verified!", "error": "" }`
   * `400 Bad Request` for invalid or expired token.
 
 #### `POST /user/login`
 
-* **Description**: Authenticates a user and issues a session token.
+* **Description**: Authenticates a user and issues access and refresh tokens.
 * **Request Body**:
 
   ```json
@@ -106,15 +105,38 @@ User management: registration, email verification, login, and password reset.
 * **Response**:
 
   * `200 OK` with JSON:
-
     ```json
     {
-      "status": "ok",
-      "token": "<session_token>",
-      "expires_in": 3600  // seconds
+      "response": "",
+      "error": "Login successful",
+      "access_token": "<access_token>",
+      "refresh_token": "<refresh_token>"
     }
     ```
-  * `401 Unauthorized` for invalid credentials.
+  * `400 Bad Request` or `404 Not Found` for invalid credentials.
+
+#### `POST /user/refresh-token`
+
+* **Description**: Rotates a valid refresh token and issues new tokens.
+* **Request Body**:
+
+  ```json
+  {
+    "refresh_token": "string"
+  }
+  ```
+* **Response**:
+
+  * `200 OK` with JSON:
+    ```json
+    {
+      "response": "",
+      "error": "Token refreshed",
+      "access_token": "<new_access_token>",
+      "refresh_token": "<new_refresh_token>"
+    }
+    ```
+  * `401 Unauthorized` for invalid/expired token.
 
 #### `POST /user/reset-password-request`
 
@@ -122,28 +144,26 @@ User management: registration, email verification, login, and password reset.
 * **Request Body**:
 
   ```json
-  { "email": "user@example.com" }
+  { "data": "user@example.com" } // or username
   ```
 * **Response**:
 
-  * `200 OK` with JSON `{ "status": "ok", "message": "Password reset link sent." }`
-  * `404 Not Found` if email not registered.
+  * `200 OK` with JSON `{ "response": "Password reset email sent!", "error": "" }`
+  * `404 Not Found` if user not found.
 
 #### `GET, POST /user/reset-password`
 
 * **Description**: Completes password reset using a token.
-* **Query Parameters** (for GET): `?token=<reset_token>`
-* **Request Body** (POST):
+* **Query Parameters** (for GET): `?token=<reset_token>&username=<username>`
+* **Request Body** (POST): Form data
 
-  ```json
-  {
-    "token": "string",
-    "new_password": "string"
-  }
+  ```
+  password=newpassword
+  confirm_password=newpassword
   ```
 * **Response**:
 
-  * `200 OK` with JSON `{ "status": "ok", "message": "Password has been reset." }`
+  * `200 OK` with JSON `{ "message": "Password reset successfully" }`
   * `400 Bad Request` for invalid/expired token or weak password.
 
 ---
@@ -154,7 +174,7 @@ User management: registration, email verification, login, and password reset.
 REST API for creating and retrieving chat data.
 </aside>
 
-All chat routes require a valid session token in the `Authorization` header.
+All chat routes require a valid session token in the request body.
 
 #### `GET /chat/`
 
@@ -163,38 +183,32 @@ All chat routes require a valid session token in the `Authorization` header.
 
 #### `POST /chat/fetch-chats`
 
-* **Description**: Retrieves a list of chats the user participates in.
+* **Description**: Retrieves a list of chat participants for the user.
 * **Request Body**:
 
   ```json
   {
-    "username": "string"
+    "session_token": "string"
   }
   ```
 * **Response**:
 
-  * `200 OK` with JSON array:
-
-    ```json
-    [
-      { "chatID": 1, "participants": ["alice", "bob"], "last_message": "...", "updated_at": "ISO8601" },
-      // ...
-    ]
-    ```
+  * `200 OK` with JSON array of usernames.
 
 #### `POST /chat/create-chat`
 
-* **Description**: Creates a new chat between participants.
+* **Description**: Creates a new chat between two users.
 * **Request Body**:
 
   ```json
   {
-    "participants": ["alice", "bob", ...]
+    "receiver": "username",
+    "session_token": "string"
   }
   ```
 * **Response**:
 
-  * `201 Created` with JSON `{ "chatID": 123, "participants": [...], "created_at": "ISO8601" }`
+  * `200 OK` with JSON `{ "response": "Chat created successfully!", "error": "" }`
   * `400 Bad Request` for invalid input.
 
 #### `POST /chat/messages`
@@ -204,18 +218,18 @@ All chat routes require a valid session token in the `Authorization` header.
 
   ```json
   {
+    "username": "string",
+    "session_token": "string",
     "chatID": 123,
-    "limit": 50,           // optional, default 100
-    "order": "ASC"       // or "DESC"
+    "limit": 50
   }
   ```
 * **Response**:
 
   * `200 OK` with JSON array of message objects:
-
     ```json
     [
-      { "messageID": 1, "chatID": 123, "sender": "alice", "text": "Hello", "sent_at": "ISO8601" },
+      { "messageID": 1, "userID": 2, "message": "Hello", "timestamp": "ISO8601" },
       // ...
     ]
     ```

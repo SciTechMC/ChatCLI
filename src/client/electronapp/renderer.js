@@ -1,5 +1,22 @@
 // Shared front-end logic
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // --- Auto-login if refresh token exists ---
+  if (window.secureStore && typeof window.secureStore.get === 'function') {
+    const token = await window.secureStore.get('refresh_token');
+    if (token) {
+      try {
+        // Set refresh token in API module and refresh session
+        await window.api.refreshToken();
+        // If successful, go to main page
+        location.href = 'main.html';
+        return; // Prevent further execution
+      } catch (err) {
+        // If refresh fails, continue to login/register as normal
+        console.warn('Auto-login failed:', err);
+      }
+    }
+  }
+
   /* — Server-check setup — */
   const statusEl = document.getElementById('server-status');
   const retryBtn = document.getElementById('retry-btn');
@@ -81,49 +98,75 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('online-status-changed', ({ detail }) => {
       registerBtn.disabled = !detail;
     });
+    
     registerForm.addEventListener('submit', async e => {
       e.preventDefault();
       console.log('[register] submitting');
+      
       try {
-        const res = await window.api.register({
-          username: document.getElementById('username').value.trim(),
-          email:    document.getElementById('email').value.trim(),
-          password: document.getElementById('password').value,
-        });
+        // Get form values
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        
+        // Call API to register
+        const res = await window.api.register({ username, email, password });
         console.log('[register] response', res);
-        location.href = 'verify.html';
+        
+        // Redirect to verification page with username in URL
+        location.href = `verify.html?username=${encodeURIComponent(username)}`;
       } catch (err) {
         console.error('[register] error', err);
+        // Display error to user
+        const errorEl = document.getElementById('error-message') || document.createElement('div');
+        errorEl.id = 'error-message';
+        errorEl.textContent = `Registration failed: ${err.message || 'Unknown error'}`;
+        errorEl.className = 'error';
+        
+        if (!document.getElementById('error-message')) {
+          registerForm.insertBefore(errorEl, registerForm.firstChild);
+        }
       }
     });
   }
 
-  /* — Verify Email page (CSP-safe) — */
+  /* — Verify Email page — */
   (() => {
     const verifyForm = document.getElementById('verify-form');
-    if (!verifyForm) return;       // only run on verify.html
+    if (!verifyForm) return;
 
-    // parse username from the URL: verify.html?username=alice
-    const params   = new URLSearchParams(window.location.search);
-    const username = params.get('username'); 
-
-    const verifyBtn = document.getElementById('verify-submit');
-    window.addEventListener('online-status-changed', ({ detail }) => {
-      verifyBtn.disabled = !detail;
-    });
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get('username');
+    
+    // Display username
+    if (username) {
+      const userInfo = document.createElement('p');
+      userInfo.textContent = `Verifying account for: ${username}`;
+      userInfo.className = 'user-info';
+      verifyForm.insertBefore(userInfo, verifyForm.firstChild);
+    }
 
     verifyForm.addEventListener('submit', async e => {
       e.preventDefault();
-      const token = document.getElementById('token').value.trim();
-      console.log('[verify] submitting', { username, token });
+      const email_token = document.getElementById('token').value.trim();
 
       try {
-        const res = await window.api.verifyEmail({ username, token });
-        console.log('[verify] response', res);
+        const res = await window.api.verifyEmail({ username, email_token }); // <-- use email_token
+        console.log('[verify] Success:', res);
+        alert('Email verified successfully! Redirecting to login...');
         location.href = 'login.html';
       } catch (err) {
-        console.error('[verify] error', err);
-        // you can display an inline error here if you like
+        console.error('[verify] Full Error:', err);
+        console.error('[verify] Response Body:', err.response ? await err.response.text() : 'No response body');
+        
+        const errorEl = document.getElementById('error-message') || document.createElement('div');
+        errorEl.id = 'error-message';
+        errorEl.textContent = `Verification failed: ${err.message || 'Server error'}`;
+        errorEl.className = 'error';
+        
+        if (!document.getElementById('error-message')) {
+          verifyForm.insertBefore(errorEl, verifyForm.firstChild);
+        }
       }
     });
   })();

@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('api', {
   fetchMessages:    api.fetchMessages,
   createChat:       api.createChat,
   refreshToken:     api.refreshToken,
+  getSessionToken:    () => sessionToken,
+  setSessionToken:    (tok) => { sessionToken = tok; },
+  setRefreshToken:    (tok) => { refreshTokenValue = tok; },
 });
 
 /* -------- Expose secureStore via keytar -------- */

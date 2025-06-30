@@ -1,9 +1,7 @@
 # app/websockets/services.py
 
 from fastapi import WebSocket, status
-from app.services.base_services import verif_user
-from app.database.db_helper import fetch_records, insert_record
-from app.database.db_helper import get_db   # for DELETE in leave_chat
+from app.database.db_helper import fetch_records, insert_record, get_db
 import logging
 import bcrypt
 
