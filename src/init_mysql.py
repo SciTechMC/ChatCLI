@@ -1,6 +1,7 @@
 import os
 import logging
 import subprocess
+import threading
 from mysql.connector import connect, Error
 from dotenv import load_dotenv
 load_dotenv()
@@ -158,13 +159,20 @@ def create_database_and_tables():
         logging.error(f"MySQL Error during setup: {e}")
         raise
 
-def run_application(entry_script="main.py"):
-    """Launch the main application script after DB is ready."""
+def run_application(flask_script="main.py", fastapi_script="app/websockets/main.py"):
+    """Launch the Flask and FastAPI scripts after DB is ready."""
     try:
-        logging.info(f"Starting application: {entry_script}")
-        subprocess.run(["python", entry_script], check=True)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Application exited with error: {e}")
+        logging.info(f"Starting Flask app: {flask_script}")
+        flask_proc = subprocess.Popen(["python", flask_script])
+
+        logging.info(f"Starting FastAPI app: {fastapi_script}")
+        fastapi_proc = subprocess.Popen(["python", fastapi_script])
+
+        # Wait for both processes to finish
+        flask_proc.wait()
+        fastapi_proc.wait()
+    except Exception as e:
+        logging.error(f"Error starting applications: {e}")
         raise
 
 if __name__ == "__main__":

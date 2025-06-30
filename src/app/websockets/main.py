@@ -1,5 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from app.websockets.services import authenticate, join_chat, leave_chat, post_msg, chat_subscriptions
+from services import authenticate, join_chat, leave_chat, post_msg, chat_subscriptions
+import uvicorn
 
 app = FastAPI()
 
@@ -26,7 +27,7 @@ async def websocket_endpoint(ws: WebSocket):
             elif t == "leave_chat":
                 await leave_chat(username, msg.get("chatID"))
 
-            elif t == "chat_message":
+            elif t == "post_msg":
                 await post_msg({
                     "username": username,
                     "chatID":   msg.get("chatID"),
@@ -43,3 +44,6 @@ async def websocket_endpoint(ws: WebSocket):
         # clean up any subscriptions
         for subs in chat_subscriptions.values():
             subs.discard(ws)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8765)

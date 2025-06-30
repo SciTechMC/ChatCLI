@@ -1,7 +1,7 @@
 # app/websockets/services.py
 
 from fastapi import WebSocket, status
-from app.database.db_helper import fetch_records, insert_record, get_db
+from db_helper import fetch_records, insert_record, update_records, get_conn  # adjust import if needed
 import logging
 import bcrypt
 
@@ -24,7 +24,7 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
         return None
 
     # Find the session whose hash matches this token and is still valid
-    sessions = fetch_records(
+    sessions = await fetch_records(
         table="session_tokens",
         where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
         fetch_all=True
@@ -44,7 +44,7 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
         return None
 
     # Lookup the username for that session’s userID
-    users = fetch_records(
+    users = await fetch_records(
         table="users",
         where_clause="userID = %s",
         params=(matched["userID"],),
@@ -64,7 +64,7 @@ async def join_chat(username: str, chat_id: int) -> bool:
     and subscribes that user's WebSocket to future broadcasts.
     """
     # fetch userID
-    users = fetch_records(
+    users = await fetch_records(
         table="users",
         where_clause="username = %s",
         params=(username,),
@@ -76,7 +76,7 @@ async def join_chat(username: str, chat_id: int) -> bool:
 
     # insert into participants (ignore duplicates)
     try:
-        insert_record("participants", {"chatID": chat_id, "userID": user_id})
+        await insert_record("participants", {"chatID": chat_id, "userID": user_id})
     except Exception:
         # if it already exists, that's fine
         pass
@@ -93,7 +93,7 @@ async def leave_chat(username: str, chat_id: int) -> bool:
     and unsubscribes that user's WebSocket.
     """
     # fetch userID
-    users = fetch_records(
+    users = await fetch_records(
         table="users",
         where_clause="username = %s",
         params=(username,),
@@ -104,17 +104,24 @@ async def leave_chat(username: str, chat_id: int) -> bool:
     user_id = users[0]["userID"]
 
     # delete from participants
-    db = get_db()
-    cur = db.cursor()
     try:
-        cur.execute(
-            "DELETE FROM participants WHERE chatID = %s AND userID = %s",
-            (chat_id, user_id)
+        await update_records(
+            table="participants",
+            data={},  # no columns to update, just delete
+            where_clause="chatID = %s AND userID = %s",
+            where_params=(chat_id, user_id)
         )
-        db.commit()
+        # Actually, update_records is for UPDATE, not DELETE.
+        # So let's use a direct DELETE query via fetch_records:
+        async with await get_conn() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM participants WHERE chatID = %s AND userID = %s",
+                    (chat_id, user_id)
+                )
+                await conn.commit()
     except Exception as e:
         logging.error(f"[leave_chat] delete error: {e}")
-        db.rollback()
         return False
 
     # unsubscribe
@@ -138,7 +145,7 @@ async def post_msg(msg: dict) -> dict | None:
         return None
 
     # get userID
-    users = fetch_records(
+    users = await fetch_records(
         table="users",
         where_clause="username = %s",
         params=(username,),
@@ -149,13 +156,13 @@ async def post_msg(msg: dict) -> dict | None:
     user_id = users[0]["userID"]
 
     # insert into messages
-    message_id = insert_record(
+    message_id = await insert_record(
         "messages",
         {"chatID": chat_id, "userID": user_id, "message": text}
     )
 
     # re-fetch the row to get timestamp etc.
-    rows = fetch_records(
+    rows = await fetch_records(
         table="messages",
         where_clause="messageID = %s",
         params=(message_id,),

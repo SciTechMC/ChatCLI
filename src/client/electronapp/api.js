@@ -1,6 +1,6 @@
 // api.js
 const fetch = require('node-fetch');      // ← use v2 CJS
-const BASE_URL = 'http://127.0.0.1:5123';
+const BASE_URL = 'http://127.0.0.1:5000';
 
 let sessionToken      = null;
 let refreshTokenValue = null;
@@ -53,6 +53,10 @@ async function refreshToken() {
   return true;
 }
 
+function setRefreshToken(token) {
+  refreshTokenValue = token;
+}
+
 module.exports = {
   request,
   verifyConnection,
@@ -63,4 +67,5 @@ module.exports = {
   fetchMessages,
   createChat,
   refreshToken,
+  setRefreshToken,
 };

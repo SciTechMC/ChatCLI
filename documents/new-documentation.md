@@ -246,55 +246,81 @@ wss://api.example.com/ws/chat
 
 ### 1. Connection & Authentication
 
-* **Client**: After connecting, send an auth message:
+**Client:** After connecting, send an auth message:
 
-  ```json
-  {
-    "type": "auth",
-    "username": "alice",
-    "session_token": "<token>"
-  }
-  ```
-* **Server**: Replies:
+```json
+{
+  "type": "auth",
+  "token": "<session_token>"
+}
+```
 
-  ```json
-  { "type": "auth_ack", "status": "ok" }
-  ```
+**Server:** Replies:
 
-  On failure, the connection is closed.
+```json
+{ "type": "auth_ack", "status": "ok" }
+```
+
+On failure, the connection is closed.
+
+---
 
 ### 2. Actions
 
-Subsequent messages must include a `type` field:
+After authentication, send JSON messages with a `type` field. Supported types:
 
-| Type      | Payload Fields                | Description                |
-| --------- | ----------------------------- | -------------------------- |
-| `join`    | `chatID`: int                 | Join a chat room           |
-| `leave`   | `chatID`: int                 | Leave a chat room          |
-| `message` | `chatID`: int, `text`: string | Send a message to the chat |
+| Type           | Payload Fields                       | Description                |
+| -------------- | ------------------------------------ | -------------------------- |
+| `join_chat`    | `chatID`: int                       | Join a chat room           |
+| `leave_chat`   | `chatID`: int                       | Leave a chat room          |
+| `chat_message` | `chatID`: int, `text`: string       | Send a message to the chat |
 
 #### Example: Join Chat
 
 ```json
-{ "type": "join", "chatID": 123 }
+{ "type": "join_chat", "chatID": 123 }
+```
+
+#### Example: Leave Chat
+
+```json
+{ "type": "leave_chat", "chatID": 123 }
 ```
 
 #### Example: Send Message
 
 ```json
-{ "type": "message", "chatID": 123, "text": "Hello everyone!" }
+{ "type": "chat_message", "chatID": 123, "text": "Hello everyone!" }
 ```
 
-### 3. Server Broadcasts
-
-Whenever a message is posted, the server broadcasts:
+If an unknown action is sent, the server replies:
 
 ```json
 {
-  "type": "message",
-  "username": "alice",
-  "chatID": 123,
-  "text": "Hello everyone!",
-  "sent_at": "2025-06-27T12:34:56Z"
+  "type": "error",
+  "message": "Unknown action: <type>"
 }
 ```
+
+---
+
+### 3. Server Broadcasts
+
+Whenever a message is posted, the server broadcasts to all subscribers of the chat:
+
+```json
+{
+  "type": "new_message",
+  "messageID": 1,
+  "chatID": 123,
+  "userID": 2,
+  "message": "Hello everyone!",
+  "timestamp": "2025-06-27T12:34:56Z"
+}
+```
+
+---
+
+**Note:**  
+- All chat actions require a valid authenticated WebSocket session.
+- The server automatically manages chat subscriptions and cleans up on disconnect.

@@ -84,6 +84,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         console.log('[login] response', res);
         await window.secureStore.set('refresh_token', res.refresh_token);
+        // Set refreshTokenValue in API module!
+        window.api.setRefreshToken(res.refresh_token);
         location.href = 'main.html';
       } catch (err) {
         console.error('[login] error', err);

@@ -44,20 +44,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 3️⃣ Open WebSocket & authenticate
-  const ws = new WebSocket('wss://api.example.com/ws/chat');
+  const ws = new WebSocket('ws://127.0.0.1:8765/ws');
   ws.addEventListener('open', () => {
     ws.send(JSON.stringify({
-      type:          'auth',
-      username:      profileEl.textContent,
-      session_token: window.api.getSessionToken(),
+      type: 'auth',
+      token: window.api.getSessionToken(), // documentation expects 'token'
     }));
   });
 
   ws.addEventListener('message', evt => {
     try {
       const msg = JSON.parse(evt.data);
-      if (msg.type === 'message') {
-        appendMessage(msg.username, msg.text);
+      if (msg.type === 'new_message') {
+        appendMessage(msg.userID, msg.message); // userID is numeric, you may want to map to username
       }
     } catch (err) {
       console.error('[main] WS parse error', err);
@@ -74,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       .then(msgs => msgs.forEach(m => appendMessage(m.sender, m.text)))
       .catch(err => console.error('[main] fetchMessages error', err));
     // Join the chat room
-    ws.send(JSON.stringify({ type: 'join', chatID }));
+    ws.send(JSON.stringify({ type: 'join_chat', chatID })); // use 'join_chat'
   }
 
   function appendMessage(sender, text) {
@@ -89,9 +88,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   formEl.addEventListener('submit', e => {
     e.preventDefault();
     const text = inputEl.value.trim();
-    if (!text || currentChatID === null) return;
+    if (!text || currentChatID === null) {
+      return;
+    }
     ws.send(JSON.stringify({
-      type:   'message',
+      type:   'post_msg', // <-- match your backend
       chatID: currentChatID,
       text,
     }));
