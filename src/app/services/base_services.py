@@ -1,43 +1,33 @@
 from app.database.db_helper import fetch_records, insert_record
 from flask import jsonify
-import bcrypt
 import mysql.connector
 from flask import request, render_template, redirect, flash, url_for
+from datetime import datetime, timezone
+import hashlib
 
-
-
-import bcrypt
-import logging
-
-def authenticate_token(session_token: str) -> bool:
+def authenticate_token(session_token: str) -> str | None:
     """
     Given a plain session token, find the matching unrevoked, unexpired
-    row in `session_tokens`, then return its username. Otherwise return None.
+    row in `session_tokens` (hashed with SHA-256), then return its username.
+    Otherwise return None.
     """
-    # 1) Grab all live sessions
-    rows = fetch_records(
+    # 1) Compute the SHA-256 of the incoming token
+    token_hash = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
+
+    # 2) Fetch all live sessions
+    sessions = fetch_records(
         table="session_tokens",
-        where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+        where_clause="revoked = FALSE AND expires_at > %s",
+        params=(datetime.now(timezone.utc),),
         fetch_all=True
     )
 
-    # 2) Find the one whose bcrypt hash matches
-    match = None
-    for r in rows:
-        try:
-            if bcrypt.checkpw(
-                session_token.encode("utf-8"),
-                r["session_token"].encode("utf-8")
-            ):
-                match = r
-                break
-        except ValueError:
-            continue
-
+    # 3) Find the one whose stored hash matches
+    match = next((s for s in sessions if s["session_token"] == token_hash), None)
     if not match:
         return None
 
-    # 3) Lookup that session’s username
+    # 4) Lookup that session’s username (and ensure email_verified)
     users = fetch_records(
         table="users",
         where_clause="userID = %s AND email_verified = TRUE",

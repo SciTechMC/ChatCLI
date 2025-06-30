@@ -4,7 +4,7 @@
 console.log('[preload] starting, __dirname =', __dirname);
 
 const { contextBridge, ipcRenderer } = require('electron');
-const api = require('./api.js');               // stays CommonJS
+const api = require('./pages/api.js');               // stays CommonJS
 
 /* -------- Expose REST API wrapper -------- */
 contextBridge.exposeInMainWorld('api', {
@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   getSessionToken:    () => sessionToken,
   setSessionToken:    (tok) => { sessionToken = tok; },
   setRefreshToken:    (tok) => { refreshTokenValue = tok; },
+  initializeTokens:   api.initializeTokens, // Add this
 });
 
 /* -------- Expose secureStore via keytar -------- */
@@ -30,3 +31,19 @@ contextBridge.exposeInMainWorld('secureStore', {
 });
 
 console.log('[preload] expose complete');
+
+const WebSocket = require('ws');
+
+contextBridge.exposeInMainWorld('chatAPI', {
+  connect: (token) => {
+    const ws = new WebSocket('ws://localhost:8765/ws');
+    ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token })));
+    ws.on('message', (data) => {
+      // re-emit into the DOM so your renderer code can listen
+      window.dispatchEvent(new CustomEvent('ws-message', {
+        detail: JSON.parse(data)
+      }));
+    });
+    return ws;
+  }
+});

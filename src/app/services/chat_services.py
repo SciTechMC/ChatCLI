@@ -5,6 +5,13 @@ from app.database.db_helper import fetch_records, insert_record
 def fetch_chats():
     """
     Fetches chat participants for a user.
+    Returns: {
+      "response": [
+        { "chatID": ..., "name": ... },
+        ...
+      ],
+      "status": "ok"
+    }
     """
     client = request.get_json()
     session_token = client.get("session_token")
@@ -12,7 +19,7 @@ def fetch_chats():
     # Verify the session token instead of user_key
     username = authenticate_token(session_token)
     if not username:
-        return return_statement("", "Unable to verify user!", 400)
+        return {"response": [], "status": "Unable to verify user!"}
 
     try:
         # Lookup the user's ID
@@ -23,7 +30,7 @@ def fetch_chats():
             fetch_all=True
         )
         if not users:
-            return return_statement("", "User not found!", 404)
+            return {"response": [], "status": "User not found!"}
         user_id = users[0]["userID"]
 
         # Find all chatIDs this user participates in
@@ -35,7 +42,7 @@ def fetch_chats():
         )
         chat_ids = [r["chatID"] for r in parts]
         if not chat_ids:
-            return return_statement([], "", 200)
+            return {"response": [], "status": "ok"}
 
         # Find all participants in those chats, excluding the user
         fmt = ",".join(["%s"] * len(chat_ids))
@@ -45,11 +52,13 @@ def fetch_chats():
             params=(*chat_ids, user_id),
             fetch_all=True
         )
-        other_user_ids = list({r["userID"] for r in others})
-        if not other_user_ids:
-            return return_statement([], "", 200)
+        # Map chatID to userID
+        chat_to_user = {r["chatID"]: r["userID"] for r in others}
+        if not chat_to_user:
+            return {"response": [], "status": "ok"}
 
         # Get usernames for those userIDs
+        other_user_ids = list(set(chat_to_user.values()))
         fmt = ",".join(["%s"] * len(other_user_ids))
         rows = fetch_records(
             table="users",
@@ -57,11 +66,18 @@ def fetch_chats():
             params=tuple(other_user_ids),
             fetch_all=True
         )
-        chats = [r["username"] for r in rows]
-        return return_statement(chats)
+        id_to_name = {r["userID"]: r["username"] for r in rows}
+
+        # Build response
+        response = [
+            {"chatID": chat_id, "name": id_to_name[user_id]}
+            for chat_id, user_id in chat_to_user.items()
+        ]
+
+        return {"response": response, "status": "ok"}
 
     except Exception as e:
-        return return_statement("", str(e), 500)
+        return {"response": [], "status": str(e)}
 
 
 def create_chat():
@@ -72,8 +88,9 @@ def create_chat():
     receiver = client.get("receiver", "").lower()
     session_token = client.get("session_token")
 
-    if not username or not receiver:
-        return return_statement("", "Some statements are empty", 404)
+    # Only session_token is required to verify the user
+    if not session_token or not receiver:
+        return return_statement("", "Session token and receiver are required", 404)
 
     # Verify the session token
     username = authenticate_token(session_token)
@@ -98,6 +115,22 @@ def create_chat():
             return return_statement("", "Sender or receiver not found!", 400)
         sender_id = send[0]["userID"]
         receiver_id = rec[0]["userID"]
+
+        # Check if a chat already exists between these two users
+        existing_chats = fetch_records(
+            table="participants",
+            where_clause=(
+                "userID IN (%s, %s) "
+                "AND chatID IN ("
+                "SELECT chatID FROM participants WHERE userID IN (%s, %s) "
+                "GROUP BY chatID HAVING COUNT(DISTINCT userID) = 2"
+                ")"
+            ),
+            params=(sender_id, receiver_id, sender_id, receiver_id),
+            fetch_all=True
+        )
+        if existing_chats:
+            return return_statement("", "Chat already exists between these users!", 409)
 
         # Create a new chat (no data fields)
         chat_id = insert_record("chats", {})

@@ -1,22 +1,5 @@
-// Shared front-end logic
+// renderer.js
 document.addEventListener('DOMContentLoaded', async () => {
-  // --- Auto-login if refresh token exists ---
-  if (window.secureStore && typeof window.secureStore.get === 'function') {
-    const token = await window.secureStore.get('refresh_token');
-    if (token) {
-      try {
-        // Set refresh token in API module and refresh session
-        await window.api.refreshToken();
-        // If successful, go to main page
-        location.href = 'main.html';
-        return; // Prevent further execution
-      } catch (err) {
-        // If refresh fails, continue to login/register as normal
-        console.warn('Auto-login failed:', err);
-      }
-    }
-  }
-
   /* — Server-check setup — */
   const statusEl = document.getElementById('server-status');
   const retryBtn = document.getElementById('retry-btn');
@@ -74,18 +57,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('online-status-changed', ({ detail }) => {
       loginBtn.disabled = !detail;
     });
+
     loginForm.addEventListener('submit', async e => {
       e.preventDefault();
       console.log('[login] submitting');
       try {
-        const res = await window.api.login({
-          username: document.getElementById('username').value.trim(),
-          password: document.getElementById('password').value,
-        });
+        // Grab what the user typed
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        // Call the API
+        const res = await window.api.login({ username, password });
         console.log('[login] response', res);
+
+        // ── STORE TOKENS ──
+        // Store the access_token (for WS auth) as session_token:
+        await window.secureStore.set('session_token', res.access_token);
+        // Also keep the refresh_token for HTTP-layer calls:
         await window.secureStore.set('refresh_token', res.refresh_token);
-        // Set refreshTokenValue in API module!
+        await window.secureStore.set('username', username);
+
+        // Tell the HTTP-API layer about the new refresh token
         window.api.setRefreshToken(res.refresh_token);
+
+        // Go to the main chat
         location.href = 'main.html';
       } catch (err) {
         console.error('[login] error', err);
@@ -100,31 +95,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('online-status-changed', ({ detail }) => {
       registerBtn.disabled = !detail;
     });
-    
+
     registerForm.addEventListener('submit', async e => {
       e.preventDefault();
       console.log('[register] submitting');
-      
+
       try {
-        // Get form values
         const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
-        
-        // Call API to register
         const res = await window.api.register({ username, email, password });
         console.log('[register] response', res);
-        
-        // Redirect to verification page with username in URL
         location.href = `verify.html?username=${encodeURIComponent(username)}`;
       } catch (err) {
         console.error('[register] error', err);
-        // Display error to user
         const errorEl = document.getElementById('error-message') || document.createElement('div');
         errorEl.id = 'error-message';
         errorEl.textContent = `Registration failed: ${err.message || 'Unknown error'}`;
         errorEl.className = 'error';
-        
         if (!document.getElementById('error-message')) {
           registerForm.insertBefore(errorEl, registerForm.firstChild);
         }
@@ -139,8 +127,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const params = new URLSearchParams(window.location.search);
     const username = params.get('username');
-    
-    // Display username
     if (username) {
       const userInfo = document.createElement('p');
       userInfo.textContent = `Verifying account for: ${username}`;
@@ -151,21 +137,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     verifyForm.addEventListener('submit', async e => {
       e.preventDefault();
       const email_token = document.getElementById('token').value.trim();
-
       try {
-        const res = await window.api.verifyEmail({ username, email_token }); // <-- use email_token
+        const res = await window.api.verifyEmail({ username, email_token });
         console.log('[verify] Success:', res);
         alert('Email verified successfully! Redirecting to login...');
         location.href = 'login.html';
       } catch (err) {
-        console.error('[verify] Full Error:', err);
-        console.error('[verify] Response Body:', err.response ? await err.response.text() : 'No response body');
-        
+        console.error('[verify] error', err);
         const errorEl = document.getElementById('error-message') || document.createElement('div');
         errorEl.id = 'error-message';
         errorEl.textContent = `Verification failed: ${err.message || 'Server error'}`;
         errorEl.className = 'error';
-        
         if (!document.getElementById('error-message')) {
           verifyForm.insertBefore(errorEl, verifyForm.firstChild);
         }

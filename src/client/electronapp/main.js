@@ -1,11 +1,19 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
-app.disableHardwareAcceleration();                 // software rendering
-app.commandLine.appendSwitch('disable-gpu');       // belt-and-braces
-
 const path = require('path');
 const keytar = require('keytar');
+const express = require('express');
+
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
 
 const SERVICE = 'my-chat-app';
+
+// ── Step 2: Start Express ──
+const staticServer = express()
+  .use(express.static(path.join(__dirname, 'pages')))
+  .listen(3000, () => {
+    console.log('Static server running at http://localhost:3000');
+  });
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -19,9 +27,9 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(__dirname, 'pages', 'index.html'));
-  console.log('[main] GPU off?',
-            app.commandLine.hasSwitch('disable-gpu'));
+  // ── Step 3: Load over HTTP ──
+  win.loadURL('http://localhost:3000/index.html');
+  console.log('[main] GPU off?', app.commandLine.hasSwitch('disable-gpu'));
 
   win.webContents.on('render-process-gone', (_e, details) => {
     console.error('[main] renderer gone → reason:', details.reason, 'exitCode:', details.exitCode);
@@ -31,6 +39,8 @@ function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+  // ── Step 4: Close Express server ──
+  staticServer.close();
   if (process.platform !== 'darwin') {
     app.quit();
   }

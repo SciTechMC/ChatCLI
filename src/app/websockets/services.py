@@ -3,7 +3,7 @@
 from fastapi import WebSocket, status
 from db_helper import fetch_records, insert_record, update_records, get_conn  # adjust import if needed
 import logging
-import bcrypt
+import hashlib
 
 # In-memory connection & subscription registries
 active_connections: dict[str, WebSocket] = {}
@@ -14,36 +14,32 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     Token-only auth. Client must send:
       { "type":"auth", "token":"<plain-text session token>" }
 
-    We look up the matching bcrypt hash in session_tokens,
-    load the user’s username, register the WS, and return it.
-    Otherwise we close immediately.
+    We SHA-256 hash the incoming token, compare it against
+    `session_tokens.session_token`, load the user’s username,
+    register the WS, and return it. Otherwise we close immediately.
     """
     token = msg.get("token")
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    # Find the session whose hash matches this token and is still valid
+    # 1) Hash the incoming plain-text token with SHA-256
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    # 2) Fetch all non-revoked, unexpired sessions
     sessions = await fetch_records(
         table="session_tokens",
         where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
         fetch_all=True
     )
 
-    matched = None
-    for s in sessions:
-        try:
-            if bcrypt.checkpw(token.encode("utf-8"), s["session_token"].encode("utf-8")):
-                matched = s
-                break
-        except ValueError:
-            continue
-
+    # 3) Find a matching SHA-256 hash
+    matched = next((s for s in sessions if s["session_token"] == token_hash), None)
     if not matched:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    # Lookup the username for that session’s userID
+    # 4) Lookup the username for that session’s userID
     users = await fetch_records(
         table="users",
         where_clause="userID = %s",
@@ -55,6 +51,8 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
         return None
 
     username = users[0]["username"]
+
+    # 5) Register the connection
     active_connections[username] = websocket
     return username
 
@@ -105,14 +103,7 @@ async def leave_chat(username: str, chat_id: int) -> bool:
 
     # delete from participants
     try:
-        await update_records(
-            table="participants",
-            data={},  # no columns to update, just delete
-            where_clause="chatID = %s AND userID = %s",
-            where_params=(chat_id, user_id)
-        )
-        # Actually, update_records is for UPDATE, not DELETE.
-        # So let's use a direct DELETE query via fetch_records:
+        # Using a direct DELETE since update_records isn't for deletes
         async with await get_conn() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(

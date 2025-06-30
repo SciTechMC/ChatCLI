@@ -7,8 +7,10 @@
   },
   "dependencies": {
     "electron": "^27.1.0",
+    "express": "^5.1.0",
     "keytar": "^7.9.0",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "electron-rebuild": "^3.2.9"

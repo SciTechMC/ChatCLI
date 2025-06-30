@@ -241,7 +241,7 @@ All chat routes require a valid session token in the request body.
 The WebSocket endpoint enables real-time chat. Connect to:
 
 ```
-wss://api.example.com/ws/chat
+wss://ws.chat.puam.be/ws
 ```
 
 ### 1. Connection & Authentication

@@ -160,17 +160,21 @@ def create_database_and_tables():
         raise
 
 def run_application(flask_script="main.py", fastapi_script="app/websockets/main.py"):
-    """Launch the Flask and FastAPI scripts after DB is ready."""
+    """Launch the Flask and FastAPI scripts in separate CMD windows after DB is ready."""
     try:
-        logging.info(f"Starting Flask app: {flask_script}")
-        flask_proc = subprocess.Popen(["python", flask_script])
+        logging.info(f"Starting Flask app in new CMD: {flask_script}")
+        flask_proc = subprocess.Popen(
+            ["cmd.exe", "/c", "start", "cmd.exe", "/k", f"python {flask_script}"]
+        )
 
-        logging.info(f"Starting FastAPI app: {fastapi_script}")
-        fastapi_proc = subprocess.Popen(["python", fastapi_script])
+        logging.info(f"Starting FastAPI app in new CMD: {fastapi_script}")
+        fastapi_proc = subprocess.Popen(
+            ["cmd.exe", "/c", "start", "cmd.exe", "/k", f"python {fastapi_script}"]
+        )
 
-        # Wait for both processes to finish
-        flask_proc.wait()
-        fastapi_proc.wait()
+        # Optionally, wait for both processes to finish (the started CMDs will stay open)
+        # flask_proc.wait()
+        # fastapi_proc.wait()
     except Exception as e:
         logging.error(f"Error starting applications: {e}")
         raise
