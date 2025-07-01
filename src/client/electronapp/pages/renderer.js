@@ -60,30 +60,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loginForm.addEventListener('submit', async e => {
       e.preventDefault();
-      console.log('[login] submitting');
+      clearMessages(loginForm);
+      showStatus(loginForm, 'Logging in…');
       try {
-        // Grab what the user typed
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
-
-        // Call the API
         const res = await window.api.login({ username, password });
-        console.log('[login] response', res);
-
-        // ── STORE TOKENS ──
-        // Store the access_token (for WS auth) as session_token:
         await window.secureStore.set('session_token', res.access_token);
-        // Also keep the refresh_token for HTTP-layer calls:
         await window.secureStore.set('refresh_token', res.refresh_token);
         await window.secureStore.set('username', username);
-
-        // Tell the HTTP-API layer about the new refresh token
         window.api.setRefreshToken(res.refresh_token);
-
-        // Go to the main chat
-        location.href = 'main.html';
+        showStatus(loginForm, 'Login successful! Redirecting…', 'info');
+        setTimeout(() => location.href = 'main.html', 1000);
       } catch (err) {
-        console.error('[login] error', err);
+        showError(loginForm, `Login failed: ${err.message || 'Unknown error'}`);
       }
     });
   }
@@ -98,24 +88,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     registerForm.addEventListener('submit', async e => {
       e.preventDefault();
-      console.log('[register] submitting');
-
+      clearMessages(registerForm);
+      showStatus(registerForm, 'Registering…');
       try {
         const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
         const password = document.getElementById('password').value;
         const res = await window.api.register({ username, email, password });
-        console.log('[register] response', res);
-        location.href = `verify.html?username=${encodeURIComponent(username)}`;
+        showStatus(registerForm, 'Registration successful! Redirecting to verification…', 'info');
+        setTimeout(() => {
+          location.href = `verify.html?username=${encodeURIComponent(username)}`;
+        }, 1200);
       } catch (err) {
-        console.error('[register] error', err);
-        const errorEl = document.getElementById('error-message') || document.createElement('div');
-        errorEl.id = 'error-message';
-        errorEl.textContent = `Registration failed: ${err.message || 'Unknown error'}`;
-        errorEl.className = 'error';
-        if (!document.getElementById('error-message')) {
-          registerForm.insertBefore(errorEl, registerForm.firstChild);
-        }
+        showError(registerForm, `Registration failed: ${err.message || 'Unknown error'}`);
       }
     });
   }
@@ -136,21 +121,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     verifyForm.addEventListener('submit', async e => {
       e.preventDefault();
+      clearMessages(verifyForm);
+      showStatus(verifyForm, 'Verifying email…');
       const email_token = document.getElementById('token').value.trim();
       try {
         const res = await window.api.verifyEmail({ username, email_token });
-        console.log('[verify] Success:', res);
-        alert('Email verified successfully! Redirecting to login...');
-        location.href = 'login.html';
+        showStatus(verifyForm, 'Email verified! Redirecting to login…', 'info');
+        setTimeout(() => location.href = 'login.html', 1200);
       } catch (err) {
-        console.error('[verify] error', err);
-        const errorEl = document.getElementById('error-message') || document.createElement('div');
-        errorEl.id = 'error-message';
-        errorEl.textContent = `Verification failed: ${err.message || 'Server error'}`;
-        errorEl.className = 'error';
-        if (!document.getElementById('error-message')) {
-          verifyForm.insertBefore(errorEl, verifyForm.firstChild);
-        }
+        showError(verifyForm, `Verification failed: ${err.message || 'Server error'}`);
       }
     });
   })();
@@ -164,7 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     resetForm.addEventListener('submit', async e => {
       e.preventDefault();
-      console.log('[reset] submitting');
+      clearMessages(resetForm);
+      showStatus(resetForm, 'Requesting password reset…');
       try {
         const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
@@ -172,11 +152,41 @@ document.addEventListener('DOMContentLoaded', async () => {
           '/user/reset-password-request',
           { body: JSON.stringify({ username, email }) }
         );
-        console.log('[reset] response', res);
-        location.href = 'index.html';
+        showStatus(resetForm, 'Reset link sent! Redirecting…', 'info');
+        setTimeout(() => location.href = 'index.html', 1200);
       } catch (err) {
-        console.error('[reset] error', err);
+        showError(resetForm, `Reset failed: ${err.message || 'Unknown error'}`);
       }
     });
   }
 });
+
+/* Helper functions for form messages */
+function showStatus(form, message, type = 'info') {
+  let statusEl = form.querySelector('#status-container');
+  if (!statusEl) {
+    statusEl = document.createElement('div');
+    statusEl.id = 'status-container';
+    form.insertBefore(statusEl, form.firstChild);
+  }
+  statusEl.textContent = message;
+  statusEl.className = type === 'error' ? 'error-message' : 'info-message';
+}
+
+function showError(form, message) {
+  let errorEl = form.querySelector('#error-container');
+  if (!errorEl) {
+    errorEl = document.createElement('div');
+    errorEl.id = 'error-container';
+    form.insertBefore(errorEl, form.firstChild);
+  }
+  errorEl.textContent = message;
+  errorEl.className = 'error-message';
+}
+
+function clearMessages(form) {
+  const statusEl = form.querySelector('#status-container');
+  if (statusEl) statusEl.textContent = '';
+  const errorEl = form.querySelector('#error-container');
+  if (errorEl) errorEl.textContent = '';
+}

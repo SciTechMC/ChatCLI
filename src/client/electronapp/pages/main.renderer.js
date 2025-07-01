@@ -92,17 +92,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 6) Render a single message
-  function appendMessage({ userID, message, timestamp }) {
+  function appendMessage({ userID, username, message, timestamp }) {
     const div = document.createElement('div');
     div.className = 'message';
     const time = new Date(timestamp).toLocaleTimeString();
-    div.textContent = `[${time}] ${message}`;
+    // Show username before the message
+    div.textContent = `[${time}] ${username}: ${message}`;
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
   // 7) Send a new message via WS
-  sendBtn.addEventListener('click', () => {
+  function sendMessage() {
     if (!currentChatID) {
       return alert('Select a chat first.');
     }
@@ -114,6 +115,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       text
     }));
     messageInput.value = '';
+    messageInput.focus();
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  // Send message on Enter key, stay in input
+  messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   });
 
   // 8) Create a new chat (HTTP)

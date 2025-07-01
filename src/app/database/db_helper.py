@@ -1,3 +1,5 @@
+# app/database/db_helper.py
+
 from flask import g
 import mysql.connector
 from mysql.connector import Error
@@ -5,7 +7,10 @@ import logging
 import os
 from app.config import VALID_TABLES
 from dotenv import load_dotenv
+from functools import wraps
+
 load_dotenv()
+
 def get_db():
     """
     :return: A MySQL database connection stored in Flask's 'g' object.
@@ -13,10 +18,11 @@ def get_db():
     if 'db' not in g:
         g.db = mysql.connector.connect(
             host=os.getenv("DB_HOST", "localhost"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("DB_NAME"),
-            port=int(os.getenv("DB_PORT", 3306))
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASSWORD", ""),
+            database=os.getenv("DB_NAME", "chatcli"),
+            port=int(os.getenv("DB_PORT", 3306)),
+            autocommit=True
         )
     return g.db
 
@@ -28,14 +34,33 @@ def close_db():
     if db is not None:
         db.close()
 
+def transactional(fn):
+    """
+    Decorator: run entire function inside one DB transaction.
+    If any exception is raised, roll back all changes.
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        conn = get_db()
+        # Turn off autocommit so that DML starts a transaction
+        conn.autocommit = False
+
+        try:
+            result = fn(*args, **kwargs)
+            conn.commit()     # commit everything at once
+            return result
+        except Exception:
+            conn.rollback()   # undo everything
+            raise
+        finally:
+            # Restore default for subsequent operations
+            conn.autocommit = True
+    return wrapper
+
 def insert_record(table: str, data: dict) -> int:
     """
     Insert a single row into `table`.
-
-    :param table: Name of the table (must be in VALID_TABLES)
-    :param data:  Dict mapping column names to values, e.g.
-                  {"email": "foo@example.com", "revoked": False}
-    :return:      The newly inserted row's auto-increment ID.
+    Only issues a commit if conn.autocommit == True.
     """
     if table not in VALID_TABLES:
         raise ValueError(f"Table '{table}' is not writable via insert_record")
@@ -48,7 +73,9 @@ def insert_record(table: str, data: dict) -> int:
     cursor = conn.cursor()
     try:
         cursor.execute(sql, tuple(data.values()))
-        conn.commit()
+        # only auto-commit if autocommit is on
+        if conn.autocommit:
+            conn.commit()
         return cursor.lastrowid
     except Error as e:
         conn.rollback()
@@ -63,13 +90,7 @@ def update_records(
 ) -> int:
     """
     Update one or more rows in `table`.
-
-    :param table:        Name of the table (must be in VALID_TABLES)
-    :param data:         Dict mapping columns to new values, e.g.
-                         {"revoked": True, "expires_at": some_datetime}
-    :param where_clause: SQL WITHOUT the leading 'WHERE', e.g. "userID = %s AND revoked = %s"
-    :param where_params: Tuple of values to bind in where_clause.
-    :return:             Number of rows affected.
+    Only issues a commit if conn.autocommit == True.
     """
     if table not in VALID_TABLES:
         raise ValueError(f"Table '{table}' is not updatable via update_records")
@@ -82,7 +103,8 @@ def update_records(
     cursor = conn.cursor()
     try:
         cursor.execute(sql, params)
-        conn.commit()
+        if conn.autocommit:
+            conn.commit()
         return cursor.rowcount
     except Error as e:
         conn.rollback()
@@ -99,13 +121,6 @@ def fetch_records(
 ):
     """
     Generic fetcher for any whitelisted table.
-
-    :param table:        Name of the table (must be in config.VALID_TABLES).
-    :param where_clause: SQL WITHOUT leading 'WHERE', e.g. "userID = %s".
-    :param params:       Tuple of values to bind into where_clause (and/or LIMIT).
-    :param order_by:     Optional "column_name ASC|DESC".
-    :param limit:        Optional max number of rows to return.
-    :param fetch_all:    If True, returns list of dicts. Otherwise returns raw cursor.
     """
     if table not in VALID_TABLES:
         raise ValueError(f"Table '{table}' is not in VALID_TABLES")

@@ -145,6 +145,7 @@ async def post_msg(msg: dict) -> dict | None:
     if not users:
         return None
     user_id = users[0]["userID"]
+    user_name = users[0]["username"]  # Capture the username
 
     # insert into messages
     message_id = await insert_record(
@@ -168,6 +169,7 @@ async def post_msg(msg: dict) -> dict | None:
         "messageID": row["messageID"],
         "chatID":    row["chatID"],
         "userID":    row["userID"],
+        "username":  user_name,  # Add username to payload
         "message":   row["message"],
         "timestamp": row["timestamp"].isoformat()
     }

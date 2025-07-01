@@ -1,18 +1,39 @@
 {
-  "name": "my-chat-app",
+  "name": "chatcli-electronapp",
   "version": "0.1.0",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder"
   },
   "dependencies": {
-    "electron": "^27.1.0",
     "express": "^5.1.0",
     "keytar": "^7.9.0",
     "node-fetch": "^2.7.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "electron": "^27.1.0",
+    "electron-builder": "^26.0.12",
+    "electron-packager": "^17.1.2",
     "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.scitechmc.chatcli",
+    "productName": "ChatCLI",
+    "files": [
+      "**/*",
+      "!node_modules/electron-builder/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    }
   }
 }

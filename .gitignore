@@ -3,7 +3,7 @@ node_modules/
 .DS_Store
 *.py[cod]
 *$py.class
-
+release-builds/
 # C extensions
 *.so
 
