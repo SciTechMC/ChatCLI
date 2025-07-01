@@ -1,7 +1,6 @@
 from flask import request, current_app
 from app.services.base_services import authenticate_token, return_statement
 from app.database.db_helper import transactional, insert_record, fetch_records, get_db
-import mysql.connector  # Add this import at the top if not present
 
 def fetch_chats():
     """
@@ -14,10 +13,10 @@ def fetch_chats():
       "status": "ok"
     }
     """
-    client = request.get_json()
+    client = request.get_json() or {}
     session_token = client.get("session_token")
 
-    # Verify the session token instead of user_key
+    # Verify the session token
     username = authenticate_token(session_token)
     if not username:
         return {"response": [], "status": "Unable to verify user!"}
@@ -53,7 +52,6 @@ def fetch_chats():
             params=(*chat_ids, user_id),
             fetch_all=True
         )
-        # Map chatID to userID
         chat_to_user = {r["chatID"]: r["userID"] for r in others}
         if not chat_to_user:
             return {"response": [], "status": "ok"}
@@ -71,10 +69,9 @@ def fetch_chats():
 
         # Build response
         response = [
-            {"chatID": chat_id, "name": id_to_name[user_id]}
-            for chat_id, user_id in chat_to_user.items()
+            {"chatID": cid, "name": id_to_name[uid]}
+            for cid, uid in chat_to_user.items()
         ]
-
         return {"response": response, "status": "ok"}
 
     except Exception as e:
@@ -103,24 +100,26 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
         (chat_id, receiver_id),
     )
 
+
 def create_chat():
     """
     Endpoint: verifies token, resolves IDs, checks duplicates,
     then calls the transactional helper above.
     """
-    client       = request.get_json() or {}
-    session_tok  = client.get("session_token")
-    receiver     = (client.get("receiver") or "").lower()
+    client      = request.get_json() or {}
+    session_tok = client.get("session_token")
+    receiver    = (client.get("receiver") or "").lower()
 
     if not session_tok or not receiver:
-        return return_statement("", "Session token and receiver are required", 404)
+        return return_statement("", "Session token and receiver are required", 400)
 
+    # Verify the session token
     username = authenticate_token(session_tok)
     if not username:
         return return_statement("", "Unable to verify user!", 400)
 
     try:
-        # resolve user IDs
+        # Resolve sender and receiver IDs
         send = fetch_records(
             table="users",
             where_clause="LOWER(username) = %s",
@@ -139,14 +138,14 @@ def create_chat():
         sender_id   = send[0]["userID"]
         receiver_id = rec[0]["userID"]
 
-        # prevent duplicate chats
+        # Prevent duplicate chats
         existing = fetch_records(
             table="participants",
             where_clause=(
                 "userID IN (%s, %s) "
                 "AND chatID IN ("
-                "SELECT chatID FROM participants WHERE userID IN (%s, %s) "
-                "GROUP BY chatID HAVING COUNT(DISTINCT userID) = 2"
+                " SELECT chatID FROM participants WHERE userID IN (%s, %s) "
+                " GROUP BY chatID HAVING COUNT(DISTINCT userID) = 2"
                 ")"
             ),
             params=(sender_id, receiver_id, sender_id, receiver_id),
@@ -155,7 +154,7 @@ def create_chat():
         if existing:
             return return_statement("", "Chat already exists between these users!", 409)
 
-        # run the atomic logic
+        # Run the atomic logic
         _create_chat_logic(sender_id, receiver_id)
         return return_statement("Chat created successfully!", "", 200)
 
@@ -168,10 +167,10 @@ def receive_message():
     """
     Stores a message sent from one user to another.
     """
-    client = request.get_json()
-    receiver = client.get("receiver", "").lower()
+    client        = request.get_json() or {}
+    receiver      = (client.get("receiver") or "").lower()
     session_token = client.get("session_token")
-    message = client.get("message", "")
+    message       = client.get("message", "")
 
     # Verify the session token
     username = authenticate_token(session_token)
@@ -184,7 +183,7 @@ def receive_message():
             table="users",
             where_clause="LOWER(username) = %s",
             params=(username,),
-            fetch_all=True
+            fetch_all=True,
         )
         if not user_rows:
             return return_statement("", "Sender not found!", 404)
@@ -195,18 +194,19 @@ def receive_message():
             table="participants",
             where_clause=(
                 "userID = %s AND chatID IN ("
-                "SELECT chatID FROM participants WHERE userID = ("
-                "SELECT userID FROM users WHERE LOWER(username) = %s"
-                ")"
+                " SELECT chatID FROM participants WHERE userID = ("
+                "  SELECT userID FROM users WHERE LOWER(username) = %s"
+                " )"
                 ")"
             ),
             params=(sender_id, receiver),
-            fetch_all=True
+            fetch_all=True,
         )
         if not parts:
             return return_statement("", "No chat found between users!", 400)
         chat_id = parts[0]["chatID"]
 
+        # Validate message length
         if len(message) > 1000:
             return return_statement("", f"Message is too long! ({len(message)} chars/1000)", 400)
 
@@ -221,7 +221,8 @@ def receive_message():
 
     except Exception as e:
         return return_statement("", str(e), 500)
-    
+
+
 def get_messages():
     """
     Retrieve the most recent messages from a chat.
@@ -232,7 +233,7 @@ def get_messages():
       - chatID         (int)
       - limit          (int, optional, defaults to 50, max 200)
     """
-    data = request.get_json() or {}
+    data          = request.get_json() or {}
     username      = data.get("username", "").lower()
     session_token = data.get("session_token")
     chat_id       = data.get("chatID")
@@ -261,36 +262,35 @@ def get_messages():
         table="participants",
         where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
         params=(chat_id, username),
-        fetch_all=True
+        fetch_all=True,
     )
     if not participants:
         return return_statement("", "Chat not found or access denied", 404)
 
-    # 3) Fetch messages (no join)
+    # 3) Fetch messages
     rows = fetch_records(
         table="messages",
         where_clause="chatID = %s",
         params=(chat_id,),
         order_by="timestamp DESC",
         limit=limit,
-        fetch_all=True
+        fetch_all=True,
     )
 
-    # Get all userIDs from messages
+    # Map userIDs to usernames in bulk
     user_ids = list({r["userID"] for r in rows})
+    id_to_username = {}
     if user_ids:
-        fmt = ",".join(["%s"] * len(user_ids))
+        fmt       = ",".join(["%s"] * len(user_ids))
         user_rows = fetch_records(
             table="users",
             where_clause=f"userID IN ({fmt})",
             params=tuple(user_ids),
-            fetch_all=True
+            fetch_all=True,
         )
         id_to_username = {r["userID"]: r["username"] for r in user_rows}
-    else:
-        id_to_username = {}
 
-    # reverse to chronological order
+    # Reverse to chronological order and include username
     messages = [
         {
             "messageID": r["messageID"],

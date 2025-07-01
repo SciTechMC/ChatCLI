@@ -4,6 +4,7 @@ node_modules/
 *.py[cod]
 *$py.class
 release-builds/
+out/
 # C extensions
 *.so
 
