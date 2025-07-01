@@ -325,18 +325,22 @@ def refresh_token():
 def reset_password_request():
     """
     Generates a reset token and emails a reset link.
+    Requires only username.
     """
-    data       = request.get_json(silent=True) or {}
-    identifier = (data.get("data") or "").strip()
-    if not identifier:
-        return return_statement("", "Invalid input", 400)
+    data     = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+
+    if not username:
+        return return_statement("", "Username is required", 400)
 
     try:
-        # find user by email or username
-        if re.match(r'^[^@]+@[^@]+\.[^@]+$', identifier):
-            users = fetch_records("users", "email = %s", (identifier,), fetch_all=True)
-        else:
-            users = fetch_records("users", "username = %s", (identifier,), fetch_all=True)
+        # find user by username (case-insensitive)
+        users = fetch_records(
+            "users",
+            "LOWER(username) = LOWER(%s)",
+            (username,),
+            fetch_all=True
+        )
 
         if not users:
             return return_statement("", "User not found", 404)
@@ -372,6 +376,7 @@ def reset_password_request():
 def reset_password():
     """
     Renders form (GET) or applies new password (POST), revoking the reset token.
+    Only requires username and token.
     """
     token    = request.args.get('token')
     username = request.args.get('username')
@@ -379,6 +384,8 @@ def reset_password():
     if request.method == 'POST':
         password = request.form.get('password')
         confirm  = request.form.get('confirm_password')
+        username = request.form.get('username') or username
+        token    = request.form.get('token') or token
 
         if not (username and token):
             return jsonify({"error": "Missing username or token"}), 400
@@ -406,6 +413,16 @@ def reset_password():
             row = cursor.fetchone()
             if not row:
                 return jsonify({"error": "Invalid or expired reset link"}), 400
+
+            # fetch user and check username match
+            users = fetch_records(
+                table="users",
+                where_clause="userID = %s AND LOWER(username) = LOWER(%s)",
+                params=(row["userID"], username),
+                fetch_all=True
+            )
+            if not users:
+                return jsonify({"error": "Username does not match"}), 400
 
             # update password
             hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())

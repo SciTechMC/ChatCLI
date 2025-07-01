@@ -61,7 +61,7 @@ def send_password_reset_email(username: str, token: str, recipient: str) -> bool
     """
     Compose and send password reset instructions email.
     """
-    reset_link = f"https://chat.puam.be/reset-password?token={token}&username={username}"
+    reset_link = f"https://chat.puam.be/user/reset-password?token={token}&username={username}"
     subject = "Password Reset Request for Your ChatCLI Account"
     body = f"""
 Dear {username},

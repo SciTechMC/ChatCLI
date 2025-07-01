@@ -166,10 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       console.log('[reset] submitting');
       try {
+        const username = document.getElementById('username').value.trim();
         const email = document.getElementById('email').value.trim();
         const res = await window.api.request(
           '/user/reset-password-request',
-          { body: JSON.stringify({ email }) }
+          { body: JSON.stringify({ username, email }) }
         );
         console.log('[reset] response', res);
         location.href = 'index.html';
