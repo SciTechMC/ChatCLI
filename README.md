@@ -1,3 +1,1 @@
-ChatCLI is a sleek and powerful command-line chat application built for real-time communication. With a robust backend powered by Flask and WebSockets, it ensures lightning-fast messaging, while a MySQL database handles user and chat data with precision.
 
-Whether you're diving into secure authentication, exploring REST APIs, or marveling at the seamless integration of real-time protocols, this project is a playground for developers who love clean, efficient, and scalable solutions—all wrapped in the simplicity of a CLI.
