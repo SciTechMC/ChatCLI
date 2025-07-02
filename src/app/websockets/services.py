@@ -7,6 +7,7 @@ import hashlib
 
 # In-memory connection & subscription registries
 active_connections: dict[str, WebSocket] = {}
+# In-memory: chat_id -> set of WebSocket connections
 chat_subscriptions: dict[int, set[WebSocket]] = {}
 
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
@@ -56,70 +57,11 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     active_connections[username] = websocket
     return username
 
-async def join_chat(username: str, chat_id: int) -> bool:
-    """
-    Adds the (username, chat_id) pair to the participants table
-    and subscribes that user's WebSocket to future broadcasts.
-    """
-    # fetch userID
-    users = await fetch_records(
-        table="users",
-        where_clause="username = %s",
-        params=(username,),
-        fetch_all=True
-    )
-    if not users:
-        return False
-    user_id = users[0]["userID"]
+async def join_chat(username: str, chat_id: int, ws: WebSocket):
+    chat_subscriptions.setdefault(chat_id, set()).add(ws)
 
-    # insert into participants (ignore duplicates)
-    try:
-        await insert_record("participants", {"chatID": chat_id, "userID": user_id})
-    except Exception:
-        # if it already exists, that's fine
-        pass
-
-    # subscribe
-    ws = active_connections.get(username)
-    if ws:
-        chat_subscriptions.setdefault(chat_id, set()).add(ws)
-    return True
-
-async def leave_chat(username: str, chat_id: int) -> bool:
-    """
-    Removes the (username, chat_id) pair from participants 
-    and unsubscribes that user's WebSocket.
-    """
-    # fetch userID
-    users = await fetch_records(
-        table="users",
-        where_clause="username = %s",
-        params=(username,),
-        fetch_all=True
-    )
-    if not users:
-        return False
-    user_id = users[0]["userID"]
-
-    # delete from participants
-    try:
-        # Using a direct DELETE since update_records isn't for deletes
-        async with await get_conn() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM participants WHERE chatID = %s AND userID = %s",
-                    (chat_id, user_id)
-                )
-                await conn.commit()
-    except Exception as e:
-        logging.error(f"[leave_chat] delete error: {e}")
-        return False
-
-    # unsubscribe
-    ws = active_connections.get(username)
-    if ws and chat_id in chat_subscriptions:
-        chat_subscriptions[chat_id].discard(ws)
-    return True
+async def leave_chat(username: str, chat_id: int, ws: WebSocket):
+    chat_subscriptions.get(chat_id, set()).discard(ws)
 
 async def post_msg(msg: dict) -> dict | None:
     """

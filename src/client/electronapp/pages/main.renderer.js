@@ -73,6 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 5) Join chat via WS, then fetch+render history via HTTP
   async function selectChat(chatID) {
+    // Prevent reloading if already selected
+    if (currentChatID === chatID) return;
+
     // leave old room
     if (currentChatID != null) {
       ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));

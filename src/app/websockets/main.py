@@ -29,11 +29,11 @@ async def websocket_endpoint(ws: WebSocket):
 
             if t == "join_chat":
                 print(f"{username} joining chat {msg.get('chatID')}")
-                await join_chat(username, msg.get("chatID"))
+                await join_chat(username, msg.get("chatID"), ws)
 
             elif t == "leave_chat":
                 print(f"{username} leaving chat {msg.get('chatID')}")
-                await leave_chat(username, msg.get("chatID"))
+                await leave_chat(username, msg.get("chatID"), ws)
 
             elif t == "post_msg":
                 print(f"{username} posting message to chat {msg.get('chatID')}: {msg.get('text')}")

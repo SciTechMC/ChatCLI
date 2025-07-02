@@ -109,15 +109,21 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
             "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
             (chat_id, sender_id),
         )
+        print(f"Inserted sender {sender_id} into chat {chat_id}")
         cursor.execute(
             "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
             (chat_id, receiver_id),
         )
+        print(f"Inserted receiver {receiver_id} into chat {chat_id}")
     except mysql.connector.IntegrityError as e:
         # If duplicate, rollback and raise a user-friendly error
         conn.rollback()
         raise Exception("Participant already exists in this chat") from e
-
+    except mysql.connector.Error as e:
+        # Handle other MySQL errors
+        conn.rollback()
+        print(f"Database error: {str(e)}")
+        raise Exception(f"Database error: {str(e)}") from e
 
 def create_chat():
     """
@@ -178,66 +184,6 @@ def create_chat():
 
     except Exception as e:
         current_app.logger.exception("Error during chat creation")
-        return return_statement("", str(e), 500)
-
-
-def receive_message():
-    """
-    Stores a message sent from one user to another.
-    """
-    client        = request.get_json() or {}
-    receiver      = (client.get("receiver") or "").lower()
-    session_token = client.get("session_token")
-    message       = client.get("message", "")
-
-    # Verify the session token
-    username = authenticate_token(session_token)
-    if not username:
-        return return_statement("", "Unable to verify user!", 400)
-
-    try:
-        # Resolve sender ID
-        user_rows = fetch_records(
-            table="users",
-            where_clause="LOWER(username) = %s",
-            params=(username,),
-            fetch_all=True,
-        )
-        if not user_rows:
-            return return_statement("", "Sender not found!", 404)
-        sender_id = user_rows[0]["userID"]
-
-        # Find the chat between the two users
-        parts = fetch_records(
-            table="participants",
-            where_clause=(
-                "userID = %s AND chatID IN ("
-                " SELECT chatID FROM participants WHERE userID = ("
-                "  SELECT userID FROM users WHERE LOWER(username) = %s"
-                " )"
-                ")"
-            ),
-            params=(sender_id, receiver),
-            fetch_all=True,
-        )
-        if not parts:
-            return return_statement("", "No chat found between users!", 400)
-        chat_id = parts[0]["chatID"]
-
-        # Validate message length
-        if len(message) > 1000:
-            return return_statement("", f"Message is too long! ({len(message)} chars/1000)", 400)
-
-        # Insert the message
-        insert_record("messages", {
-            "chatID": chat_id,
-            "userID": sender_id,
-            "message": message
-        })
-
-        return return_statement("Message sent successfully!")
-
-    except Exception as e:
         return return_statement("", str(e), 500)
 
 
