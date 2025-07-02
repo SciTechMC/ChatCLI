@@ -4,33 +4,14 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
-from mysql.connector.cursor import MySQLCursorDict
 from app.config import VALID_TABLES
 from functools import wraps
 
 load_dotenv()
 
-# ——————————————————————————————————————————————————————————
-# 1) DEBUG CURSOR: logs every time you hit "participants"
-# ——————————————————————————————————————————————————————————
-class DebugCursor(MySQLCursorDict):
-    def execute(self, operation, params=None, multi=False):
-        sql_upper = operation.strip().upper()
-        if "PARTICIPANTS" in sql_upper:
-            logging.getLogger("db-debug").debug(
-                f"[PARTICIPANTS SQL] {operation!r}  params={params}"
-            )
-        return super().execute(operation, params=params, multi=multi)
-
-
-# ——————————————————————————————————————————————————————————
-# 2) get_db() — now uses DebugCursor by default
-# ——————————————————————————————————————————————————————————
 def get_db():
     """
-    :return: A MySQL database connection stored in Flask's 'g' object,
-             configured to use DebugCursor so you see every participants
-             INSERT/UPDATE/DELETE in your Flask log.
+    :return: A MySQL database connection stored in Flask's 'g' object.
     """
     if 'db' not in g:
         g.db = mysql.connector.connect(
@@ -87,7 +68,7 @@ def insert_record(table: str, data: dict) -> int:
     sql = f"INSERT INTO `{table}` ({cols}) VALUES ({vals_placeholders})"
 
     conn = get_db()
-    cursor = conn.cursor(cursor_class=DebugCursor)
+    cursor = conn.cursor()
     try:
         cursor.execute(sql, tuple(data.values()))
         # only auto-commit if autocommit is on
@@ -117,7 +98,7 @@ def update_records(
     params = tuple(data.values()) + where_params
 
     conn = get_db()
-    cursor = conn.cursor(cursor_class=DebugCursor)
+    cursor = conn.cursor()
     try:
         cursor.execute(sql, params)
         if conn.autocommit:
@@ -143,7 +124,7 @@ def fetch_records(
         raise ValueError(f"Table '{table}' is not in VALID_TABLES")
 
     db = get_db()
-    cursor = db.cursor(dictionary=True, cursor_class=DebugCursor)
+    cursor = db.cursor(dictionary=True)
 
     sql = f"SELECT * FROM `{table}`"
     if where_clause:
