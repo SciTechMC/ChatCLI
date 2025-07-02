@@ -1,4 +1,7 @@
 // main.renderer.js
+
+const ip = "wss://ws.chat.puam.be/ws";
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 1) Get stored credentials
   const token    = await window.secureStore.get('session_token');
@@ -36,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 3) Open & auth WebSocket
   function connectWS() {
-    ws = new WebSocket('ws://localhost:8765/ws');
+    ws = new WebSocket(ip);
     ws.addEventListener('open', () => {
       ws.send(JSON.stringify({ type: 'auth', token }));
     });

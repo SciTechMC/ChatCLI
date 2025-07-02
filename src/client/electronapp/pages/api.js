@@ -1,6 +1,6 @@
 // api.js
 const fetch = require('node-fetch');      // ← use v2 CJS
-const BASE_URL = 'http://127.0.0.1:5000';
+const BASE_URL = 'https://chat.puam.be';
 
 let sessionToken      = null;
 let refreshTokenValue = null;
