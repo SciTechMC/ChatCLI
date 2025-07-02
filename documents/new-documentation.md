@@ -24,18 +24,9 @@ These routes handle generic pages and server connectivity.
 
 #### `GET, POST /verify-connection`
 
-* **Description**: Checks server connectivity and client compatibility.
-* **Request (POST)**:
-
-  ```json
-  {
-    "version": "electron_app"  // or other client version strings
-  }
-  ```
-* **Response**:
-
-  * `200 OK` with JSON `{"response": "Server is reachable!", "error": ""}` on success.
-  * `400 Bad Request` on missing/invalid JSON or incompatible version.
+* **Description**: Checks server connectivity.
+* **Response**:  
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Server is reachable!" }`
 
 #### `GET, POST /subscribe`
 
@@ -45,9 +36,8 @@ These routes handle generic pages and server connectivity.
   ```
   email=user@example.com
   ```
-* **Response**:
-
-  * `200 OK` with confirmation HTML.
+* **Response**:  
+  * `200 OK` with confirmation HTML or flash message.
   * `400 Bad Request` for invalid or missing email.
 
 ---
@@ -55,41 +45,39 @@ These routes handle generic pages and server connectivity.
 ### User Routes
 
 <aside>
-User management: registration, email verification, login, and password reset.
+User management: registration, email verification, login, password reset, and token refresh.
 </aside>
 
 #### `POST /user/register`
 
-* **Description**: Registers a new user.
-* **Request Body**:
-
-  ```json
-  {
-    "username": "string",  // unique, no spaces or special chars
-    "email": "string",     // valid email
-    "password": "string"   // plain-text, will be hashed
-  }
-  ```
-* **Response**:
-
-  * `200 OK` with JSON `{ "response": "Verification email sent!", "error": "" }`
-  * `400 Bad Request` if email/username invalid or already exists.
-
-#### `POST /user/verify-email`
-
-* **Description**: Verifies a user's email using a token.
+* **Description**: Registers a new user and sends a verification code.
 * **Request Body**:
 
   ```json
   {
     "username": "string",
-    "email_token": "string"      // emailed code
+    "email": "string",
+    "password": "string"
   }
   ```
-* **Response**:
+* **Response**:  
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Verification email sent!" }`
+  * `400 Bad Request` for invalid input or existing user.
 
-  * `200 OK` with JSON `{ "response": "Email verified!", "error": "" }`
-  * `400 Bad Request` for invalid or expired token.
+#### `POST /user/verify-email`
+
+* **Description**: Verifies a user's email using a code.
+* **Request Body**:
+
+  ```json
+  {
+    "username": "string",
+    "email_token": "string"
+  }
+  ```
+* **Response**:  
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Email verified!" }`
+  * `400 Bad Request` for invalid or expired code.
 
 #### `POST /user/login`
 
@@ -102,13 +90,13 @@ User management: registration, email verification, login, and password reset.
     "password": "string"
   }
   ```
-* **Response**:
-
+* **Response**:  
   * `200 OK` with JSON:
     ```json
     {
+      "status": "ok",
+      "message": "Login successful",
       "response": "",
-      "error": "Login successful",
       "access_token": "<access_token>",
       "refresh_token": "<refresh_token>"
     }
@@ -125,13 +113,13 @@ User management: registration, email verification, login, and password reset.
     "refresh_token": "string"
   }
   ```
-* **Response**:
-
+* **Response**:  
   * `200 OK` with JSON:
     ```json
     {
+      "status": "ok",
+      "message": "Token refreshed",
       "response": "",
-      "error": "Token refreshed",
       "access_token": "<new_access_token>",
       "refresh_token": "<new_refresh_token>"
     }
@@ -144,25 +132,25 @@ User management: registration, email verification, login, and password reset.
 * **Request Body**:
 
   ```json
-  { "data": "user@example.com" } // or username
+  {
+    "username": "string"
+  }
   ```
-* **Response**:
-
-  * `200 OK` with JSON `{ "response": "Password reset email sent!", "error": "" }`
+* **Response**:  
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Password reset email sent!" }`
   * `404 Not Found` if user not found.
 
 #### `GET, POST /user/reset-password`
 
 * **Description**: Completes password reset using a token.
-* **Query Parameters** (for GET): `?token=<reset_token>&username=<username>`
+* **Query Parameters** (GET): `?token=<reset_token>&username=<username>`
 * **Request Body** (POST): Form data
 
   ```
   password=newpassword
   confirm_password=newpassword
   ```
-* **Response**:
-
+* **Response**:  
   * `200 OK` with JSON `{ "message": "Password reset successfully" }`
   * `400 Bad Request` for invalid/expired token or weak password.
 
@@ -191,9 +179,16 @@ All chat routes require a valid session token in the request body.
     "session_token": "string"
   }
   ```
-* **Response**:
-
-  * `200 OK` with JSON array of usernames.
+* **Response**:  
+  * `200 OK` with JSON:
+    ```json
+    {
+      "response": [
+        { "chatID": 123, "name": "otheruser" }
+      ],
+      "status": "ok"
+    }
+    ```
 
 #### `POST /chat/create-chat`
 
@@ -206,10 +201,9 @@ All chat routes require a valid session token in the request body.
     "session_token": "string"
   }
   ```
-* **Response**:
-
-  * `200 OK` with JSON `{ "response": "Chat created successfully!", "error": "" }`
-  * `400 Bad Request` for invalid input.
+* **Response**:  
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Chat created successfully!" }`
+  * `400 Bad Request` or `409 Conflict` for invalid input or duplicate chat.
 
 #### `POST /chat/messages`
 
@@ -224,13 +218,17 @@ All chat routes require a valid session token in the request body.
     "limit": 50
   }
   ```
-* **Response**:
-
+* **Response**:  
   * `200 OK` with JSON array of message objects:
     ```json
     [
-      { "messageID": 1, "userID": 2, "message": "Hello", "timestamp": "ISO8601" },
-      // ...
+      {
+        "messageID": 1,
+        "userID": 2,
+        "username": "sender",
+        "message": "Hello",
+        "timestamp": "ISO8601"
+      }
     ]
     ```
 
@@ -273,7 +271,7 @@ After authentication, send JSON messages with a `type` field. Supported types:
 | -------------- | ------------------------------------ | -------------------------- |
 | `join_chat`    | `chatID`: int                       | Join a chat room           |
 | `leave_chat`   | `chatID`: int                       | Leave a chat room          |
-| `chat_message` | `chatID`: int, `text`: string       | Send a message to the chat |
+| `post_msg`     | `chatID`: int, `text`: string       | Send a message to the chat |
 
 #### Example: Join Chat
 
@@ -290,7 +288,7 @@ After authentication, send JSON messages with a `type` field. Supported types:
 #### Example: Send Message
 
 ```json
-{ "type": "chat_message", "chatID": 123, "text": "Hello everyone!" }
+{ "type": "post_msg", "chatID": 123, "text": "Hello everyone!" }
 ```
 
 If an unknown action is sent, the server replies:
@@ -314,6 +312,7 @@ Whenever a message is posted, the server broadcasts to all subscribers of the ch
   "messageID": 1,
   "chatID": 123,
   "userID": 2,
+  "username": "sender",
   "message": "Hello everyone!",
   "timestamp": "2025-06-27T12:34:56Z"
 }
