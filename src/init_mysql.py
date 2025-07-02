@@ -121,9 +121,9 @@ def create_database_and_tables():
                       PRIMARY KEY (chatID, userID),
                       INDEX idx_part_user (userID, chatID),
                       CONSTRAINT fk_participants_chats
-                        FOREIGN KEY (chatID) REFERENCES chats(chatID) ON DELETE CASCADE,
+                        FOREIGN KEY (chatID) REFERENCES chats(chatID),
                       CONSTRAINT fk_participants_users
-                        FOREIGN KEY (userID) REFERENCES users(userID) ON DELETE CASCADE
+                        FOREIGN KEY (userID) REFERENCES users(userID)
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 

@@ -1,6 +1,7 @@
 from flask import request, current_app
 from app.services.base_services import authenticate_token, return_statement
 from app.database.db_helper import transactional, insert_record, fetch_records, get_db
+import mysql.connector
 
 def fetch_chats():
     """
@@ -80,25 +81,42 @@ def fetch_chats():
 
 @transactional
 def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
-    """
-    Runs inside one DB transaction. Inserts chat + both participants.
-    """
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1) create chat
-    cursor.execute("INSERT INTO chats () VALUES ()")
+    # 1) Check if chat already exists (atomic check)
+    cursor.execute(
+        """
+        SELECT c.chatID
+        FROM chats c
+        JOIN participants p1 ON c.chatID = p1.chatID AND p1.userID = %s
+        JOIN participants p2 ON c.chatID = p2.chatID AND p2.userID = %s
+        WHERE c.type = 'private'
+        """,
+        (sender_id, receiver_id)
+    )
+    row = cursor.fetchone()
+    if row:
+        raise Exception("Chat already exists between these users!")
+
+    # 2) create chat
+    cursor.execute("INSERT INTO chats (type) VALUES ('private')")
     chat_id = cursor.lastrowid
 
-    # 2) link participants
-    cursor.execute(
-        "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
-        (chat_id, sender_id),
-    )
-    cursor.execute(
-        "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
-        (chat_id, receiver_id),
-    )
+    # 3) link participants
+    try:
+        cursor.execute(
+            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            (chat_id, sender_id),
+        )
+        cursor.execute(
+            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            (chat_id, receiver_id),
+        )
+    except mysql.connector.IntegrityError as e:
+        # If duplicate, rollback and raise a user-friendly error
+        conn.rollback()
+        raise Exception("Participant already exists in this chat") from e
 
 
 def create_chat():

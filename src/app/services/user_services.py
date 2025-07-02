@@ -9,7 +9,7 @@ import random
 from flask import request, jsonify, render_template, current_app
 from app.services.base_services import return_statement
 from app.services.mail_services import send_verification_email, send_password_reset_email
-from app.database.db_helper import fetch_records, insert_record, update_records
+from app.database.db_helper import fetch_records, insert_record, update_records, transactional
 
 alphabet = string.ascii_letters + string.digits
 
@@ -448,3 +448,42 @@ def reset_password():
 
     # GET: show reset form
     return render_template("reset_password.html", username=username, token=token)
+
+@transactional
+def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # 1) Check if chat already exists (atomic check)
+    cursor.execute(
+        """
+        SELECT c.chatID
+        FROM chats c
+        JOIN participants p1 ON c.chatID = p1.chatID AND p1.userID = %s
+        JOIN participants p2 ON c.chatID = p2.chatID AND p2.userID = %s
+        WHERE c.type = 'private'
+        """,
+        (sender_id, receiver_id)
+    )
+    row = cursor.fetchone()
+    if row:
+        raise Exception("Chat already exists between these users!")
+
+    # 2) create chat
+    cursor.execute("INSERT INTO chats (type) VALUES ('private')")
+    chat_id = cursor.lastrowid
+
+    # 3) link participants
+    try:
+        cursor.execute(
+            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            (chat_id, sender_id),
+        )
+        cursor.execute(
+            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            (chat_id, receiver_id),
+        )
+    except mysql.connector.IntegrityError as e:
+        # If duplicate, rollback and raise a user-friendly error
+        conn.rollback()
+        raise Exception("Participant already exists in this chat") from e

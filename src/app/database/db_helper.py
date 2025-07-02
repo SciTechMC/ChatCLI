@@ -1,19 +1,36 @@
-# app/database/db_helper.py
-
+import logging
 from flask import g
+import os
+from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
-import logging
-import os
+from mysql.connector.cursor import MySQLCursorDict
 from app.config import VALID_TABLES
-from dotenv import load_dotenv
 from functools import wraps
 
 load_dotenv()
 
+# ——————————————————————————————————————————————————————————
+# 1) DEBUG CURSOR: logs every time you hit "participants"
+# ——————————————————————————————————————————————————————————
+class DebugCursor(MySQLCursorDict):
+    def execute(self, operation, params=None, multi=False):
+        sql_upper = operation.strip().upper()
+        if "PARTICIPANTS" in sql_upper:
+            logging.getLogger("db-debug").debug(
+                f"[PARTICIPANTS SQL] {operation!r}  params={params}"
+            )
+        return super().execute(operation, params=params, multi=multi)
+
+
+# ——————————————————————————————————————————————————————————
+# 2) get_db() — now uses DebugCursor by default
+# ——————————————————————————————————————————————————————————
 def get_db():
     """
-    :return: A MySQL database connection stored in Flask's 'g' object.
+    :return: A MySQL database connection stored in Flask's 'g' object,
+             configured to use DebugCursor so you see every participants
+             INSERT/UPDATE/DELETE in your Flask log.
     """
     if 'db' not in g:
         g.db = mysql.connector.connect(
@@ -22,7 +39,7 @@ def get_db():
             password=os.getenv("DB_PASSWORD", ""),
             database=os.getenv("DB_NAME", "chatcli"),
             port=int(os.getenv("DB_PORT", 3306)),
-            autocommit=True
+            autocommit=True,
         )
     return g.db
 
@@ -70,7 +87,7 @@ def insert_record(table: str, data: dict) -> int:
     sql = f"INSERT INTO `{table}` ({cols}) VALUES ({vals_placeholders})"
 
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_class=DebugCursor)
     try:
         cursor.execute(sql, tuple(data.values()))
         # only auto-commit if autocommit is on
@@ -100,7 +117,7 @@ def update_records(
     params = tuple(data.values()) + where_params
 
     conn = get_db()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_class=DebugCursor)
     try:
         cursor.execute(sql, params)
         if conn.autocommit:
@@ -126,7 +143,7 @@ def fetch_records(
         raise ValueError(f"Table '{table}' is not in VALID_TABLES")
 
     db = get_db()
-    cursor = db.cursor(dictionary=True)
+    cursor = db.cursor(dictionary=True, cursor_class=DebugCursor)
 
     sql = f"SELECT * FROM `{table}`"
     if where_clause:
@@ -143,4 +160,7 @@ def fetch_records(
         logging.error(f"[fetch_records] Error on {table}: {e}\nSQL: {sql}\nParams: {params}")
         raise
 
-    return cursor.fetchall() if fetch_all else cursor
+    if fetch_all:
+        return cursor.fetchall()
+    else:
+        return cursor.fetchone()  # <-- Always return a dict or None

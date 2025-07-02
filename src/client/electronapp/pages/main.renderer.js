@@ -7,6 +7,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     return void (location.href = 'login.html');
   }
 
+  // Username display
+  const userInfoEl = document.getElementById('user-info');
+  if (userInfoEl) {
+    userInfoEl.textContent = username;
+    userInfoEl.style.wordBreak = 'break-all';
+    userInfoEl.style.fontWeight = 'bold';
+    userInfoEl.style.fontSize = '1.1em';
+    userInfoEl.style.marginBottom = '16px';
+    userInfoEl.style.maxWidth = '100%';
+    userInfoEl.style.overflowWrap = 'break-word';
+    userInfoEl.style.textAlign = 'center';
+    userInfoEl.style.padding = '8px 0';
+    userInfoEl.style.color = 'var(--text-secondary)';
+  }
+
   // 2) Cache DOM elements
   const chatListEl    = document.getElementById('chat-list');
   const messagesEl    = document.getElementById('messages');
