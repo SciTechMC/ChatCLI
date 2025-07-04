@@ -1,6 +1,6 @@
 // main.renderer.js
 
-const ip = "wss://ws.chat.puam.be/ws";
+const ip = "ws://localhost:8765/ws";
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1) Get stored credentials
@@ -113,12 +113,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 6) Render a single message
-  function appendMessage({ userID, username, message, timestamp }) {
+  function appendMessage({ userID, username: msgUser, message, timestamp }) {
+    // wrapper div
     const div = document.createElement('div');
-    div.className = 'message';
-    const time = new Date(timestamp).toLocaleTimeString();
-    // Show username before the message
-    div.textContent = `[${time}] ${username}: ${message}`;
+    div.classList.add('message');
+
+    // incoming vs outgoing
+    if (msgUser === username) {
+      div.classList.add('message-outgoing');
+    } else {
+      div.classList.add('message-incoming');
+    }
+
+    // format time as HH:mm
+    const time = new Date(timestamp)
+      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // header: username on left, time on right
+    const header = document.createElement('div');
+    header.className = 'message-header';
+
+    const userEl = document.createElement('span');
+    userEl.className = 'message-username';
+    userEl.textContent = msgUser;
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'message-timestamp';
+    timeEl.textContent = time;
+
+    header.append(userEl, timeEl);
+
+    // body
+    const body = document.createElement('div');
+    body.className = 'message-content';
+    body.textContent = message;
+
+    // assemble
+    div.append(header, body);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
