@@ -12,25 +12,39 @@
 <body>
   <header>
     <h1>Log In</h1>
-    <span id="server-status">Checking server…</span>
+    <span id="server-status" role="status" aria-live="polite">
+    <svg class="spinner" aria-hidden="true" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="4" opacity="0.2"/>
+      <path d="M16 2a14 14 0 0 1 0 28" fill="none" stroke="currentColor" stroke-width="4"/>
+    </svg>
+    <span class="status-text">Checking server…</span>
   </header>
 
   <main>
     <form id="login-form">
-      <div id="error-container"></div>
-      <div id="status-container"></div> <!-- Add this line for feedback -->
+      <div id="status-container" role="status" aria-live="polite"></div>
+      <div id="error-container" role="alert" aria-live="assertive"></div>
+
+      <label for="username" class="visually-hidden">Username</label>
       <input
         id="username"
+        name="username"
         type="text"
         placeholder="Username"
         required
+        autocomplete="username"
       />
+
+      <label for="password" class="visually-hidden">Password</label>
       <input
         id="password"
+        name="password"
         type="password"
         placeholder="Password"
         required
+        autocomplete="current-password"
       />
+
       <button
         id="login-submit"
         type="submit"

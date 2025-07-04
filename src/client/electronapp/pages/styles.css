@@ -44,6 +44,116 @@
   --border-radius-lg: 16px;
 }
 
+/* --- Visibility & Accessibility Improvements --- */
+
+/* 1. Typography & Spacing */
+html, body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  line-height: 1.6;
+  font-size: 16px;
+}
+
+button, input, a {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.5em 1em;
+  font-size: 1rem;
+}
+
+/* 2. Focus & Hover States */
+:focus-visible {
+  outline: 3px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+button:hover, a:hover {
+  background-color: var(--hover-dark);
+}
+
+/* 3. Visual Hierarchy & Spacing Tokens */
+:root {
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 32px;
+}
+
+header, main, .actions, .links, #chat-window, #sidebar {
+  margin-bottom: var(--space-md);
+}
+
+.actions > button {
+  margin-right: var(--space-sm);
+}
+
+/* 4. Primary & Secondary Buttons */
+button[data-requires-online]:not([disabled]) {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+}
+button[data-requires-online]:not([disabled]):hover {
+  background: var(--primary-dark);
+}
+button.secondary {
+  background: var(--secondary);
+  color: #fff;
+}
+
+/* 5. Contrast Tweaks (adjust as needed for WCAG) */
+body, html {
+  color: var(--text-primary);
+  background: var(--bg-dark);
+}
+a, a:visited {
+  color: var(--primary-light);
+}
+a:hover {
+  color: var(--primary);
+}
+
+/* 6. Chat message contrast */
+.message {
+  background: var(--card-dark);
+  color: var(--text-primary);
+  border-radius: var(--space-xs);
+  margin-bottom: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+/* 7. Unread badge for chat list */
+.unread-badge {
+  background: var(--secondary);
+  color: #fff;
+  border-radius: 1em;
+  padding: 0 0.5em;
+  margin-left: 0.5em;
+  font-size: 0.85em;
+}
+
+/* 8. Ensure all text passes contrast (tweak variables if needed) */
+:root {
+  --text-primary: #F0F0F5;
+  --text-secondary: #A0A0B0;
+  --bg-dark: #0F0F13;
+  --bg-darker: #08080B;
+  --primary: #8A63FF;
+  --primary-dark: #6D4AFF;
+  --primary-light: #A78BFF;
+  --secondary: #FF6B6B;
+  --hover-dark: #2E2E3B;
+  --success: #4ADE80;
+  --error: #FF6B6B;
+}
+
+/* 9. Ensure links and buttons are visually distinct */
+button, a {
+  transition: background 0.2s, color 0.2s, outline 0.2s;
+}
+
 /* Base Reset */
 * {
   box-sizing: border-box;
@@ -364,4 +474,31 @@ button[disabled] {
   form {
     padding: var(--space-lg);
   }
+}
+.spinner {
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  margin-right: 0.5em;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-online  { color: var(--success); }
+.status-offline { color: var(--error); }
+input:invalid { border-color: var(--error); }
+input:valid   { border-color: var(--success); }
+.unread-badge {
+  background: var(--error);
+  color: #fff;
+  border-radius: 1em;
+  padding: 0 0.5em;
+  margin-left: 0.5em;
+  font-size: 0.85em;
+}
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
 }

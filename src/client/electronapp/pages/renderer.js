@@ -18,24 +18,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.dispatchEvent(new CustomEvent('online-status-changed', { detail: true }));
   }
 
+  function setServerStatus(online, msg) {
+    const statusEl = document.getElementById('server-status');
+    if (!statusEl) return;
+    statusEl.classList.toggle('status-online',  online);
+    statusEl.classList.toggle('status-offline', !online);
+    statusEl.querySelector('.status-text').textContent = msg;
+  }
+
   async function checkServer() {
-    if (statusEl) statusEl.textContent = 'Checking server…';
+    setServerStatus(false, 'Checking server…');
     try {
-      console.log('calling verifyConnection…');
       const res = await window.api.verifyConnection({ version: 'electron_app' });
-      console.log('verifyConnection →', res);
       const ok = (res.status === 'ok') || Boolean(res.response);
       if (ok) {
         online = true;
-        statusEl.textContent = 'Server is online ✅';
+        setServerStatus(true, 'Server is online');
         enableButtons();
       } else {
         throw new Error(res.message || res.error || 'Unknown error');
       }
     } catch (err) {
-      console.error('checkServer error:', err);
       online = false;
-      statusEl.textContent = `Offline: ${err.message}`;
+      setServerStatus(false, `Offline: ${err.message}`);
       disableButtons();
     }
   }
@@ -45,10 +50,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkServer();
 
   /* — Startup page navigation — */
-  document.getElementById('login-btn')
-    ?.addEventListener('click', () => location.href = 'login.html');
-  document.getElementById('register-btn')
-    ?.addEventListener('click', () => location.href = 'register.html');
+  const loginBtn    = document.getElementById('login-btn');
+  const registerBtn = document.getElementById('register-btn');
+
+  loginBtn?.addEventListener('click', () => {
+    window.location.href = 'login.html';
+  });
+  registerBtn?.addEventListener('click', () => {
+    window.location.href = 'register.html';
+  });
 
   /* — Login page — */
   const loginForm = document.getElementById('login-form');
@@ -62,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       clearMessages(loginForm);
       showStatus(loginForm, 'Logging in…');
+      loginBtn.disabled = true;
       try {
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value;
@@ -74,6 +85,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(() => location.href = 'main.html', 1000);
       } catch (err) {
         showError(loginForm, `Login failed: ${err.message || 'Unknown error'}`);
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log In';
       }
     });
   }
