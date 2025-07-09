@@ -36,7 +36,7 @@ const WebSocket = require('ws');
 
 contextBridge.exposeInMainWorld('chatAPI', {
   connect: (token) => {
-    const ws = new WebSocket('ws://localhost:8765/ws');
+    const ws = new WebSocket('ws://fortbow.zapto.org:8765/ws');
     ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token })));
     ws.on('message', (data) => {
       // re-emit into the DOM so your renderer code can listen
