@@ -1,6 +1,6 @@
 // main.renderer.js
 
-const ip = "ws://localhost:8765/ws";
+const ip = "ws://fortbow.zapto.org:8765/ws";
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1) Get stored credentials
