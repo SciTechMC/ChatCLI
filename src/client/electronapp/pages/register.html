@@ -19,6 +19,10 @@
   </header>
   <main>
     <form id="register-form">
+      <div id="error-container"></div>
+      <div id="status-container"></div> <!-- Add this line for feedback -->
+      <input id="email"    type="email"    placeholder="Email"    required />
+
       <div id="status-container" role="status" aria-live="polite"></div>
       <div id="error-container" role="alert" aria-live="assertive"></div>
       <label for="username" class="visually-hidden">Username</label>
