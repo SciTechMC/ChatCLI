@@ -1,5 +1,5 @@
 from flask import Blueprint
-from app.services.chat_services import fetch_chats,create_chat, get_messages
+from app.services.chat_services import fetch_chats,create_chat, get_messages, delete_chat
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
 
@@ -18,3 +18,7 @@ def route_create_chat():
 @chat.route("/messages", methods=["POST"])
 def route_messages():
     return get_messages()
+
+@chat.route("/delete-chat", methods=["POST"])
+def route_delete_chat():
+    return delete_chat()

@@ -48,6 +48,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (msg.type === 'new_message' && msg.chatID === currentChatID) {
         appendMessage(msg);
       }
+      if (msg.type === "user_typing" && msg.chatID === currentChatID && msg.username !== username) {
+        const typingEl = document.getElementById('typing-indicator');
+        typingEl.textContent = `${msg.username} is typing...`;
+        typingEl.style.display = 'block';
+        clearTimeout(typingEl._timeout);
+        typingEl._timeout = setTimeout(() => typingEl.style.display = 'none', 3000);
+      }
+      if (msg.type === "user_status") {
+        const chatItems = document.querySelectorAll(`[data-username="${msg.username}"]`);
+        chatItems.forEach(el => {
+          el.classList.toggle("online", msg.online);
+        });
+      }  
     });
     ws.addEventListener('close', () => setTimeout(connectWS, 2000));
   }
@@ -63,9 +76,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       chatListEl.innerHTML = '';
       chats.forEach(({ chatID, name }) => {
         const li = document.createElement('li');
-        li.textContent    = name;
+        li.textContent = name;
         li.dataset.chatId = chatID;
-        li.onclick        = () => selectChat(chatID);
+        li.dataset.username = name; // <== Enables us to target this later
+        li.classList.add('chat-entry'); // Optional class for styling
+
+        // Add delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'delete-chat-btn';
+        deleteBtn.onclick = () => deleteChat(chatID);
+
+        li.appendChild(deleteBtn);
+        li.onclick = () => selectChat(chatID);
         chatListEl.appendChild(li);
       });
     } catch (err) {
@@ -73,6 +96,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   loadChats();
+
+  // Add deleteChat function
+  async function deleteChat(chatID) {
+    console.log('Deleting chat with ID:', chatID); // Debugging
+    if (!confirm('Are you sure you want to delete this chat?')) return;
+
+    try {
+      await window.api.request('/chat/delete-chat', {
+        body: JSON.stringify({ session_token: token, chatID })
+      });
+      alert('Chat deleted successfully!');
+      await loadChats(); // Reload the chat list
+    } catch (err) {
+      console.error('deleteChat error', err);
+      alert('Could not delete chat: ' + (err.message || err));
+    }
+  }
 
   // 5) Join chat via WS, then fetch+render history via HTTP
   async function selectChat(chatID) {
@@ -178,6 +218,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       sendMessage();
     }
+  });
+  let typingTimeout;
+  messageInput.addEventListener('input', () => {
+    if (!currentChatID || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "typing", chatID: currentChatID }));
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      // Optional: implement stop-typing message
+    }, 3000);
   });
 
   // 8) Create a new chat (HTTP)

@@ -9,6 +9,8 @@ import hashlib
 active_connections: dict[str, WebSocket] = {}
 # In-memory: chat_id -> set of WebSocket connections
 chat_subscriptions: dict[int, set[WebSocket]] = {}
+# In-memory idle list subscriptions
+idle_subscriptions: set[WebSocket] = set()
 
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     """
@@ -55,6 +57,10 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
 
     # 5) Register the connection
     active_connections[username] = websocket
+
+    # 6) Broadcast that this user is online
+    await notify_status(username, is_online=True)
+
     return username
 
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
@@ -132,3 +138,33 @@ async def broadcast_msg(chat_id: int, payload: dict):
         except Exception:
             # remove dead connections
             subscribers.discard(ws)
+
+async def broadcast_typing(username: str, chat_id: int):
+    payload = {
+        "type": "user_typing",
+        "username": username,
+        "chatID": chat_id
+    }
+    await broadcast_msg(chat_id, payload)
+
+async def notify_status(username: str, is_online: bool):
+    payload = {
+        "type": "user_status",
+        "username": username,
+        "online": is_online
+    }
+
+    # Notify active chat participants
+    for subscribers in chat_subscriptions.values():
+        for ws in set(subscribers):
+            try:
+                await ws.send_json(payload)
+            except:
+                subscribers.discard(ws)
+
+    # Notify idle listeners too
+    for ws in set(idle_subscriptions):
+        try:
+            await ws.send_json(payload)
+        except:
+            idle_subscriptions.discard(ws)

@@ -21,7 +21,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   function setServerStatus(online, msg) {
     const statusEl = document.getElementById('server-status');
     if (!statusEl) return;
-    statusEl.classList.toggle('status-online',  online);
+
+    const spinner = statusEl.querySelector('.spinner');
+    if (spinner) {
+      spinner.style.display = online ? 'none' : 'inline-block'; // Hide spinner when online
+    }
+
+    statusEl.classList.toggle('status-online', online);
     statusEl.classList.toggle('status-offline', !online);
     statusEl.querySelector('.status-text').textContent = msg;
   }

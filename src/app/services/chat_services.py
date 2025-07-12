@@ -1,6 +1,6 @@
 from flask import request, current_app
 from app.services.base_services import authenticate_token, return_statement
-from app.database.db_helper import transactional, insert_record, fetch_records, get_db
+from app.database.db_helper import transactional, insert_record, fetch_records, get_db, update_records
 import mysql.connector
 
 def fetch_chats():
@@ -267,3 +267,71 @@ def get_messages():
     ]
 
     return return_statement(messages, "", 200)
+
+
+def delete_chat():
+    """
+    Deletes a chat for the user by removing them as a participant.
+    If no participants remain, the chat and its messages are deleted.
+    """
+    client = request.get_json() or {}
+    session_token = client.get("session_token")
+    chat_id = client.get("chatID")
+
+    if not session_token or not chat_id:
+        return return_statement("", "Session token and chatID are required", 400)
+
+    # Verify the session token
+    username = authenticate_token(session_token)
+    if not username:
+        return return_statement("", "Unable to verify user!", 401)
+
+    try:
+        # Get the user's ID
+        user = fetch_records(
+            table="users",
+            where_clause="LOWER(username) = %s",
+            params=(username,),
+            fetch_all=True
+        )
+        if not user:
+            return return_statement("", "User not found!", 404)
+        user_id = user[0]["userID"]
+
+        # Check if the user is a participant in the chat
+        participant = fetch_records(
+            table="participants",
+            where_clause="chatID = %s AND userID = %s",
+            params=(chat_id, user_id),
+            fetch_all=True
+        )
+        if not participant:
+            return return_statement("", "Chat not found or access denied", 404)
+
+        # Remove the user from the participants table
+        delete_count = update_records(
+            table="participants",
+            data={},
+            where_clause="chatID = %s AND userID = %s",
+            where_params=(chat_id, user_id)
+        )
+        if delete_count == 0:
+            return return_statement("", "Failed to remove participant", 500)
+
+        # Check if there are any participants left in the chat
+        remaining_participants = fetch_records(
+            table="participants",
+            where_clause="chatID = %s",
+            params=(chat_id,),
+            fetch_all=True
+        )
+        if not remaining_participants:
+            # Delete the chat and its messages
+            update_records(table="messages", data={}, where_clause="chatID = %s", where_params=(chat_id,))
+            update_records(table="chats", data={}, where_clause="chatID = %s", where_params=(chat_id,))
+
+        return return_statement("Chat deleted successfully!", "", 200)
+
+    except Exception as e:
+        current_app.logger.exception("Error during chat deletion")
+        return return_statement("", str(e), 500)

@@ -454,6 +454,23 @@ button[disabled] {
   background: rgba(255, 107, 107, 0.1);
 }
 
+/* Delete Chat Button */
+.delete-chat-btn {
+  background: var(--error);
+  color: white;
+  border: none;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-sm);
+  margin-left: var(--space-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.delete-chat-btn:hover {
+  background: darken(var(--error), 10%);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -529,4 +546,17 @@ input:valid   { border-color: var(--success); }
 .message-content {
   white-space: pre-wrap; /* preserve line breaks */
   word-wrap: break-word;
+}
+.chat-entry::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background-color: gray;
+}
+
+.chat-entry.online::after {
+  background-color: limegreen;
 }

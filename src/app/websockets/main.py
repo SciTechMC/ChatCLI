@@ -1,5 +1,15 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from services import authenticate, join_chat, leave_chat, post_msg, chat_subscriptions
+from services import (
+    authenticate,
+    join_chat,
+    leave_chat,
+    post_msg,
+    chat_subscriptions,
+    broadcast_typing,
+    notify_status,
+    active_connections,
+    idle_subscriptions,
+)
 import uvicorn
 
 app = FastAPI()
@@ -42,7 +52,10 @@ async def websocket_endpoint(ws: WebSocket):
                     "chatID":   msg.get("chatID"),
                     "text":     msg.get("text")
                 })
-
+            elif t == "typing":
+                await broadcast_typing(username, msg.get("chatID"))
+            elif t == "join_idle":
+                idle_subscriptions.add(ws)
             else:
                 print(f"Unknown action: {t}")
                 await ws.send_json({
@@ -52,9 +65,16 @@ async def websocket_endpoint(ws: WebSocket):
 
     except WebSocketDisconnect:
         print(f"WebSocket disconnected for user: {username}")
-        # clean up any subscriptions
+        
+        # Clean up any subscriptions
         for subs in chat_subscriptions.values():
             subs.discard(ws)
+
+        # Remove from active connections
+        active_connections.pop(username, None)
+        idle_subscriptions.discard(ws)
+        # Notify others the user is offline
+        await notify_status(username, is_online=False)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
