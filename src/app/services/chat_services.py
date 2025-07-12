@@ -309,14 +309,10 @@ def delete_chat():
             return return_statement("", "Chat not found or access denied", 404)
 
         # Remove the user from the participants table
-        delete_count = update_records(
-            table="participants",
-            data={},
-            where_clause="chatID = %s AND userID = %s",
-            where_params=(chat_id, user_id)
-        )
-        if delete_count == 0:
-            return return_statement("", "Failed to remove participant", 500)
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM participants WHERE chatID = %s AND userID = %s", (chat_id, user_id))
+        conn.commit()
 
         # Check if there are any participants left in the chat
         remaining_participants = fetch_records(
@@ -327,8 +323,9 @@ def delete_chat():
         )
         if not remaining_participants:
             # Delete the chat and its messages
-            update_records(table="messages", data={}, where_clause="chatID = %s", where_params=(chat_id,))
-            update_records(table="chats", data={}, where_clause="chatID = %s", where_params=(chat_id,))
+            cursor.execute("DELETE FROM messages WHERE chatID = %s", (chat_id,))
+            cursor.execute("DELETE FROM chats WHERE chatID = %s", (chat_id,))
+            conn.commit()
 
         return return_statement("Chat deleted successfully!", "", 200)
 

@@ -477,6 +477,11 @@ button[disabled] {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   #container {
@@ -559,4 +564,91 @@ input:valid   { border-color: var(--success); }
 
 .chat-entry.online::after {
   background-color: limegreen;
+}
+
+/* Toast Notifications */
+#toast-container {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+}
+
+.toast {
+  background: var(--card-dark);
+  color: var(--text-primary);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-md);
+  animation: fadeIn 0.3s ease-out, fadeOut 0.3s ease-in 2s;
+}
+
+.toast.error {
+  background: var(--error);
+  color: white;
+}
+
+.toast.info {
+  background: var(--success);
+  color: white;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--card-dark);
+  color: var(--text-primary);
+  padding: var(--space-lg);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-around;
+  margin-top: var(--space-md);
+}
+
+.modal-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.modal-btn:hover {
+  background: var(--primary-dark);
+}
+
+.modal-btn:last-child {
+  background: var(--error);
+}
+
+.modal-btn:last-child:hover {
+  background: darken(var(--error), 10%);
 }

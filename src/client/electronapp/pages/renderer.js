@@ -210,3 +210,20 @@ function clearMessages(form) {
   const errorEl = form.querySelector('#error-container');
   if (errorEl) errorEl.textContent = '';
 }
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+
+  container.appendChild(toast);
+
+  // Remove toast after 2 seconds
+  setTimeout(() => {
+    toast.style.animation = 'fadeOut 0.3s ease-in';
+    toast.addEventListener('animationend', () => toast.remove());
+  }, 2000);
+}

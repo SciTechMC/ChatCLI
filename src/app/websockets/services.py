@@ -1,7 +1,7 @@
 # app/websockets/services.py
 
 from fastapi import WebSocket, status
-from db_helper import fetch_records, insert_record, update_records, get_conn  # adjust import if needed
+from db_helper import fetch_records, insert_record
 import logging
 import hashlib
 
