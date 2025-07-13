@@ -183,11 +183,11 @@ def login():
             fetch_all=True
         )
         if not users:
-            return return_statement("", "Username not found!", 404)
+            return return_statement("", "Username or password is incorrect!", 400)
 
         user = users[0]
         if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            return return_statement("", "Invalid password", 400)
+            return return_statement("", "Username or password is incorrect!", 400)
 
         now = datetime.now(timezone.utc)
 

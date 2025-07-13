@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const messageInput  = document.getElementById('message-text');
   const sendBtn       = document.getElementById('send-btn');
   const logoutBtn     = document.getElementById('logout-btn');
+  const placeholder = document.getElementById('no-chat-selected');
 
   let currentChatID = null;
   let ws;
@@ -136,8 +137,10 @@ document.getElementById('no-chat-selected').style.display = 'block';
         header.append(nameWrapper, deleteBtn);
   
         li.append(header);
-        li.onclick = () => selectChat(chatID);
-  
+        li.addEventListener('click', (e) => {
+          if (e.target.closest('.delete-chat-btn')) return; // don't select chat if delete was clicked
+          selectChat(chatID);
+        });  
         chatListEl.appendChild(li);
       });
     } catch (err) {
@@ -204,29 +207,25 @@ document.getElementById('no-chat-selected').style.display = 'block';
       currentChatID = null;
       messagesEl.innerHTML = '';
       messageControls.classList.add('hidden');
-      document.getElementById('no-chat-selected').style.display = 'block';
+      placeholder.style.display = 'block';
       typingIndicator.style.display = 'none';
       return;
     }
   
-    document.getElementById('no-chat-selected').style.display = 'none';
+    placeholder.style.display = 'none';
     messageControls.classList.remove('hidden');
     typingIndicator.style.display = 'none';
   
-    // Prevent reloading if already selected
     if (currentChatID === chatID) return;
   
-    // Leave old room
     if (currentChatID != null) {
       ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
     }
     currentChatID = chatID;
     messagesEl.innerHTML = '';
   
-    // Join new room
     ws.send(JSON.stringify({ type: 'join_chat', chatID }));
   
-    // Fetch message history
     try {
       const res = await window.api.request('/chat/messages', {
         body: JSON.stringify({ username, session_token: token, chatID })
@@ -237,11 +236,11 @@ document.getElementById('no-chat-selected').style.display = 'block';
       console.error('history fetch error', err);
     }
   
-    // Highlight active chat
     chatListEl.querySelectorAll('li').forEach(li => {
       li.classList.toggle('active', Number(li.dataset.chatId) === chatID);
     });
   }
+  
   
 
   // 6) Render a single message
