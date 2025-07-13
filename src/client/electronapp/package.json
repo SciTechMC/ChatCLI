@@ -1,50 +1,49 @@
 {
-  "name": "chatcli-electronapp-dev",
-  "version": "0.1.0",
+  "name": "chatcli-electron",
+  "version": "0.1.0-beta",
   "description": "ChatCLI – Windows Electron chat client",
   "author": "SciTechMC <jan.vdcg@gmail.com>",
   "main": "main.js",
+
   "scripts": {
     "start": "electron .",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "dist":  "electron-builder"
   },
+
   "dependencies": {
-    "express": "^5.1.0",
-    "keytar": "^7.9.0",
+    "express":    "^5.1.0",
+    "keytar":     "^7.9.0",
     "node-fetch": "^2.7.0",
-    "ws": "^8.18.3"
+    "ws":         "^8.18.3"
   },
+
   "devDependencies": {
-    "@electron-forge/cli": "^6.0.0",
-    "@electron-forge/maker-squirrel": "^6.0.0",
-    "@electron-forge/maker-zip": "^6.0.0",
-    "electron": "^37.2.1"
+    "electron":         "^37.2.1",
+    "electron-builder": "^24.0.0"
   },
-  "config": {
-    "forge": {
-      "packagerConfig": {
-        "icon": "assets/icon",
-        "executableName": "ChatCLI"
-      },
-      "makers": [
-        {
-          "name": "@electron-forge/maker-squirrel",
-          "config": {
-            "name": "ChatCLI",
-            "authors": "SciTechMC",
-            "description": "ChatCLI – Windows Electron chat client",
-            "exe": "ChatCLI.exe",
-            "setupIcon": "assets/icon.ico"
-          }
-        },
-        {
-          "name": "@electron-forge/maker-zip",
-          "platforms": [
-            "win32"
-          ]
-        }
+
+  "build": {
+    "appId":       "com.scitechmc.chatcli",
+    "productName": "ChatCLI",
+    "files":       ["**/*"],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ChatCLI",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico"
     }
   }
 }
