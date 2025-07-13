@@ -38,6 +38,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   let ws;
   let chatToDelete = null; // Store the chatID temporarily
 
+  const messageControls = document.querySelector('.chat-controls');
+const typingIndicator = document.getElementById('typing-indicator');
+
+messageControls.classList.add('hidden');
+document.getElementById('no-chat-selected').style.display = 'block';
+
+  updateSendButtonState();
+
   // 3) Open & auth WebSocket
   function connectWS() {
     ws = new WebSocket(ip);
@@ -49,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (msg.type === 'new_message' && msg.chatID === currentChatID) {
         appendMessage(msg);
       }
-      if (msg.type === "user_typing" && msg.chatID === currentChatID && msg.username !== username) {
+      if (msg.type === "user_typing" && msg.chatID === currentChatID && msg.username.toLowerCase() !== username.toLowerCase()) {
         const typingEl = document.getElementById('typing-indicator');
         typingEl.textContent = `${msg.username} is typing...`;
         typingEl.style.display = 'block';
@@ -73,30 +81,57 @@ document.addEventListener('DOMContentLoaded', async () => {
       const res = await window.api.request('/chat/fetch-chats', {
         body: JSON.stringify({ session_token: token })
       });
+  
       const chats = Array.isArray(res.response) ? res.response : [];
       chatListEl.innerHTML = '';
-      chats.forEach(({ chatID, name }) => {
+      messageControls.classList.add('hidden');
+      chats.forEach(({ chatID, name, online }) => {
         const li = document.createElement('li');
-        li.textContent = name;
+        li.classList.add('chat-entry');
         li.dataset.chatId = chatID;
-        li.dataset.username = name; // <== Enables us to target this later
-        li.classList.add('chat-entry'); // Optional class for styling
-
-        // Add delete button
+        li.dataset.username = name;
+  
+        // Create the status dot
+        const statusIndicator = document.createElement('div');
+        statusIndicator.classList.add('status-indicator', online ? 'online' : 'offline');
+  
+        // Create username text
+        const chatName = document.createElement('span');
+        chatName.textContent = name;
+        chatName.classList.add('chat-name');
+  
+        // Combine status dot + name
+        const nameWrapper = document.createElement('div');
+        nameWrapper.classList.add('chat-name-wrapper');
+        nameWrapper.append(statusIndicator, chatName);
+  
+        // Create delete button
         const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = 'Delete';
+        deleteBtn.innerHTML = '&times;';
         deleteBtn.className = 'delete-chat-btn';
-        deleteBtn.onclick = () => handleDeleteChat(chatID);
-
-        li.appendChild(deleteBtn);
+        deleteBtn.title = 'Delete chat';
+        deleteBtn.onclick = (e) => {
+          e.stopPropagation(); // prevent triggering chat selection
+          handleDeleteChat(chatID);
+        };
+  
+        // Header row: [● name]     [×]
+        const header = document.createElement('div');
+        header.classList.add('chat-header');
+        header.append(nameWrapper, deleteBtn);
+  
+        li.append(header);
         li.onclick = () => selectChat(chatID);
+  
         chatListEl.appendChild(li);
       });
     } catch (err) {
       console.error('loadChats error', err);
     }
   }
+  
   loadChats();
+  document.getElementById('no-chat-selected').style.display = 'block';
 
   // Show modal for confirmation
   function showModal(message, onConfirm) {
@@ -150,83 +185,85 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 5) Join chat via WS, then fetch+render history via HTTP
   async function selectChat(chatID) {
+    if (!chatID) {
+      currentChatID = null;
+      messagesEl.innerHTML = '';
+      messageControls.classList.add('hidden');
+      document.getElementById('no-chat-selected').style.display = 'block';
+      typingIndicator.style.display = 'none';
+      return;
+    }
+  
+    document.getElementById('no-chat-selected').style.display = 'none';
+    messageControls.classList.remove('hidden');
+    typingIndicator.style.display = 'none';
+  
     // Prevent reloading if already selected
     if (currentChatID === chatID) return;
-
-    // leave old room
+  
+    // Leave old room
     if (currentChatID != null) {
       ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
     }
     currentChatID = chatID;
     messagesEl.innerHTML = '';
-
-    // subscribe to new room
+  
+    // Join new room
     ws.send(JSON.stringify({ type: 'join_chat', chatID }));
-
-    // fetch past messages
+  
+    // Fetch message history
     try {
       const res = await window.api.request('/chat/messages', {
-        body: JSON.stringify({
-          username,
-          session_token: token,
-          chatID
-        })
+        body: JSON.stringify({ username, session_token: token, chatID })
       });
       const history = Array.isArray(res.response) ? res.response : [];
       history.forEach(appendMessage);
     } catch (err) {
       console.error('history fetch error', err);
     }
-
-    // highlight active chat
+  
+    // Highlight active chat
     chatListEl.querySelectorAll('li').forEach(li => {
-      li.classList.toggle('active',
-        Number(li.dataset.chatId) === chatID
-      );
+      li.classList.toggle('active', Number(li.dataset.chatId) === chatID);
     });
   }
+  
 
   // 6) Render a single message
-  function appendMessage({ userID, username: msgUser, message, timestamp }) {
-    // wrapper div
+  function appendMessage({ username: msgUser, message, timestamp }) {
     const div = document.createElement('div');
     div.classList.add('message');
-
-    // incoming vs outgoing
-    if (msgUser === username) {
-      div.classList.add('message-outgoing');
-    } else {
-      div.classList.add('message-incoming');
-    }
-
-    // format time as HH:mm
-    const time = new Date(timestamp)
-      .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    // header: username on left, time on right
+  
+    // Header: Username and timestamp
     const header = document.createElement('div');
     header.className = 'message-header';
-
+  
     const userEl = document.createElement('span');
-    userEl.className = 'message-username';
+    userEl.classList.add('message-username');
+    if (msgUser.toLowerCase() === username.toLowerCase()) {
+      userEl.classList.add('message-username-self');
+    }
     userEl.textContent = msgUser;
-
+  
     const timeEl = document.createElement('span');
     timeEl.className = 'message-timestamp';
-    timeEl.textContent = time;
-
+  
+    const date = new Date(timestamp);
+    const formatted = `${date.toLocaleDateString()}, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    timeEl.textContent = formatted;
+  
     header.append(userEl, timeEl);
-
-    // body
+  
+    // Message text
     const body = document.createElement('div');
     body.className = 'message-content';
     body.textContent = message;
-
-    // assemble
+  
     div.append(header, body);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
+  
 
   // 7) Send a new message via WS
   function sendMessage() {
@@ -235,13 +272,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const text = messageInput.value.trim();
     if (!text) return;
+  
     ws.send(JSON.stringify({
       type:   'post_msg',
       chatID: currentChatID,
       text
     }));
+  
     messageInput.value = '';
     messageInput.focus();
+  
+    // Reset textarea height
+    messageInput.style.height = 'auto';
   }
 
   sendBtn.addEventListener('click', sendMessage);
@@ -253,6 +295,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       sendMessage();
     }
   });
+  messageInput.addEventListener('input', () => {
+    messageInput.style.height = 'auto';
+    messageInput.style.height = `${messageInput.scrollHeight}px`;
+  });
+
   let typingTimeout;
   messageInput.addEventListener('input', () => {
     if (!currentChatID || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -286,4 +333,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.secureStore.set('username', '');
     location.href = 'login.html';
   });
+  
+  function updateSendButtonState() {
+    const hasContent = messageInput.value.trim().length > 0;
+    sendBtn.classList.toggle('disabled', !hasContent);
+  }
+
+  messageInput.addEventListener('input', updateSendButtonState);
+
 });

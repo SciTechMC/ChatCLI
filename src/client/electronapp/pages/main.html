@@ -12,23 +12,35 @@
     <div id="sidebar">
       <div id="ws-banner" class="info-message" style="display:none"></div>
       <div id="user-info" title="Your username"></div>
-      <div id="new-chat">
+      <div id="new-chat" class="input-with-icon">
         <input id="new-chat-username" placeholder="Add friend by username" />
-        <button id="create-chat-btn" type="button" data-requires-online>Add</button>
-      </div>
+        <span class="add-icon" id="create-chat-btn" title="Add">+</span>
+      </div>    
       <ul id="chat-list"></ul>
       <button id="logout-btn" type="button">Logout</button>
     </div>
 
     <!-- Chat window -->
     <div id="chat-window">
-      <div id="messages"></div>
+      <div id="messages">
+        <div id="no-chat-selected" class="placeholder">
+          <h2>Welcome to ChatCLI</h2>
+          <p>Select a conversation to start chatting</p>
+        </div>  
+      </div>
+
       <div id="typing-indicator" style="display:none; font-style:italic; margin: 5px;"></div>
-      <div id="message-input">
-        <input id="message-text" placeholder="Type a message…" />
-        <button id="send-btn" type="button" data-requires-online>Send</button>
+
+      <div id="message-input" class="chat-controls hidden">
+        <textarea id="message-text" placeholder="Type a message…" rows="1"></textarea>
+        <button id="send-btn" type="button" data-requires-online title="Send">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
       </div>
     </div>
+
   </div>
 
   <!-- Toast container -->
