@@ -1,5 +1,3 @@
-**API Documentation**
-
 ## Table of Contents
 
 1. [HTTP API Endpoints](#http-api-endpoints)
@@ -10,6 +8,9 @@
 2. [WebSocket API](#websocket-api)
 
 ## HTTP API Endpoints
+
+* fortbow.zapto.org:5123
+* fortbow.zapto.org:8765
 
 ### Base Routes
 
@@ -25,7 +26,8 @@ These routes handle generic pages and server connectivity.
 #### `GET, POST /verify-connection`
 
 * **Description**: Checks server connectivity.
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Server is reachable!" }`
 
 #### `GET, POST /subscribe`
@@ -36,7 +38,8 @@ These routes handle generic pages and server connectivity.
   ```
   email=user@example.com
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with confirmation HTML or flash message.
   * `400 Bad Request` for invalid or missing email.
 
@@ -60,7 +63,8 @@ User management: registration, email verification, login, password reset, and to
     "password": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Verification email sent!" }`
   * `400 Bad Request` for invalid input or existing user.
 
@@ -75,7 +79,8 @@ User management: registration, email verification, login, password reset, and to
     "email_token": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Email verified!" }`
   * `400 Bad Request` for invalid or expired code.
 
@@ -90,8 +95,10 @@ User management: registration, email verification, login, password reset, and to
     "password": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON:
+
     ```json
     {
       "status": "ok",
@@ -103,18 +110,20 @@ User management: registration, email verification, login, password reset, and to
     ```
   * `400 Bad Request` or `404 Not Found` for invalid credentials.
 
-#### `POST /user/refresh-token`
+#### `GET /user/refresh-token`
 
 * **Description**: Rotates a valid refresh token and issues new tokens.
-* **Request Body**:
+* **Request Body** (JSON):
 
   ```json
   {
     "refresh_token": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON:
+
     ```json
     {
       "status": "ok",
@@ -124,7 +133,7 @@ User management: registration, email verification, login, password reset, and to
       "refresh_token": "<new_refresh_token>"
     }
     ```
-  * `401 Unauthorized` for invalid/expired token.
+  * `401 Unauthorized` for invalid or expired token.
 
 #### `POST /user/reset-password-request`
 
@@ -136,7 +145,8 @@ User management: registration, email verification, login, password reset, and to
     "username": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Password reset email sent!" }`
   * `404 Not Found` if user not found.
 
@@ -150,7 +160,8 @@ User management: registration, email verification, login, password reset, and to
   password=newpassword
   confirm_password=newpassword
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "message": "Password reset successfully" }`
   * `400 Bad Request` for invalid/expired token or weak password.
 
@@ -179,14 +190,16 @@ All chat routes require a valid session token in the request body.
     "session_token": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON:
+
     ```json
     {
+      "status": "ok",
       "response": [
         { "chatID": 123, "name": "otheruser" }
-      ],
-      "status": "ok"
+      ]
     }
     ```
 
@@ -201,7 +214,8 @@ All chat routes require a valid session token in the request body.
     "session_token": "string"
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Chat created successfully!" }`
   * `400 Bad Request` or `409 Conflict` for invalid input or duplicate chat.
 
@@ -218,8 +232,10 @@ All chat routes require a valid session token in the request body.
     "limit": 50
   }
   ```
-* **Response**:  
+* **Response**:
+
   * `200 OK` with JSON array of message objects:
+
     ```json
     [
       {
@@ -231,6 +247,22 @@ All chat routes require a valid session token in the request body.
       }
     ]
     ```
+
+#### `POST /chat/delete-chat`
+
+* **Description**: Removes the user from the specified chat. If no participants remain, deletes the chat and its messages.
+* **Request Body** (JSON):
+
+  ```json
+  {
+    "session_token": "string",
+    "chatID": 123
+  }
+  ```
+* **Response**:
+
+  * `200 OK` with JSON `{ "status": "ok", "message": "", "response": "Chat deleted successfully!" }`
+  * `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, or `500 Internal Server Error` for errors.
 
 ---
 
@@ -267,11 +299,11 @@ On failure, the connection is closed.
 
 After authentication, send JSON messages with a `type` field. Supported types:
 
-| Type           | Payload Fields                       | Description                |
-| -------------- | ------------------------------------ | -------------------------- |
-| `join_chat`    | `chatID`: int                       | Join a chat room           |
-| `leave_chat`   | `chatID`: int                       | Leave a chat room          |
-| `post_msg`     | `chatID`: int, `text`: string       | Send a message to the chat |
+| Type         | Payload Fields                | Description                |
+| ------------ | ----------------------------- | -------------------------- |
+| `join_chat`  | `chatID`: int                 | Join a chat room           |
+| `leave_chat` | `chatID`: int                 | Leave a chat room          |
+| `post_msg`   | `chatID`: int, `text`: string | Send a message to the chat |
 
 #### Example: Join Chat
 
@@ -320,6 +352,7 @@ Whenever a message is posted, the server broadcasts to all subscribers of the ch
 
 ---
 
-**Note:**  
-- All chat actions require a valid authenticated WebSocket session.
-- The server automatically manages chat subscriptions and cleans up on disconnect.
+**Note:**
+
+* All chat actions require a valid authenticated WebSocket session.
+* The server automatically manages chat subscriptions and cleans up on disconnect.
