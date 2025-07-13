@@ -46,6 +46,21 @@ document.getElementById('no-chat-selected').style.display = 'block';
 
   updateSendButtonState();
 
+
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.classList.add('toast', type);
+    toast.textContent = message;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('fade-out');
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
+  }
+
   // 3) Open & auth WebSocket
   function connectWS() {
     ws = new WebSocket(ip);
@@ -268,7 +283,7 @@ document.getElementById('no-chat-selected').style.display = 'block';
   // 7) Send a new message via WS
   function sendMessage() {
     if (!currentChatID) {
-      return alert('Select a chat first.');
+      return showToast('Select a chat first.', 'error');
     }
     const text = messageInput.value.trim();
     if (!text) return;
@@ -322,7 +337,7 @@ document.getElementById('no-chat-selected').style.display = 'block';
       await loadChats();
     } catch (err) {
       console.error('createChat error', err);
-      alert('Could not create chat: ' + (err.message || err));
+      showToast('Could not create chat: ' + (err.message || err), 'error');
     }
   });
 
