@@ -125,7 +125,7 @@ def verify_email():
     
     try:
         # fetch the latest valid token
-        cursor = fetch_records(
+        row = fetch_records(
             table="email_tokens",
             where_clause=(
                 "userID = (SELECT userID FROM users WHERE LOWER(username) = LOWER(%s)) "
@@ -136,7 +136,6 @@ def verify_email():
             limit=1,
             fetch_all=False
         )
-        row = cursor.fetchone()
         if not row or str(row["email_token"]) != str(client_code):
             return return_statement("", "Invalid or expired code!", 400)
 
@@ -400,7 +399,7 @@ def reset_password():
         token = hashlib.sha256(token.encode()).hexdigest()
         try:
             # verify reset token
-            cursor = fetch_records(
+            row = fetch_records(
                 table="pass_reset_tokens",
                 where_clause="reset_token = %s AND revoked = FALSE AND expires_at > %s",
                 params=(token, datetime.now(timezone.utc)),
@@ -408,7 +407,7 @@ def reset_password():
                 limit=1,
                 fetch_all=False
             )
-            row = cursor.fetchone()
+
             if not row:
                 return jsonify({"error": "Invalid or expired reset link"}), 400
 

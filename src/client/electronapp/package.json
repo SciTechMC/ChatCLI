@@ -5,21 +5,21 @@
   "author": "SciTechMC <jan.vdcg@gmail.com>",
   "main": "main.js",
   "scripts": {
-    "start":   "electron .",
+    "start": "electron .",
     "package": "electron-forge package",
-    "make":    "electron-forge make"
+    "make": "electron-forge make"
   },
   "dependencies": {
-    "express":     "^5.1.0",
-    "keytar":      "^7.9.0",
-    "node-fetch":  "^2.7.0",
-    "ws":          "^8.18.3"
+    "express": "^5.1.0",
+    "keytar": "^7.9.0",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
-    "electron":                          "^27.1.0",
-    "@electron-forge/cli":               "^6.0.0",
-    "@electron-forge/maker-squirrel":    "^6.0.0",
-    "@electron-forge/maker-zip":         "^6.0.0"
+    "@electron-forge/cli": "^6.0.0",
+    "@electron-forge/maker-squirrel": "^6.0.0",
+    "@electron-forge/maker-zip": "^6.0.0",
+    "electron": "^37.2.1"
   },
   "config": {
     "forge": {
@@ -31,16 +31,18 @@
         {
           "name": "@electron-forge/maker-squirrel",
           "config": {
-            "name":        "ChatCLI",
-            "authors":     "SciTechMC",
+            "name": "ChatCLI",
+            "authors": "SciTechMC",
             "description": "ChatCLI – Windows Electron chat client",
-            "exe":         "ChatCLI.exe",
-            "setupIcon":   "assets/icon.ico"
+            "exe": "ChatCLI.exe",
+            "setupIcon": "assets/icon.ico"
           }
         },
         {
           "name": "@electron-forge/maker-zip",
-          "platforms": ["win32"]
+          "platforms": [
+            "win32"
+          ]
         }
       ]
     }

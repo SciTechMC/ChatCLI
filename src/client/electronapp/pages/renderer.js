@@ -96,15 +96,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
       registerBtn.disabled = true;
       registerBtn.textContent = 'Registering…';
-
+    
       try {
         const username = registerForm.username.value.trim();
         const email = registerForm.email.value.trim();
         const password = registerForm.password.value;
+    
         await window.api.register({ username, email, password });
-        showToast('Account created! Check your email to verify.', 'info');
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Register';
+    
+        showToast('Account created! Redirecting to verification…', 'info');
+        setTimeout(() => {
+          location.href = `verify.html?username=${encodeURIComponent(username)}`;
+        }, 1000);
       } catch (err) {
         showToast('Registration failed: ' + (err.message || 'Unknown error'), 'error');
         registerBtn.disabled = false;
@@ -145,9 +148,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   })();
 
-  const resetForm = document.getElementById('reset-request-form');
+  const resetForm = document.getElementById('reset-password-form');
   if (resetForm) {
-    const resetBtn = document.getElementById('reset-submit');
+    const resetBtn = document.getElementById('reset-password-submit');
     window.addEventListener('online-status-changed', ({ detail }) => {
       resetBtn.disabled = !detail;
     });
@@ -159,12 +162,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       try {
         const username = resetForm.username.value.trim();
-        const email = resetForm.email.value.trim();
         await window.api.request('/user/reset-password-request', {
-          body: JSON.stringify({ username, email })
+          body: JSON.stringify({ username })
         });
-        showToast('Reset link sent! Redirecting…', 'info');
-        setTimeout(() => location.href = 'index.html', 1200);
+        showToast('If the username exists, a reset link has been sent. Please check your inbox.', 'info');
       } catch (err) {
         showToast('Reset failed: ' + (err.message || 'Unknown error'), 'error');
         resetBtn.disabled = false;
@@ -190,4 +191,3 @@ function showToast(message, type = 'info') {
     toast.addEventListener('animationend', () => toast.remove());
   }, 3000);
 }
-q

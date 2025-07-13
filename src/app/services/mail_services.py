@@ -44,7 +44,7 @@ def send_verification_email(username: str, token: str, recipient: str) -> bool:
     body = f"""
 Dear {username},
 
-Thank you for registering with ChatCLI! To complete your registration, please enter the verification code below:
+Thank you for registering with ChatCLI! To complete your registration, please enter the verification code below in the application:
 
 Verification code: {token}
 
@@ -61,7 +61,7 @@ def send_password_reset_email(username: str, token: str, recipient: str) -> bool
     """
     Compose and send password reset instructions email.
     """
-    reset_link = f"https://chat.puam.be/user/reset-password?token={token}&username={username}"
+    reset_link = f"http://fortbow.zapto.org:5123/user/reset-password?token={token}&username={username}"
     subject = "Password Reset Request for Your ChatCLI Account"
     body = f"""
 Dear {username},
