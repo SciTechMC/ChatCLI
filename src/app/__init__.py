@@ -4,11 +4,15 @@ from app.routes.chat_routes import chat
 from app.routes.base_routes import base
 import os
 
+from .extensions import limiter
+
 all_blueprints = [user, chat, base]
 
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv("FLASK_SECRET_KEY")
+
+    limiter.init_app(app)
 
     # Register blueprints
     for bp in all_blueprints:

@@ -1,7 +1,6 @@
 from app.database.db_helper import fetch_records, insert_record
 from flask import jsonify, request, render_template, redirect, flash, url_for
 import mysql.connector
-from datetime import datetime, timezone
 import hashlib
 import os
 import logging
@@ -9,43 +8,43 @@ import logging
 # module logger
 tmp_logger = logging.getLogger(__name__)
 
-
 def authenticate_token(session_token: str) -> str | None:
     """
-    Given a plain session token, find the matching unrevoked, unexpired
-    row in `session_tokens` (hashed with SHA-256), then return its username.
-    Otherwise return None.
+    Given a plain session token, find the single matching row in session_tokens
+    (hashed with SHA-256), where revoked = FALSE and expires_at > NOW().
+    If found and the user is verified, return their username; otherwise None.
     """
     try:
+        # 1) Hash the incoming token
         token_hash = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
+
+        # 2) Targeted lookup in session_tokens
         sessions = fetch_records(
             table="session_tokens",
-            where_clause="revoked = FALSE AND expires_at > %s",
-            params=(datetime.now(timezone.utc),),
+            where_clause="session_token = %s AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+            params=(token_hash,),
             fetch_all=True
         )
-        # Find matching session
-        match = next((s for s in sessions if s.get("session_token") == token_hash), None)
-        if not match:
+        if not sessions:
             return None
 
+        user_id = sessions[0]["userID"]
+
+        # 3) Make sure the user exists, is verified (and not disabled if you want)
         users = fetch_records(
             table="users",
-            where_clause="userID = %s AND email_verified = TRUE",
-            params=(match.get("userID"),),
+            where_clause="userID = %s AND email_verified = TRUE AND disabled = FALSE",
+            params=(user_id,),
             fetch_all=True
         )
-        if not users or not isinstance(users, list):
+        if not users:
             return None
 
-        # Safely extract username
-        username = users[0].get("username")
-        return username
+        return users[0]["username"]
 
     except Exception as e:
         tmp_logger.error("Error authenticating token: %s", e, exc_info=e)
         return None
-
 
 def return_statement(response, message="", status: int=200, additional: dict=None):
     """

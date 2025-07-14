@@ -1,11 +1,11 @@
 // main.renderer.js
 
-const ip = "ws://fortbow.zapto.org:8765/ws";
+const ip = "ws://127.0.0.1:8765/ws";
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 1) Get stored credentials
   const token    = await window.secureStore.get('session_token');
-  const username = await window.secureStore.get('username');
+  let username = await window.secureStore.get('username');
   if (!token || !username) {
     return void (location.href = 'login.html');
   }
@@ -25,6 +25,136 @@ document.addEventListener('DOMContentLoaded', async () => {
     userInfoEl.style.color = 'var(--text-secondary)';
   }
 
+  // —— PROFILE MODAL LOGIC (unified endpoints) —— 
+const profileModal      = document.getElementById('profile-modal');
+const profileForm       = document.getElementById('profile-form');
+const closeProfileBtn   = document.getElementById('close-profile-modal');
+const disableAccountBtn = document.getElementById('disable-account-btn');
+const deleteAccountBtn  = document.getElementById('delete-account-btn');
+
+// 1) Open & fetch current data from /user/profile
+userInfoEl.style.cursor = 'pointer';
+userInfoEl.addEventListener('click', async () => {
+  profileModal.classList.remove('hidden');
+  try {
+    // call your Node/IPC wrapper — it throws on non-OK statuses
+    const res = await window.api.request('/user/profile', {
+      body: JSON.stringify({ session_token: token })
+    });
+    // unwrap the real data
+    const { username: u, email: e } = res.response;
+    document.getElementById('username').value = u;
+    document.getElementById('email').value    = e;
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// 2) Close modal
+closeProfileBtn.addEventListener('click', () => {
+  profileModal.classList.add('hidden');
+});
+
+// 3) Submit updates (and disable/delete) all to /user/submit-profile
+async function submitAction(payload) {
+  // again, your wrapper will throw on error and return { response, message, ... }
+  const res = await window.api.request('/user/submit-profile', {
+    body: JSON.stringify(payload)
+  });
+  return res;  // you can inspect res.response or res.message if needed
+}
+
+// —— PROFILE MODAL LOGIC (flags payload) —— 
+async function submitProfile(payload) {
+  // Always send session_token + whatever flags/fields you need
+  const token = await window.secureStore.get('session_token');
+  return window.api.request('/user/submit-profile', {
+    body: JSON.stringify({ session_token: token, ...payload })
+  });
+}
+
+// — Save changes (with email‐change logout & redirect) —
+profileForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const newU = document.getElementById('username').value.trim();
+  const newE = document.getElementById('email').value.trim();
+
+  try {
+    // send update, backend will set `verificationSent: true` if email changed
+    const res = await submitProfile({ action: 'update', username: newU, email: newE });
+
+    // always hide the modal
+    profileModal.classList.add('hidden');
+
+    // —––– EMAIL CHANGED: FORCE LOGOUT & REDIRECT –––—
+    if (res.response.verificationSent) {
+      showToast('Email changed – please verify your new address.', 'info');
+
+      // 1) clear both tokens
+      await window.secureStore.delete('session_token');
+      await window.secureStore.delete('refresh_token');
+      // 2) clear all stored user info
+      await window.secureStore.delete('username');
+      await window.secureStore.delete('email');
+
+      // 3) redirect to verify.html with new username
+      location.href = `verify.html?username=${encodeURIComponent(newU)}`;
+      return;
+    }
+
+    // —––– USERNAME ONLY: update in-place –––—
+    showToast('Profile updated!', 'info');
+
+    if (newU !== username) {
+      await window.secureStore.set('username', newU);
+      username = newU;
+      userInfoEl.textContent = newU;
+    }
+    document.getElementById('username').value = newU;
+
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// — Disable account —
+disableAccountBtn.addEventListener('click', async () => {
+  if (!confirm('Are you sure you want to disable your account?')) return;
+  try {
+    await submitProfile({ disable: 1, delete: 0 });
+    showToast('Account disabled.', 'warning');
+    profileModal.classList.add('hidden');
+
+    // ─── CLEAR EVERYTHING & REDIRECT ───
+    await window.secureStore.delete('session_token');
+    await window.secureStore.delete('refresh_token');
+    await window.secureStore.delete('username');
+    await window.secureStore.delete('email');
+    location.href = 'index.html';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+// — Delete account —
+deleteAccountBtn.addEventListener('click', async () => {
+  if (!confirm('This will DELETE your account permanently. Continue?')) return;
+  try {
+    await submitProfile({ disable: 0, delete: 1 });
+    showToast('Account deleted.', 'error');
+    profileModal.classList.add('hidden');
+
+    // ─── CLEAR EVERYTHING & REDIRECT ───
+    await window.secureStore.delete('session_token');
+    await window.secureStore.delete('refresh_token');
+    await window.secureStore.delete('username');
+    await window.secureStore.delete('email');
+    location.href = 'index.html';
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
   // 2) Cache DOM elements
   const chatListEl    = document.getElementById('chat-list');
   const messagesEl    = document.getElementById('messages');
@@ -40,10 +170,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let chatToDelete = null; // Store the chatID temporarily
 
   const messageControls = document.querySelector('.chat-controls');
-const typingIndicator = document.getElementById('typing-indicator');
+  const typingIndicator = document.getElementById('typing-indicator');
 
-messageControls.classList.add('hidden');
-document.getElementById('no-chat-selected').style.display = 'block';
+  messageControls.classList.add('hidden');
+  document.getElementById('no-chat-selected').style.display = 'block';
 
   updateSendButtonState();
 
@@ -354,5 +484,5 @@ document.getElementById('no-chat-selected').style.display = 'block';
   }
 
   messageInput.addEventListener('input', updateSendButtonState);
-
+  
 });

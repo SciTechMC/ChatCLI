@@ -875,3 +875,38 @@ input:valid   { border-color: var(--success); }
 .hidden {
   display: none !important;
 }
+/* ─── Chat header with profile trigger ─── */
+#chat-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--card-dark);
+  border-bottom: 1px solid var(--border-dark);
+}
+#chat-header #user-info {
+  cursor: pointer;
+}
+
+/* ─── Style overrides for the profile modal close button ─── */
+.modal-close {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  background: none;
+  border: none;
+  font-size: 1.5em;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+/* Secondary button variant */
+.modal-btn.secondary {
+  background: var(--secondary);
+}
+.modal-btn.secondary:hover {
+  background: darken(var(--secondary), 10%);
+}

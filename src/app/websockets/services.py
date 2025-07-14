@@ -15,54 +15,54 @@ idle_subscriptions: set[WebSocket] = set()
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     """
     Token-only auth. Client must send:
-      { "type":"auth", "token":"<plain-text session token>" }
-
-    We SHA-256 hash the incoming token, compare it against
-    `session_tokens.session_token`, load the user’s username,
-    register the WS, and return it. Otherwise we close immediately.
+      { "type": "auth", "token": "<plain-text session token>" }
+    We SHA-256 hash it, then:
+      - find a non-revoked, unexpired session_tokens row matching that hash
+      - load the user’s username from users
+      - register the WS and broadcast status
     """
-    token = msg.get("token")
-    if not token:
+    # 1) Validate payload
+    if msg.get("type") != "auth" or not isinstance(msg.get("token"), str):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    # 1) Hash the incoming plain-text token with SHA-256
-    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    # 2) Hash the incoming plain‐text token
+    token_hash = hashlib.sha256(msg["token"].encode()).hexdigest()
 
-    # 2) Fetch all non-revoked, unexpired sessions
+    # 3) Look up exactly that session row
     sessions = await fetch_records(
         table="session_tokens",
-        where_clause="revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+        where_clause="session_token = %s AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+        params=(token_hash,),
         fetch_all=True
     )
-
-    # 3) Find a matching SHA-256 hash
-    matched = next((s for s in sessions if s["session_token"] == token_hash), None)
-    if not matched:
+    if not sessions:
+        logging.warning("No matching session token found or it’s expired/revoked.")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    # 4) Lookup the username for that session’s userID
+    user_id = sessions[0]["userID"]
+
+    # 4) Fetch the user’s username
     users = await fetch_records(
         table="users",
-        where_clause="userID = %s",
-        params=(matched["userID"],),
+        where_clause="userID = %s AND disabled = FALSE",
+        params=(user_id,),
         fetch_all=True
     )
     if not users:
+        logging.error("Session token matched, but no user record (or user disabled).")
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return None
 
     username = users[0]["username"]
 
-    # 5) Register the connection
+    # 5) Register and broadcast
     active_connections[username] = websocket
-
-    # 6) Broadcast that this user is online
     await notify_status(username, is_online=True)
 
+    logging.info(f"User authenticated: {username} (userID={user_id})")
     return username
-
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
     chat_subscriptions.setdefault(chat_id, set()).add(ws)
 

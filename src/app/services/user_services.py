@@ -7,9 +7,10 @@ import secrets
 import hashlib
 import random
 from flask import request, jsonify, render_template, current_app
-from app.services.base_services import return_statement
+from app.services.base_services import return_statement, authenticate_token
 from app.services.mail_services import send_verification_email, send_password_reset_email
 from app.database.db_helper import fetch_records, insert_record, update_records
+import os
 
 alphabet = string.ascii_letters + string.digits
 
@@ -90,6 +91,8 @@ def register():
         # create verification token (6-digit code)
         email_token = f"{random.randint(100000, 999999):06d}"
         expiry      = datetime.now(timezone.utc) + timedelta(minutes=5)
+        if os.getenv("FLASK_ENV") == "dev":
+            print(f"Dev mode: Verification code for {username} is {email_token}")
         insert_record(
             "email_tokens",
             {
@@ -177,7 +180,7 @@ def login():
     try:
         users = fetch_records(
             table="users",
-            where_clause="username = %s",
+            where_clause="username = %s AND email_verified = 1 AND disabled = 0",
             params=(username,),
             fetch_all=True
         )
@@ -445,3 +448,172 @@ def reset_password():
 
     # GET: show reset form
     return render_template("reset_password.html", username=username, token=token)
+
+def profile():
+    """
+    POST /user/profile
+    Body JSON: { "session_token": "<token>" }
+    Returns: { "username": "...", "email": "..." }
+    """
+    data = request.get_json(silent=True) or {}
+    token = data.get("session_token", "").strip()
+    if not token:
+        return return_statement("", "Session token is required", 400)
+
+    username = authenticate_token(token)
+    if not username:
+        return return_statement("", "Invalid or expired session token", 401)
+
+    try:
+        # Fetch from the users table, not session_tokens
+        user = fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(username,),
+            fetch_all=False
+        )
+        if not user:
+            return return_statement("", "User not found", 404)
+
+        # Strip sensitive
+        user.pop("password", None)
+
+        # Return only the fields your front end needs
+        profile_data = {
+            "username": user["username"],
+            "email":    user.get("email", "")
+        }
+        return return_statement(profile_data, "Profile fetched successfully", 200)
+
+    except Exception:
+        current_app.logger.exception("Error fetching profile")
+        return return_statement("", "Internal server error", 500)
+
+def submit_profile():
+    """
+    POST /user/submit-profile
+    Body JSON: {
+      "session_token": "...",
+      "username":   "...",   # optional if not changing
+      "email":      "...",   # optional if not changing
+      "disable":    0|1,     # optional flags
+      "delete":     0|1
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    token       = (data.get("session_token") or "").strip()
+    new_u       = (data.get("username")      or "").strip()
+    new_e       = (data.get("email")         or "").strip()
+    disable     = int(data.get("disable",  0))
+    delete_acc  = int(data.get("delete",   0))
+
+    if not token:
+        return return_statement("", "Session token is required", 400)
+
+    # 1) authenticate → gives current username
+    current_username = authenticate_token(token)
+    if not current_username:
+        return return_statement("", "Invalid or expired session token", 401)
+
+    try:
+        # 2) fetch existing user record
+        user = fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(current_username,),
+            fetch_all=False
+        )
+        if not user:
+            return return_statement("", "User not found", 404)
+        user_id     = user["userID"]
+        old_email   = user.get("email", "")
+        # ——— handle delete/disable first ———
+        if delete_acc:
+            update_records("session_tokens",
+                           {"revoked": True},
+                           where_clause="userID = %s",
+                           where_params=(user_id,))
+            update_records("users",
+                           {"deleted": True},
+                           where_clause="userID = %s",
+                           where_params=(user_id,))
+            return return_statement(
+                {"disable": disable, "delete": delete_acc},
+                "Account deleted",
+                200)
+
+        if disable:
+            update_records("session_tokens",
+                           {"revoked": True},
+                           where_clause="userID = %s",
+                           where_params=(user_id,))
+            update_records("users",
+                           {"disabled": True},
+                           where_clause="userID = %s",
+                           where_params=(user_id,))
+            return return_statement(
+                {"disable": disable, "delete": delete_acc},
+                "Account disabled",
+                200)
+
+        # ——— handle update ———
+        # build update payload
+        update_data = {}
+        if new_u and new_u != current_username:
+            update_data["username"] = new_u
+        if new_e and new_e != old_email:
+            update_data["email"] = new_e
+            update_data["email_verified"] = False
+
+        if update_data:
+            # apply the update
+            update_records(
+                table="users",
+                data=update_data,
+                where_clause="userID = %s",
+                where_params=(user_id,)
+            )
+
+            # if email changed, generate & send new verification token
+            verification_sent = False
+            if "email" in update_data:
+                # revoke prior tokens
+                update_records(
+                    table="email_tokens",
+                    data={"revoked": True},
+                    where_clause="userID = %s",
+                    where_params=(user_id,)
+                )
+                # new 6-digit code
+                code = f"{random.randint(100000, 999999):06d}"
+                expiry = datetime.now(timezone.utc) + timedelta(minutes=5)
+                insert_record(
+                    "email_tokens",
+                    {
+                        "userID":      user_id,
+                        "email_token": code,
+                        "expires_at":  expiry,
+                        "revoked":     False
+                    }
+                )
+                # send mail
+                send_verification_email(new_u or current_username, code, new_e)
+                verification_sent = True
+
+            # prepare response
+            resp = {
+                "username": update_data.get("username", new_u or current_username),
+                "email":    update_data.get("email", old_email),
+                "disable":  0,
+                "delete":   0,
+                "verificationSent": verification_sent
+            }
+            msg = "Profile updated" + ("; verification required" if verification_sent else "")
+            return return_statement(resp, msg, 200)
+
+        # nothing to do
+        return return_statement("", "No changes requested", 400)
+
+    except Exception:
+        current_app.logger.exception("Error in submit-profile")
+        return return_statement("", "Internal server error", 500)

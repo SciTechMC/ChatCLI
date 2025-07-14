@@ -4,16 +4,12 @@ from waitress import serve
 import logging
 from dotenv import load_dotenv
 import os
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-
-limiter = Limiter(get_remote_address)
 
 load_dotenv()
 
 app = create_app()
 
-if os.getenv("PROD_STAGE") == "dev":
+if os.getenv("FLASK_ENV") == "dev":
     logging.getLogger("db-debug").setLevel(logging.DEBUG)
 
 @app.teardown_appcontext
@@ -22,9 +18,9 @@ def teardown_db(exception):
 
 if __name__ == "__main__":
     try:
-        if os.getenv("PROD_STAGE") == "prod":
+        if os.getenv("FLASK_ENV") == "prod":
             serve(app, host='0.0.0.0', port=5123, threads=os.getenv("THREADS", 4))
-        elif os.getenv("PROD_STAGE") == "dev":
+        elif os.getenv("FLASK_ENV") == "dev":
             app.run(host='0.0.0.0', port=5123, debug=True)
     except Exception as e:
         print(f"Error: {e}")

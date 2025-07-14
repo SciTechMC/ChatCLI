@@ -45,7 +45,8 @@ def create_database_and_tables():
                       password       VARCHAR(128) NOT NULL,
                       email          VARCHAR(100),
                       created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
-                      email_verified BOOLEAN      DEFAULT FALSE
+                      email_verified BOOLEAN      DEFAULT FALSE,
+                      disabled       BOOLEAN      DEFAULT FALSE
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 
@@ -164,21 +165,22 @@ def create_database_and_tables():
         raise
 
 def run_application(flask_script="main.py", fastapi_script="app/websockets/main.py"):
-    """Launch the Flask and FastAPI scripts in separate CMD windows after DB is ready."""
+    """Launch the Flask and FastAPI scripts in separate CMD windows with clear titles."""
     try:
         logging.info(f"Starting Flask app in new CMD: {flask_script}")
-        flask_proc = subprocess.Popen(
-            ["cmd.exe", "/c", "start", "cmd.exe", "/k", f"python {flask_script}"]
-        )
+        subprocess.Popen([
+            "cmd.exe", "/c",
+            "start", "Flask Backend",      # <-- window title
+            "cmd.exe", "/k", f"python {flask_script}"
+        ])
 
         logging.info(f"Starting FastAPI app in new CMD: {fastapi_script}")
-        fastapi_proc = subprocess.Popen(
-            ["cmd.exe", "/c", "start", "cmd.exe", "/k", f"python {fastapi_script}"]
-        )
+        subprocess.Popen([
+            "cmd.exe", "/c",
+            "start", "FastAPI Backend",    # <-- window title
+            "cmd.exe", "/k", f"python {fastapi_script}"
+        ])
 
-        # Optionally, wait for both processes to finish (the started CMDs will stay open)
-        # flask_proc.wait()
-        # fastapi_proc.wait()
     except Exception as e:
         logging.error(f"Error starting applications: {e}")
         raise

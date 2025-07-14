@@ -56,6 +56,30 @@
       </div>
     </div>
   </div>
+  <!-- ★ Profile Modal (add just above your <script> tag) -->
+  <div id="profile-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Edit Profile</h2>
+      <form id="profile-form">
+        <label for="edit-username">Username</label>
+        <input type="text" id="username" name="username" required />
+
+        <label for="edit-email">Email address</label>
+        <input type="email" id="email" name="email" required />
+
+        <div class="modal-actions">
+          <button type="submit" class="modal-btn">Save changes</button>
+          <button type="button" id="disable-account-btn" class="modal-btn secondary">Disable account</button>
+          <button type="button" id="delete-account-btn" class="modal-btn danger">Delete account</button>
+        </div>
+
+        <div class="links">
+          <a href="reset-password-request.html">Reset password</a>
+        </div>
+      </form>
+      <button id="close-profile-modal" class="modal-close" title="Close">&times;</button>
+    </div>
+  </div>
 
   <script src="main.renderer.js"></script>
 </body>
