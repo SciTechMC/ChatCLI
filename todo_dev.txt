@@ -1,2 +1,0 @@
-1. Improve UI design
-2. Check for display clearing with os.system('cls')
