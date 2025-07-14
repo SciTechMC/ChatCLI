@@ -4,6 +4,10 @@ from waitress import serve
 import logging
 from dotenv import load_dotenv
 import os
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(get_remote_address)
 
 load_dotenv()
 
