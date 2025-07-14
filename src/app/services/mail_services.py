@@ -2,6 +2,9 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import logging
+
+tmp_logger = logging.getLogger(__name__)
 
 # Utility to send raw emails via SMTP
 
@@ -30,7 +33,10 @@ def send_email(subject: str, body: str, recipient: str) -> bool:
         return True
     except Exception as e:
         # Consider logging this error in production
-        print(f"Failed to send email to {recipient}: {e}")
+        if os.getenv("FLASK_ENV") == "development":
+            print(f"Failed to send email to {recipient}: {e}")
+        else:
+            tmp_logger.error("Failed to send email to %s: %s", recipient, e)
         return False
 
 

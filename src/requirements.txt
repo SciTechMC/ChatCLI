@@ -1,6 +1,6 @@
 fastapi==0.115.14
 Flask==3.1.1
-mysql-connector-python==8.4.0
+mysql-connector-python>=9.1.0
 bcrypt==4.3.0
 waitress==3.0.2
 python-dotenv==1.1.1

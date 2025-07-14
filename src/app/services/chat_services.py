@@ -2,6 +2,10 @@ from flask import request, current_app
 from app.services.base_services import authenticate_token, return_statement
 from app.database.db_helper import transactional, insert_record, fetch_records, get_db, update_records
 import mysql.connector
+import logging
+import os
+
+tmp_logger = logging.getLogger(__name__)
 
 def fetch_chats():
     """
@@ -109,12 +113,14 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
             "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
             (chat_id, sender_id),
         )
-        print(f"Inserted sender {sender_id} into chat {chat_id}")
+        if os.getenv("FLASK_ENV") == "development":
+            print(f"Inserted sender {sender_id} into chat {chat_id}")
         cursor.execute(
             "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
             (chat_id, receiver_id),
         )
-        print(f"Inserted receiver {receiver_id} into chat {chat_id}")
+        if os.getenv("FLASK_ENV") == "development":
+            print(f"Inserted receiver {receiver_id} into chat {chat_id}")
     except mysql.connector.IntegrityError as e:
         # If duplicate, rollback and raise a user-friendly error
         conn.rollback()
@@ -122,7 +128,10 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
     except mysql.connector.Error as e:
         # Handle other MySQL errors
         conn.rollback()
-        print(f"Database error: {str(e)}")
+        if os.getenv("FLASK_ENV") == "development":
+            print(f"Database error: {str(e)}")
+        else:
+            tmp_logger.error("Database error: %s", str(e))
         raise Exception(f"Database error: {str(e)}") from e
 
 def create_chat():
