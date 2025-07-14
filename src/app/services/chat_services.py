@@ -80,7 +80,8 @@ def fetch_chats():
         return {"response": response, "status": "ok"}
 
     except Exception as e:
-        return {"response": [], "status": str(e)}
+        current_app.logger.error("Unhandled exception in fetch_chats", exc_info=e)
+        return {"response": [], "status": "An internal error occurred!"}
 
 
 @transactional
