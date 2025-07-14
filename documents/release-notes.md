@@ -67,7 +67,7 @@ To participate in beta testing:
 5. Try deleting a chat and starting a new one
 6. Test password reset flow via the login screen
 
-📎 Download links (installer, source, etc.): ***\[Insert here]***
+📎 Download the setup .exe from down below
 
 📝 Share bugs, ideas, and feedback on the [GitHub Issues](#) page.
 
@@ -106,6 +106,4 @@ Messages and user data may be cleared between releases. This is a testing phase.
 
 ## 📌 Want Release Notifications?
 
-Subscribe to the release feed on GitHub or follow the discussion board for update alerts.
-
-📎 Installer & Download Links: ***\[Insert your links here]***
+Subscribe on [this website](http://fortbow.zapto.org:5123/subscribe)
