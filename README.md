@@ -10,5 +10,5 @@ No patent or trademark rights are granted or implied. Use of the name "ChatCLI" 
 
 Original repository: https://github.com/SciTechMC/ChatCLI
 
-Author: SciTechMCYear: 2025
+Author: SciTechMC Year: 2025
 
