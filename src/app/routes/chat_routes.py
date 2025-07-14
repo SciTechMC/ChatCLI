@@ -1,6 +1,6 @@
 from flask import Blueprint
 from app.services.chat_services import fetch_chats,create_chat, get_messages, delete_chat
-from flask import current_app, jsonify
+from flask import current_app, jsonify, request
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
 
@@ -8,7 +8,6 @@ chat = Blueprint("chat", __name__, url_prefix="/chat")
 def index():
     return "chat's index route"
 
-@chat.route("/fetch-chats", methods=["POST"])
 def route_fetch_chats():
     try:
         return fetch_chats()
@@ -23,14 +22,14 @@ def route_fetch_chats():
 @chat.route("/create-chat", methods=["POST"])
 def route_create_chat():
     try:
-        return create_chat()
+        return create_chat(request.json or {})
     except Exception as e:
         current_app.logger.error("Unhandled exception in create_chat", exc_info=e)
         return jsonify({
             "status": "error",
             "message": "Internal server error"
         }), 500
-
+    
 @chat.route("/messages", methods=["POST"])
 def route_messages():
     return get_messages()

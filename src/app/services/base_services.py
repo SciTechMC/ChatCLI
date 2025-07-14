@@ -74,8 +74,6 @@ def index():
             "message": "Internal server error"
         }), 500
 
-
-
 def subscribe():
     if request.method == "POST":
         email = request.form.get("email")
