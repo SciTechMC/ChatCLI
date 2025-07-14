@@ -194,7 +194,7 @@ def create_chat():
 
     except Exception as e:
         current_app.logger.exception("Error during chat creation")
-        return return_statement("", str(e), 500)
+        return return_statement("", "An internal server error occurred", 500)
 
 
 def get_messages():
