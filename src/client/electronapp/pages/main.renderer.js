@@ -312,58 +312,68 @@ editMembersBtn.addEventListener('click', async () => {
   }
   connectWS();
 
-  // 4) Load chat list (HTTP)
+  /**
+   * Load and render the user’s chat list.
+   */
   async function loadChats() {
     try {
+      // 1) Fetch chats from the server
       const res = await window.api.request('/chat/fetch-chats', {
         body: JSON.stringify({ session_token: token })
       });
-  
       const chats = Array.isArray(res.response) ? res.response : [];
+
+      // 2) Clear existing list & reset UI
       chatListEl.innerHTML = '';
       messageControls.classList.add('hidden');
-      chats.forEach(({ chatID, name, online }) => {
+      placeholder.style.display = 'block';
+
+      // 3) If no chats, show a friendly placeholder
+      if (chats.length === 0) {
+        const li = document.createElement('li');
+        li.classList.add('chat-entry', 'placeholder');
+        li.textContent = 'No conversations yet';
+        chatListEl.appendChild(li);
+        return;
+      }
+
+      // 4) Render each chat
+      chats.forEach(({ chatID, name, type }) => {
         const li = document.createElement('li');
         li.classList.add('chat-entry');
-        li.dataset.chatId = chatID;
+        li.dataset.chatId   = chatID;
         li.dataset.username = name;
-  
-        // Create the status dot
-        const statusIndicator = document.createElement('div');
-        statusIndicator.classList.add('status-indicator', online ? 'online' : 'offline');
-  
-        // Create username text
-        const chatName = document.createElement('span');
-        chatName.textContent = name;
-        chatName.classList.add('chat-name');
-  
-        // Combine status dot + name
+        li.dataset.type     = type;
+
+        // Chat title area
         const nameWrapper = document.createElement('div');
         nameWrapper.classList.add('chat-name-wrapper');
-        nameWrapper.append(statusIndicator, chatName);
-  
-        // Create delete button
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerHTML = '&times;';
-        deleteBtn.className = 'delete-chat-btn';
-        deleteBtn.title = 'Delete chat';
-        deleteBtn.onclick = (e) => {
-          e.stopPropagation(); // prevent triggering chat selection
-          handleDeleteChat(chatID);
-        };
-  
-        // Header row: [● name]     [×]
+        const chatName = document.createElement('span');
+        chatName.classList.add('chat-name');
+        chatName.textContent = name;
+        nameWrapper.append(chatName);
+
+        // Delete‐chat button
+        const archiveBtn = document.createElement('button');
+        archiveBtn.classList.add('archive-chat-btn');
+        archiveBtn.title = 'Archive chat';
+        archiveBtn.innerHTML = '&#128190;'; // 📁 icon, or use '×' if you prefer
+        archiveBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          handleArchiveChat(chatID);
+        });
+
+        // Wrap into a header row
         const header = document.createElement('div');
         header.classList.add('chat-header');
-        header.append(nameWrapper, deleteBtn);
-  
+        header.append(nameWrapper, archiveBtn);
+
+        // Assemble
         li.append(header);
-        li.addEventListener('click', (e) => {
-          if (e.target.closest('.delete-chat-btn')) return; // don't select chat if delete was clicked
-          selectChat(chatID);
-        });  
+        li.addEventListener('click', () => selectChat(chatID));
         chatListEl.appendChild(li);
       });
+
     } catch (err) {
       console.error('loadChats error', err);
     }
@@ -405,64 +415,87 @@ editMembersBtn.addEventListener('click', async () => {
   
 
   // Add deleteChat function
-  async function deleteChat(chatID) {
-    console.log('Deleting chat with ID:', chatID); // Debugging
-
+  async function archiveChat(chatID) {
     try {
-      await window.api.request('/chat/delete-chat', {
+      await window.api.request('/chat/archive-chat', {
         body: JSON.stringify({ session_token: token, chatID })
       });
-      showToast('Chat deleted successfully!', 'info');
-      await loadChats(); // Reload the chat list
+      showToast('Chat archived successfully!', 'info');
+      await loadChats();
+      // if you’re currently viewing that chat, clear the view:
+      if (currentChatID === chatID) selectChat(null);
     } catch (err) {
-      console.error('deleteChat error', err);
-      showToast(`Could not delete chat: ${err.message || err}`, 'error');
+      console.error('archiveChat error', err);
+      showToast(`Could not archive chat: ${err.message || err}`, 'error');
     }
   }
 
-  // Handle delete chat with confirmation
-  async function handleDeleteChat(chatID) {
-    chatToDelete = chatID; // Store chatID temporarily
-    showModal('Are you sure you want to delete this chat?', async () => {
-      if (chatToDelete) {
-        await deleteChat(chatToDelete);
-        chatToDelete = null; // Reset chatID after deletion
+  /**
+   * Prompt the user, then archive on confirm.
+   */
+  async function handleArchiveChat(chatID) {
+    showModal(
+      'Are you sure you want to archive this chat? You can still rejoin it later.',
+      async () => {
+        await archiveChat(chatID);
       }
-    });
+    );
   }
 
-  // 5) Join chat via WS, then fetch+render history via HTTP
-// 5) Join chat via WS, then fetch+render history via HTTP
+/**
+ * Selects a chat by ID:
+ *  • Shows or hides the header + Edit-Members button
+ *  • Leaves the old room and joins the new one via WS
+ *  • Fetches and renders message history
+ *  • Highlights the active chat in the sidebar
+ */
 async function selectChat(chatID) {
-  // No selection: clear everything
+  // 1) No selection: clear and hide
   if (!chatID) {
     currentChatID = null;
     messagesEl.innerHTML = '';
     messageControls.classList.add('hidden');
     placeholder.style.display = 'block';
     typingIndicator.style.display = 'none';
+    chatHeader.classList.add('hidden');
     return;
   }
 
-  // Show message controls
+  // 2) Grab the corresponding <li> (must do this before using it!)
+  const li = chatListEl.querySelector(`li[data-chat-id="${chatID}"]`);
+  const name = li?.dataset.username ?? 'Unknown Chat';
+  const type = li?.dataset.type     ?? 'private';
+
+  // 3) Show header + set title
+  chatHeader.classList.remove('hidden');
+  chatTitle.textContent = name;
+
+  // 4) Show Edit-Members only for groups
+  if (type === 'group') {
+    editMembersBtn.classList.remove('hidden');
+  } else {
+    editMembersBtn.classList.add('hidden');
+  }
+
+  // 5) Reveal message controls
   placeholder.style.display = 'none';
   messageControls.classList.remove('hidden');
   typingIndicator.style.display = 'none';
 
-  // If already in this chat, do nothing
+  // 6) If already in this chat, stop here
   if (currentChatID === chatID) return;
 
-  // Leave previous chat
+  // 7) Leave old room
   if (currentChatID != null) {
     ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
   }
   currentChatID = chatID;
   messagesEl.innerHTML = '';
 
-  // Join the new chat
+  // 8) Join new room
   ws.send(JSON.stringify({ type: 'join_chat', chatID }));
 
-  // Fetch and render history
+  // 9) Fetch + render history
   try {
     const res = await window.api.request('/chat/messages', {
       body: JSON.stringify({ username, session_token: token, chatID })
@@ -473,11 +506,11 @@ async function selectChat(chatID) {
     console.error('history fetch error', err);
   }
 
-  // Highlight active chat in the list
-  chatListEl.querySelectorAll('li').forEach(li => {
-    li.classList.toggle('active', Number(li.dataset.chatId) === chatID);
+  // 10) Highlight the active chat
+  chatListEl.querySelectorAll('li').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.chatId) === chatID);
   });
-} 
+}
 
   // 6) Render a single message
   function appendMessage({ username: msgUser, message, timestamp }) {
@@ -611,7 +644,7 @@ async function selectChat(chatID) {
     // remove button
     const rem = document.createElement('button');
     rem.textContent = '×';
-    rem.className = 'delete-chat-btn';
+    rem.className = 'archive-chat-btn';
     rem.style.marginLeft = '8px';
     rem.onclick = () => {
       groupMembers = groupMembers.filter(u => u !== lower);

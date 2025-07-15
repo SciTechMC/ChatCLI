@@ -466,8 +466,8 @@ button[disabled] {
   background: rgba(255, 107, 107, 0.1);
 }
 
-/* Delete Chat Button */
-.delete-chat-btn {
+/* archive Chat Button */
+.archive-chat-btn {
   background: transparent;
   color: var(--error);
   border: none;
@@ -485,7 +485,7 @@ button[disabled] {
   transition: var(--transition);
 }
 
-.delete-chat-btn:hover {
+.archive-chat-btn:hover {
   background-color: rgba(255, 107, 107, 0.15); /* soft red hover */
   color: white;
 }
@@ -498,14 +498,14 @@ button[disabled] {
   border-radius: var(--border-radius-sm);
   transition: var(--transition);
   min-height: 32px;
-  line-height: 1.2;
+  line-height: 1.2; 
 }
 
 .chat-entry:hover {
   background: var(--hover-dark);
 }
 
-/* Top row: Username and delete button */
+/* Top row: Username and archive button */
 .chat-header {
   display: flex;
   align-items: center;

@@ -10,7 +10,7 @@ tmp_logger = logging.getLogger(__name__)
 def fetch_chats():
     """
     POST JSON: { session_token }
-    Returns: { response: [ {chatID, name}, … ], status }
+    Returns: { response: [ { chatID, name, type }, … ], status }
     """
     client = request.get_json() or {}
     session_token = client.get("session_token")
@@ -20,25 +20,29 @@ def fetch_chats():
         return return_statement([], "Unable to verify user!", 401)
 
     # Get userID
-    user_rows = fetch_records(
+    rows = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not user_rows:
+    if not rows:
         return return_statement([], "User not found", 404)
-    user_id = user_rows[0]["userID"]
+    user_id = rows[0]["userID"]
 
     # Get all chatIDs
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT chatID FROM participants WHERE userID = %s", (user_id,))
+    cursor.execute(
+        "SELECT chatID FROM participants WHERE userID = %s AND archived = 0",
+        (user_id,)
+    )
+
     chat_ids = [r[0] for r in cursor.fetchall()]
     if not chat_ids:
         return return_statement([], "", 200)
 
-    # Fetch chat metadata
+    # Fetch chat metadata (type + group_name)
     fmt = ",".join(["%s"] * len(chat_ids))
     chats = fetch_records(
         table="chats",
@@ -46,6 +50,7 @@ def fetch_chats():
         params=tuple(chat_ids),
         fetch_all=True
     )
+    # Build maps
     group_map   = {c["chatID"]: c["group_name"] for c in chats if c["type"] == "group"}
     private_ids = [c["chatID"] for c in chats if c["type"] == "private"]
 
@@ -73,14 +78,22 @@ def fetch_chats():
         )
         id_to_name = {r["userID"]: r["username"] for r in user_rows}
 
-    # Build the response array
+    # Build the response array, now including type
     response = []
     for cid in chat_ids:
         if cid in group_map:
-            response.append({"chatID": cid, "name": group_map[cid]})
+            response.append({
+                "chatID": cid,
+                "name":   group_map[cid],
+                "type":   "group"
+            })
         else:
-            peer = chat_to_user.get(cid)
-            response.append({"chatID": cid, "name": id_to_name.get(peer, "Unknown")})
+            const_peer = chat_to_user.get(cid)
+            response.append({
+                "chatID": cid,
+                "name":   id_to_name.get(const_peer, "Unknown"),
+                "type":   "private"
+            })
     return return_statement(response, "", 200)
 
 @transactional
@@ -155,12 +168,14 @@ def remove_participant():
     cur.execute(f"DELETE FROM participants WHERE chatID=%s AND userID IN ({ph})", (chat_id, *ids))
     conn.commit()
 
-    # If <2 left, drop the entire chat
+    # If <2 left, just remove the last participant — leave chat & messages intact
     cur.execute("SELECT COUNT(*) FROM participants WHERE chatID=%s", (chat_id,))
     if cur.fetchone()[0] < 2:
-        cur.execute("DELETE FROM messages WHERE chatID=%s", (chat_id,))
-        cur.execute("DELETE FROM chats WHERE chatID=%s", (chat_id,))
+        # delete any remaining participant row(s)
+        cur.execute("DELETE FROM participants WHERE chatID=%s", (chat_id,))
         conn.commit()
+        return return_statement({"chatID": chat_id}, "Participant removed, chat retained", 200)
+
 
     return return_statement({"chatID": chat_id}, "Members removed", 200)
 
@@ -359,10 +374,10 @@ def get_messages():
     return return_statement(messages, "", 200)
 
 
-def delete_chat():
+def archive_chat():
     """
-    Deletes a chat for the user by removing them as a participant.
-    If no participants remain, the chat and its messages are deleted.
+    Archives a chat for the user by setting archived=1.
+    Other participants still see it.
     """
     client = request.get_json() or {}
     session_token = client.get("session_token")
@@ -376,53 +391,31 @@ def delete_chat():
     if not username:
         return return_statement("", "Unable to verify user!", 401)
 
+    # Get the user's ID
+    user_rows = fetch_records(
+        table="users",
+        where_clause="LOWER(username) = %s",
+        params=(username.lower(),),
+        fetch_all=True
+    )
+    if not user_rows:
+        return return_statement("", "User not found!", 404)
+    user_id = user_rows[0]["userID"]
+
+    conn = get_db()
+    cursor = conn.cursor()
     try:
-        # Get the user's ID
-        user = fetch_records(
-            table="users",
-            where_clause="LOWER(username) = %s",
-            params=(username,),
-            fetch_all=True
+        # Set archived=1 for this user+chat
+        cursor.execute(
+            "UPDATE participants SET archived = 1 WHERE chatID = %s AND userID = %s",
+            (chat_id, user_id)
         )
-        if not user:
-            return return_statement("", "User not found!", 404)
-        user_id = user[0]["userID"]
-
-        # Check if the user is a participant in the chat
-        participant = fetch_records(
-            table="participants",
-            where_clause="chatID = %s AND userID = %s",
-            params=(chat_id, user_id),
-            fetch_all=True
-        )
-        if not participant:
-            return return_statement("", "Chat not found or access denied", 404)
-
-        # Remove the user from the participants table
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM participants WHERE chatID = %s AND userID = %s", (chat_id, user_id))
         conn.commit()
-
-        # Check if there are any participants left in the chat
-        remaining_participants = fetch_records(
-            table="participants",
-            where_clause="chatID = %s",
-            params=(chat_id,),
-            fetch_all=True
-        )
-        if not remaining_participants:
-            # Delete the chat and its messages
-            cursor.execute("DELETE FROM messages WHERE chatID = %s", (chat_id,))
-            cursor.execute("DELETE FROM chats WHERE chatID = %s", (chat_id,))
-            conn.commit()
-
-        return return_statement("Chat deleted successfully!", "", 200)
-
+        return return_statement("", "Chat archived", 200)
     except Exception as e:
-        current_app.logger.exception("Error during chat deletion")
-        return return_statement("", str(e), 500)
-    
+        current_app.logger.exception("Error archiving chat")
+        return return_statement("", "Could not archive chat", 500)
+
 @transactional
 def _create_group_logic(owner_id: int, group_name: str, member_ids: list[int]) -> int:
     conn = get_db()

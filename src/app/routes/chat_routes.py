@@ -3,7 +3,7 @@ from app.services.chat_services import (
     fetch_chats,
     create_chat,         # private‐chat creator
     get_messages,
-    delete_chat,
+    archive_chat,
     create_group,        # group‐chat creator
     add_participant,     # add to group
     remove_participant,   # remove from group
@@ -97,12 +97,12 @@ def route_messages():
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 
-@chat.route("/delete-chat", methods=["POST"])
-def route_delete_chat():
+@chat.route("/archive-chat", methods=["POST"])
+def route_archive_chat():
     try:
-        return delete_chat()
+        return archive_chat()
     except Exception as e:
-        current_app.logger.error("Unhandled exception in delete_chat", exc_info=e)
+        current_app.logger.error("Unhandled exception in archive_chat", exc_info=e)
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 @chat.route("/get-members", methods=["POST"])
