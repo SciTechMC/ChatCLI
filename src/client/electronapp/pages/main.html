@@ -15,49 +15,23 @@
       <div id="new-chat">
         <!-- Private chat -->
         <div class="input-with-icon">
-          <input
-            id="new-chat-username"
-            placeholder="Add friend by username"
-          />
-          <span
-            class="add-icon"
-            id="create-chat-btn"
-            title="Start private chat"
-          >+</span>
-        </div>
-      
-        <!-- Group chat: open modal -->
-        <div class="input-with-icon" style="margin-top: var(--space-sm);">
-          <input
-            id="new-group-name"
-            placeholder="New group name"
-          />
-          <span
-            class="add-icon"
-            id="create-group-btn"
-            title="Add members to group"
-          >+</span>
+          <input id="new-chat-username" placeholder="Add friend by username" />
+          <span class="add-icon" id="create-chat-btn" title="Start private chat">+</span>
         </div>
 
-      
+        <!-- Group chat: open modal -->
+        <div class="input-with-icon" style="margin-top: var(--space-sm);">
+          <input id="new-group-name" placeholder="New group name" />
+          <span class="add-icon" id="create-group-btn" title="Add members to group">+</span>
+        </div>
+
         <!-- Group chat: step 2 = add members -->
-        <div
-          id="new-group-members-container"
-          class="input-with-icon hidden"
-          style="margin-top: var(--space-sm);"
-        >
-          <input
-            id="new-group-members-input"
-            placeholder="Members (comma-separated usernames)"
-          />
-          <span
-            class="add-icon"
-            id="add-group-members-btn"
-            title="Add members (step 2)"
-          >+</span>
+        <div id="new-group-members-container" class="input-with-icon hidden" style="margin-top: var(--space-sm);">
+          <input id="new-group-members-input" placeholder="Members (comma-separated usernames)" />
+          <span class="add-icon" id="add-group-members-btn" title="Add members (step 2)">+</span>
         </div>
       </div>
-         
+
       <ul id="chat-list"></ul>
       <button id="logout-btn" type="button">Logout</button>
     </div>
@@ -73,7 +47,7 @@
         <div id="no-chat-selected" class="placeholder">
           <h2>Welcome to ChatCLI</h2>
           <p>Select a conversation to start chatting</p>
-        </div>  
+        </div>
       </div>
 
       <div id="typing-indicator" style="display:none; font-style:italic; margin: 5px;"></div>
@@ -87,7 +61,6 @@
         </button>
       </div>
     </div>
-
   </div>
 
   <!-- Toast container -->
@@ -103,6 +76,7 @@
       </div>
     </div>
   </div>
+
   <!-- Group Creation Modal -->
   <div id="group-modal" class="modal hidden">
     <div class="modal-content">
@@ -111,16 +85,8 @@
       <p><strong>Group:</strong> <span id="group-modal-name-display"></span></p>
       <!-- Input + button to add one member at a time -->
       <div class="input-with-icon" style="margin-top: var(--space-sm);">
-        <input
-          type="text"
-          id="group-member-input"
-          placeholder="Enter username to add"
-        />
-        <span
-          class="add-icon"
-          id="group-add-member-btn"
-          title="Add member"
-        >+</span>
+        <input type="text" id="group-member-input" placeholder="Enter username to add" />
+        <span class="add-icon" id="group-add-member-btn" title="Add member">+</span>
       </div>
       <!-- List of added members -->
       <ul id="group-member-list" style="margin-top: var(--space-sm); list-style:none; padding:0;"></ul>
@@ -133,7 +99,7 @@
     </div>
   </div>
 
-  <!-- ★ Profile Modal (add just above your <script> tag) -->
+  <!-- Profile Modal -->
   <div id="profile-modal" class="modal hidden">
     <div class="modal-content">
       <h2>Edit Profile</h2>
@@ -157,6 +123,7 @@
       <button id="close-profile-modal" class="modal-close" title="Close">&times;</button>
     </div>
   </div>
+
   <!-- Edit Group Members Modal -->
   <div id="edit-members-modal" class="modal hidden">
     <div class="modal-content">
@@ -174,7 +141,6 @@
       <button id="edit-members-modal-close" class="modal-close" title="Close">&times;</button>
     </div>
   </div>
-
 
   <script src="main.renderer.js"></script>
 </body>
