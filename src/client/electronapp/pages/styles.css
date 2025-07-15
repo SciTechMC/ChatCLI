@@ -910,3 +910,32 @@ input:valid   { border-color: var(--success); }
 .modal-btn.secondary:hover {
   background: darken(var(--secondary), 10%);
 }
+/* ─── Chat header in chat-window ─── */
+#chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--card-dark);
+  border-bottom: 1px solid var(--border-dark);
+}
+#chat-title {
+  font-size: var(--font-lg);
+  font-weight: bold;
+}
+/* Modal for editing members */
+#edit-members-modal .modal-content {
+  width: 400px;
+  max-width: 90%;
+}
+#edit-member-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-xs) 0;
+}
+#edit-member-list li button {
+  background: none;
+  border: none;
+  font-size: 1em;
+  cursor: pointer;
+}

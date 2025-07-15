@@ -177,6 +177,33 @@ deleteAccountBtn.addEventListener('click', () => {
   const sendBtn       = document.getElementById('send-btn');
   const logoutBtn     = document.getElementById('logout-btn');
   const placeholder = document.getElementById('no-chat-selected');
+  // Group-modal elements & state
+  const groupModalNameDisplay  = document.getElementById('group-modal-name-display');
+  const groupMemberInput       = document.getElementById('group-member-input');
+  const groupAddMemberBtn      = document.getElementById('group-add-member-btn');
+  const groupMemberList        = document.getElementById('group-member-list');
+  const groupCreateSubmitBtn   = document.getElementById('group-create-submit-btn');
+  const groupCancelBtn         = document.getElementById('group-cancel-btn');
+  const groupModalClose        = document.getElementById('group-modal-close');
+  const groupModal             = document.getElementById('group-modal');
+  let   groupMembers           = [];
+  const newGroupNameInput       = document.getElementById('new-group-name');
+  const createGroupBtn           = document.getElementById('create-group-btn');
+
+  // Chat header & Edit-Members modal
+  const chatHeader         = document.getElementById('chat-header');
+  const chatTitle          = document.getElementById('chat-title');
+  const editMembersBtn     = document.getElementById('edit-members-btn');
+
+  const editMembersModal       = document.getElementById('edit-members-modal');
+  const editMemberList         = document.getElementById('edit-member-list');
+  const editMemberInput        = document.getElementById('edit-member-input');
+  const editMemberAddBtn       = document.getElementById('edit-member-add-btn');
+  const editMembersCloseBtn    = document.getElementById('edit-members-close-btn');
+  const editMembersModalClose  = document.getElementById('edit-members-modal-close');
+
+  let currentMembers = [];  // will hold usernames for the current group
+
 
   let currentChatID = null;
   let ws;
@@ -189,6 +216,57 @@ deleteAccountBtn.addEventListener('click', () => {
   document.getElementById('no-chat-selected').style.display = 'block';
 
   updateSendButtonState();
+
+  // 1) Open modal
+editMembersBtn.addEventListener('click', async () => {
+  // Fetch current members
+  const res = await window.api.request('/chat/get-members', {
+    body: JSON.stringify({ session_token: token, chatID: currentChatID })
+  });
+  currentMembers = Array.isArray(res.response) ? res.response : [];
+  // Render list
+  editMemberList.innerHTML = '';
+  currentMembers.forEach(u => {
+    const li = document.createElement('li');
+    li.textContent = u;
+    const btn = document.createElement('button');
+    btn.textContent = '×';
+    btn.onclick = async () => {
+      await window.api.request('/chat/remove-members', {
+        body: JSON.stringify({ session_token: token, chatID: currentChatID, members: [u] })
+      });
+      li.remove();
+    };
+    li.append(btn);
+    editMemberList.append(li);
+  });
+  editMembersModal.classList.remove('hidden');
+});
+
+  // 2) Add a new member
+  editMemberAddBtn.addEventListener('click', async () => {
+    const u = editMemberInput.value.trim();
+    if (!u) return;
+    await window.api.request('/chat/add-members', {
+      body: JSON.stringify({ session_token: token, chatID: currentChatID, members: [u] })
+    });
+    // Append to list
+    const li = document.createElement('li');
+    li.textContent = u;
+    const btn = document.createElement('button');
+    btn.textContent = '×';
+    btn.onclick = () => li.remove();
+    li.append(btn);
+    editMemberList.append(li);
+    editMemberInput.value = '';
+  });
+
+  // 3) Close modal
+  [editMembersCloseBtn, editMembersModalClose].forEach(btn =>
+    btn.addEventListener('click', () => {
+      editMembersModal.classList.add('hidden');
+    })
+  );
 
 
   function showToast(message, type = 'info') {
@@ -354,46 +432,52 @@ deleteAccountBtn.addEventListener('click', () => {
   }
 
   // 5) Join chat via WS, then fetch+render history via HTTP
-  async function selectChat(chatID) {
-    if (!chatID) {
-      currentChatID = null;
-      messagesEl.innerHTML = '';
-      messageControls.classList.add('hidden');
-      placeholder.style.display = 'block';
-      typingIndicator.style.display = 'none';
-      return;
-    }
-  
-    placeholder.style.display = 'none';
-    messageControls.classList.remove('hidden');
-    typingIndicator.style.display = 'none';
-  
-    if (currentChatID === chatID) return;
-  
-    if (currentChatID != null) {
-      ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
-    }
-    currentChatID = chatID;
+// 5) Join chat via WS, then fetch+render history via HTTP
+async function selectChat(chatID) {
+  // No selection: clear everything
+  if (!chatID) {
+    currentChatID = null;
     messagesEl.innerHTML = '';
-  
-    ws.send(JSON.stringify({ type: 'join_chat', chatID }));
-  
-    try {
-      const res = await window.api.request('/chat/messages', {
-        body: JSON.stringify({ username, session_token: token, chatID })
-      });
-      const history = Array.isArray(res.response) ? res.response : [];
-      history.forEach(appendMessage);
-    } catch (err) {
-      console.error('history fetch error', err);
-    }
-  
-    chatListEl.querySelectorAll('li').forEach(li => {
-      li.classList.toggle('active', Number(li.dataset.chatId) === chatID);
-    });
+    messageControls.classList.add('hidden');
+    placeholder.style.display = 'block';
+    typingIndicator.style.display = 'none';
+    return;
   }
-  
-  
+
+  // Show message controls
+  placeholder.style.display = 'none';
+  messageControls.classList.remove('hidden');
+  typingIndicator.style.display = 'none';
+
+  // If already in this chat, do nothing
+  if (currentChatID === chatID) return;
+
+  // Leave previous chat
+  if (currentChatID != null) {
+    ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
+  }
+  currentChatID = chatID;
+  messagesEl.innerHTML = '';
+
+  // Join the new chat
+  ws.send(JSON.stringify({ type: 'join_chat', chatID }));
+
+  // Fetch and render history
+  try {
+    const res = await window.api.request('/chat/messages', {
+      body: JSON.stringify({ username, session_token: token, chatID })
+    });
+    const history = Array.isArray(res.response) ? res.response : [];
+    history.forEach(appendMessage);
+  } catch (err) {
+    console.error('history fetch error', err);
+  }
+
+  // Highlight active chat in the list
+  chatListEl.querySelectorAll('li').forEach(li => {
+    li.classList.toggle('active', Number(li.dataset.chatId) === chatID);
+  });
+} 
 
   // 6) Render a single message
   function appendMessage({ username: msgUser, message, timestamp }) {
@@ -489,6 +573,79 @@ deleteAccountBtn.addEventListener('click', () => {
     } catch (err) {
       console.error('createChat error', err);
       showToast('Could not create chat: ' + (err.message || err), 'error');
+    }
+  });
+
+  //  —  Open group-creation modal
+  createGroupBtn.addEventListener('click', () => {
+    const name = newGroupNameInput.value.trim();
+    if (!name) return showToast('Enter a group name','error');
+    // show name in modal
+    groupModalNameDisplay.textContent = name;
+    // reset member list
+    groupMembers = [];
+    groupMemberList.innerHTML = '';
+    // open it
+    groupModal.classList.remove('hidden');
+  });
+
+  //  —  Close modal (Cancel or ×)
+  [groupCancelBtn, groupModalClose].forEach(btn =>
+    btn.addEventListener('click', () => {
+      groupModal.classList.add('hidden');
+    })
+  );
+
+  //  —  Add one member to the list
+  groupAddMemberBtn.addEventListener('click', () => {
+    const user = groupMemberInput.value.trim();
+    if (!user) return;
+    const lower = user.toLowerCase();
+    if (groupMembers.includes(lower)) {
+      return showToast(`${user} already added`,'warning');
+    }
+    groupMembers.push(lower);
+    // render it
+    const li = document.createElement('li');
+    li.textContent = user;
+    // remove button
+    const rem = document.createElement('button');
+    rem.textContent = '×';
+    rem.className = 'delete-chat-btn';
+    rem.style.marginLeft = '8px';
+    rem.onclick = () => {
+      groupMembers = groupMembers.filter(u => u !== lower);
+      li.remove();
+    };
+    li.append(rem);
+    groupMemberList.append(li);
+    groupMemberInput.value = '';
+  });
+
+  //  —  Submit the complete group
+  groupCreateSubmitBtn.addEventListener('click', async () => {
+    const name = newGroupNameInput.value.trim();
+    if (!name) return showToast('Enter a group name','error');
+    if (groupMembers.length === 0) return showToast('Add at least one member','error');
+    try {
+      const res = await window.api.request('/chat/create-group', {
+        body: JSON.stringify({
+          session_token: token,
+          name,
+          members: groupMembers
+        })
+      });
+      const newChatID = res.response.chatID;
+      showToast('Group created!','info');
+      // close & reset
+      groupModal.classList.add('hidden');
+      newGroupNameInput.value = '';
+      // refresh and join
+      await loadChats();
+      selectChat(newChatID);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to create group: ' + (err.message||err),'error');
     }
   });
 

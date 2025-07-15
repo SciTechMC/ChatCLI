@@ -111,7 +111,8 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS chats (
                       chatID     INT AUTO_INCREMENT PRIMARY KEY,
                       created_at DATETIME          DEFAULT CURRENT_TIMESTAMP,
-                      type       ENUM('private','group') NOT NULL DEFAULT 'private'
+                      type       ENUM('private','group') NOT NULL DEFAULT 'private',
+                      group_name VARCHAR(100) DEFAULT NULL
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 

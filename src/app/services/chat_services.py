@@ -9,80 +9,160 @@ tmp_logger = logging.getLogger(__name__)
 
 def fetch_chats():
     """
-    Fetches chat participants for a user.
-    Returns: {
-      "response": [
-        { "chatID": ..., "name": ... },
-        ...
-      ],
-      "status": "ok"
-    }
+    POST JSON: { session_token }
+    Returns: { response: [ {chatID, name}, … ], status }
     """
     client = request.get_json() or {}
     session_token = client.get("session_token")
 
-    # Verify the session token
     username = authenticate_token(session_token)
     if not username:
-        return {"response": [], "status": "Unable to verify user!"}
+        return return_statement([], "Unable to verify user!", 401)
 
-    try:
-        # Lookup the user's ID
-        users = fetch_records(
-            table="users",
-            where_clause="LOWER(username) = %s",
-            params=(username,),
-            fetch_all=True
-        )
-        if not users:
-            return {"response": [], "status": "User not found!"}
-        user_id = users[0]["userID"]
+    # Get userID
+    user_rows = fetch_records(
+        table="users",
+        where_clause="LOWER(username) = %s",
+        params=(username.lower(),),
+        fetch_all=True
+    )
+    if not user_rows:
+        return return_statement([], "User not found", 404)
+    user_id = user_rows[0]["userID"]
 
-        # Find all chatIDs this user participates in
-        parts = fetch_records(
-            table="participants",
-            where_clause="userID = %s",
-            params=(user_id,),
-            fetch_all=True
-        )
-        chat_ids = [r["chatID"] for r in parts]
-        if not chat_ids:
-            return {"response": [], "status": "ok"}
+    # Get all chatIDs
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chatID FROM participants WHERE userID = %s", (user_id,))
+    chat_ids = [r[0] for r in cursor.fetchall()]
+    if not chat_ids:
+        return return_statement([], "", 200)
 
-        # Find all participants in those chats, excluding the user
-        fmt = ",".join(["%s"] * len(chat_ids))
+    # Fetch chat metadata
+    fmt = ",".join(["%s"] * len(chat_ids))
+    chats = fetch_records(
+        table="chats",
+        where_clause=f"chatID IN ({fmt})",
+        params=tuple(chat_ids),
+        fetch_all=True
+    )
+    group_map   = {c["chatID"]: c["group_name"] for c in chats if c["type"] == "group"}
+    private_ids = [c["chatID"] for c in chats if c["type"] == "private"]
+
+    # For private chats: find the other user
+    chat_to_user = {}
+    id_to_name   = {}
+    if private_ids:
+        fmt2 = ",".join(["%s"] * len(private_ids))
         others = fetch_records(
             table="participants",
-            where_clause=f"chatID IN ({fmt}) AND userID != %s",
-            params=(*chat_ids, user_id),
+            where_clause=f"chatID IN ({fmt2}) AND userID != %s",
+            params=(*private_ids, user_id),
             fetch_all=True
         )
         chat_to_user = {r["chatID"]: r["userID"] for r in others}
-        if not chat_to_user:
-            return {"response": [], "status": "ok"}
 
-        # Get usernames for those userIDs
-        other_user_ids = list(set(chat_to_user.values()))
-        fmt = ",".join(["%s"] * len(other_user_ids))
-        rows = fetch_records(
+        # Resolve their usernames
+        user_ids = list(chat_to_user.values())
+        fmt3     = ",".join(["%s"] * len(user_ids))
+        user_rows = fetch_records(
             table="users",
-            where_clause=f"userID IN ({fmt})",
-            params=tuple(other_user_ids),
+            where_clause=f"userID IN ({fmt3})",
+            params=tuple(user_ids),
             fetch_all=True
         )
-        id_to_name = {r["userID"]: r["username"] for r in rows}
+        id_to_name = {r["userID"]: r["username"] for r in user_rows}
 
-        # Build response
-        response = [
-            {"chatID": cid, "name": id_to_name[uid]}
-            for cid, uid in chat_to_user.items()
-        ]
-        return {"response": response, "status": "ok"}
+    # Build the response array
+    response = []
+    for cid in chat_ids:
+        if cid in group_map:
+            response.append({"chatID": cid, "name": group_map[cid]})
+        else:
+            peer = chat_to_user.get(cid)
+            response.append({"chatID": cid, "name": id_to_name.get(peer, "Unknown")})
+    return return_statement(response, "", 200)
 
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in fetch_chats", exc_info=e)
-        return {"response": [], "status": "An internal error occurred!"}
+@transactional
+def add_participant():
+    """
+    POST JSON:
+      - session_token (str)
+      - chatID        (int)
+      - members       (list[str])
+    """
+    client = request.get_json() or {}
+    token   = client.get("session_token")
+    chat_id = client.get("chatID")
+    new_us  = client.get("members", [])
 
+    user = authenticate_token(token)
+    if not user:
+        return return_statement([], "Invalid session token", 401)
+
+    # Verify group
+    chat = fetch_records("chats", "chatID=%s AND type='group'", (chat_id,), fetch_all=True)
+    if not chat:
+        return return_statement([], "Group not found", 404)
+
+    # Lookup userIDs
+    ph       = ",".join(["%s"] * len(new_us))
+    rows     = fetch_records("users", f"LOWER(username) IN ({ph})", tuple(u.lower() for u in new_us), fetch_all=True)
+    if len(rows) != len(new_us):
+        return return_statement([], "One or more users not found", 404)
+    ids      = [r["userID"] for r in rows]
+
+    # Insert, ignore duplicates
+    conn = get_db(); cur = conn.cursor()
+    for uid in set(ids):
+        try:
+            cur.execute("INSERT INTO participants (chatID,userID) VALUES (%s,%s)", (chat_id, uid))
+        except:
+            pass
+    conn.commit()
+    return return_statement({"chatID": chat_id}, "Members added", 200)
+
+
+@transactional
+def remove_participant():
+    """
+    POST JSON:
+      - session_token (str)
+      - chatID        (int)
+      - members       (list[str])
+    """
+    client = request.get_json() or {}
+    token   = client.get("session_token")
+    chat_id = client.get("chatID")
+    rem_us  = client.get("members", [])
+
+    user = authenticate_token(token)
+    if not user:
+        return return_statement([], "Invalid session token", 401)
+
+    # Verify group
+    chat = fetch_records("chats", "chatID=%s AND type='group'", (chat_id,), fetch_all=True)
+    if not chat:
+        return return_statement([], "Group not found", 404)
+
+    # Lookup userIDs
+    ph   = ",".join(["%s"] * len(rem_us))
+    rows = fetch_records("users", f"LOWER(username) IN ({ph})", tuple(u.lower() for u in rem_us), fetch_all=True)
+    ids  = [r["userID"] for r in rows]
+
+    # Delete them
+    conn = get_db(); cur = conn.cursor()
+    cur.execute(f"DELETE FROM participants WHERE chatID=%s AND userID IN ({ph})", (chat_id, *ids))
+    conn.commit()
+
+    # If <2 left, drop the entire chat
+    cur.execute("SELECT COUNT(*) FROM participants WHERE chatID=%s", (chat_id,))
+    if cur.fetchone()[0] < 2:
+        cur.execute("DELETE FROM messages WHERE chatID=%s", (chat_id,))
+        cur.execute("DELETE FROM chats WHERE chatID=%s", (chat_id,))
+        conn.commit()
+
+    return return_statement({"chatID": chat_id}, "Members removed", 200)
 
 @transactional
 def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
@@ -342,3 +422,103 @@ def delete_chat():
     except Exception as e:
         current_app.logger.exception("Error during chat deletion")
         return return_statement("", str(e), 500)
+    
+@transactional
+def _create_group_logic(owner_id: int, group_name: str, member_ids: list[int]) -> int:
+    conn = get_db()
+    cursor = conn.cursor()
+
+    # 1) insert the group chat
+    cursor.execute(
+        "INSERT INTO chats (type, group_name) VALUES ('group', %s)",
+        (group_name,)
+    )
+    chat_id = cursor.lastrowid
+
+    # 2) insert participants (owner + each member)
+    all_ids = {owner_id, *member_ids}
+    for uid in all_ids:
+        cursor.execute(
+            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            (chat_id, uid)
+        )
+
+    return chat_id
+
+def create_group():
+    """
+    JSON body:
+      - session_token (str)
+      - name          (str): the group’s name
+      - members       (list[str]): usernames to include
+    """
+    client = request.get_json() or {}
+    tok    = client.get("session_token")
+    name   = client.get("name", "").strip()
+    mems   = client.get("members", [])
+
+    if not tok or not name or not isinstance(mems, list) or not mems:
+        return return_statement("", "token, name and members list are required", 400)
+
+    username = authenticate_token(tok)
+    if not username:
+        return return_statement("", "Invalid session token", 401)
+
+    # Lookup owner
+    send = fetch_records("users", "LOWER(username)=%s", (username,), fetch_all=True)
+    owner_id = send[0]["userID"]
+
+    # Lookup member IDs
+    placeholders = ",".join(["%s"] * len(mems))
+    rows = fetch_records(
+        table="users",
+        where_clause=f"LOWER(username) IN ({placeholders})",
+        params=tuple(u.lower() for u in mems),
+        fetch_all=True
+    )
+    if len(rows) != len(mems):
+        return return_statement("", "One or more members not found", 404)
+    member_ids = [r["userID"] for r in rows]
+
+    try:
+        chat_id = _create_group_logic(owner_id, name, member_ids)
+        return return_statement({"chatID": chat_id}, "", 201)
+    except Exception as e:
+        current_app.logger.exception("Error creating group")
+        return return_statement("", "Could not create group", 500)
+    
+def get_members():
+    """
+    POST JSON:
+      - session_token (str)
+      - chatID       (int)
+    Returns: { response: [username1, username2, ...], status }
+    """
+    client = request.get_json() or {}
+    tok    = client.get("session_token")
+    cid    = client.get("chatID")
+    user   = authenticate_token(tok)
+    if not user:
+        return return_statement([], "Invalid session token", 401)
+    # Validate group
+    grp = fetch_records("chats", "chatID=%s AND type='group'", (cid,), fetch_all=True)
+    if not grp:
+        return return_statement([], "Group not found", 404)
+    # Get participants
+    parts = fetch_records(
+        table="participants",
+        where_clause="chatID=%s",
+        params=(cid,),
+        fetch_all=True
+    )
+    ids = [p["userID"] for p in parts]
+    # Resolve usernames
+    fmt = ",".join(["%s"] * len(ids))
+    users = fetch_records(
+        table="users",
+        where_clause=f"userID IN ({fmt})",
+        params=tuple(ids),
+        fetch_all=True
+    )
+    names = [u["username"] for u in users]
+    return return_statement(names, "", 200)
