@@ -46,7 +46,8 @@ def create_database_and_tables():
                       email          VARCHAR(100),
                       created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
                       email_verified BOOLEAN      DEFAULT FALSE,
-                      disabled       BOOLEAN      DEFAULT FALSE
+                      disabled       BOOLEAN      DEFAULT FALSE,
+                      deleted        BOOLEAN      DEFAULT FALSE
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 

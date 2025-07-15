@@ -120,3 +120,39 @@ The ChatCLI Team
         if not send_email(subject, body, email):
             success = False
     return success
+
+def send_account_disable_notification(username: str, recipient: str) -> bool:
+    """
+    Notify user about account disablement.
+    """
+    subject = "Your ChatCLI Account Has Been Disabled"
+    body = f"""
+Dear {username},
+
+Your ChatCLI account has been disabled. You will not be able to log in until you reactivate it by submitting a request via email.
+
+If you did not request this, please contact support immediately.
+
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI
+"""
+    return send_email(subject, body, recipient)
+
+def send_account_deletion_notification(username: str, recipient: str) -> bool:
+    """
+    Notify user about account deletion.
+    """
+    subject = "Your ChatCLI Account Has Been Deleted"
+    body = f"""
+Dear {username},
+
+Your ChatCLI account has been permanently deleted along with all associated data, including messages and chats.
+
+If you did not request this, please contact support immediately.
+
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI
+"""
+    return send_email(subject, body, recipient)

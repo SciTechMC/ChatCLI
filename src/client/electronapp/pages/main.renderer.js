@@ -73,86 +73,99 @@ async function submitProfile(payload) {
   });
 }
 
-// — Save changes (with email‐change logout & redirect) —
-profileForm.addEventListener('submit', async e => {
-  e.preventDefault();
-  const newU = document.getElementById('username').value.trim();
-  const newE = document.getElementById('email').value.trim();
+  // — Save changes (with email‐change logout & redirect) —
+  profileForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const newU = document.getElementById('username').value.trim();
+    const newE = document.getElementById('email').value.trim();
 
-  try {
-    // send update, backend will set `verificationSent: true` if email changed
-    const res = await submitProfile({ action: 'update', username: newU, email: newE });
+    try {
+      // send update, backend will set `verificationSent: true` if email changed
+      const res = await submitProfile({ action: 'update', username: newU, email: newE });
 
-    // always hide the modal
-    profileModal.classList.add('hidden');
+      // always hide the modal
+      profileModal.classList.add('hidden');
 
-    // —––– EMAIL CHANGED: FORCE LOGOUT & REDIRECT –––—
-    if (res.response.verificationSent) {
-      showToast('Email changed – please verify your new address.', 'info');
+      // —––– EMAIL CHANGED: FORCE LOGOUT & REDIRECT –––—
+      if (res.response.verificationSent) {
+        showToast('Email changed – please verify your new address.', 'info');
 
-      // 1) clear both tokens
-      await window.secureStore.delete('session_token');
-      await window.secureStore.delete('refresh_token');
-      // 2) clear all stored user info
-      await window.secureStore.delete('username');
-      await window.secureStore.delete('email');
+        // 1) clear both tokens
+        await window.secureStore.delete('session_token');
+        await window.secureStore.delete('refresh_token');
+        // 2) clear all stored user info
+        await window.secureStore.delete('username');
+        await window.secureStore.delete('email');
 
-      // 3) redirect to verify.html with new username
-      location.href = `verify.html?username=${encodeURIComponent(newU)}`;
-      return;
+        // 3) redirect to verify.html with new username
+        location.href = `verify.html?username=${encodeURIComponent(newU)}`;
+        return;
+      }
+
+      // —––– USERNAME ONLY: update in-place –––—
+      showToast('Profile updated!', 'info');
+
+      if (newU !== username) {
+        await window.secureStore.set('username', newU);
+        username = newU;
+        userInfoEl.textContent = newU;
+      }
+      document.getElementById('username').value = newU;
+
+    } catch (err) {
+      showToast(err.message, 'error');
     }
+  });
 
-    // —––– USERNAME ONLY: update in-place –––—
-    showToast('Profile updated!', 'info');
+  // — Disable account —
+disableAccountBtn.addEventListener('click', () => {
+  // 0) hide the profile modal so our confirm modal sits on top
+  profileModal.classList.add('hidden');
 
-    if (newU !== username) {
-      await window.secureStore.set('username', newU);
-      username = newU;
-      userInfoEl.textContent = newU;
+  // 1) show your custom confirm
+  showModal(
+    'Disabling your account will prevent you from logging in until you reactivate via the email we’ll send. Continue?',
+    async () => {
+      try {
+        await submitProfile({ disable: 1, delete: 0 });
+        showToast('Account disabled.', 'warning');
+
+        // ─── CLEAR EVERYTHING & REDIRECT ───
+        await window.secureStore.delete('session_token');
+        await window.secureStore.delete('refresh_token');
+        await window.secureStore.delete('username');
+        await window.secureStore.delete('email');
+        location.href = 'index.html';
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
     }
-    document.getElementById('username').value = newU;
-
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-});
-
-// — Disable account —
-disableAccountBtn.addEventListener('click', async () => {
-  if (!confirm('Are you sure you want to disable your account?')) return;
-  try {
-    await submitProfile({ disable: 1, delete: 0 });
-    showToast('Account disabled.', 'warning');
-    profileModal.classList.add('hidden');
-
-    // ─── CLEAR EVERYTHING & REDIRECT ───
-    await window.secureStore.delete('session_token');
-    await window.secureStore.delete('refresh_token');
-    await window.secureStore.delete('username');
-    await window.secureStore.delete('email');
-    location.href = 'index.html';
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
+  );
 });
 
 // — Delete account —
-deleteAccountBtn.addEventListener('click', async () => {
-  if (!confirm('This will DELETE your account permanently. Continue?')) return;
-  try {
-    await submitProfile({ disable: 0, delete: 1 });
-    showToast('Account deleted.', 'error');
-    profileModal.classList.add('hidden');
+deleteAccountBtn.addEventListener('click', () => {
+  // 0) hide the profile modal
+  profileModal.classList.add('hidden');
 
-    // ─── CLEAR EVERYTHING & REDIRECT ───
-    await window.secureStore.delete('session_token');
-    await window.secureStore.delete('refresh_token');
-    await window.secureStore.delete('username');
-    await window.secureStore.delete('email');
-    location.href = 'index.html';
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
+  showModal(
+    'Warning: This will PERMANENTLY DELETE your account **and all associated data**, including messages and chats. This action cannot be undone. Continue?',
+    async () => {
+      try {
+        await submitProfile({ disable: 0, delete: 1 });
+        showToast('Account deleted.', 'error');
+
+        // ─── CLEAR EVERYTHING & REDIRECT ───
+        await window.secureStore.delete('session_token');
+        await window.secureStore.delete('refresh_token');
+        await window.secureStore.delete('username');
+        await window.secureStore.delete('email');
+        location.href = 'index.html';
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+  );
 });
 
   // 2) Cache DOM elements
@@ -283,26 +296,35 @@ deleteAccountBtn.addEventListener('click', async () => {
 
   // Show modal for confirmation
   function showModal(message, onConfirm) {
-    const modal = document.getElementById('modal-container');
+    const modal        = document.getElementById('modal-container');
     const modalMessage = document.getElementById('modal-message');
-    const confirmBtn = document.getElementById('modal-confirm-btn');
-    const cancelBtn = document.getElementById('modal-cancel-btn');
-
+    const confirmBtn   = document.getElementById('modal-confirm-btn');
+    const cancelBtn    = document.getElementById('modal-cancel-btn');
+  
     modalMessage.textContent = message;
     modal.classList.remove('hidden');
-
-    // Confirm button logic
+  
+    // Handle Enter → click "No"
+    function handleKey(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        cancelBtn.click();
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+  
     confirmBtn.onclick = () => {
+      document.removeEventListener('keydown', handleKey);
       modal.classList.add('hidden');
       onConfirm();
     };
-
-    // Cancel button logic
+  
     cancelBtn.onclick = () => {
+      document.removeEventListener('keydown', handleKey);
       modal.classList.add('hidden');
-      chatToDelete = null; // Reset chatID
     };
   }
+  
 
   // Add deleteChat function
   async function deleteChat(chatID) {

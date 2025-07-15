@@ -46,7 +46,7 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     # 4) Fetch the user’s username
     users = await fetch_records(
         table="users",
-        where_clause="userID = %s AND disabled = FALSE",
+        where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
         params=(user_id,),
         fetch_all=True
     )
@@ -63,6 +63,8 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
 
     logging.info(f"User authenticated: {username} (userID={user_id})")
     return username
+
+
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
     chat_subscriptions.setdefault(chat_id, set()).add(ws)
 

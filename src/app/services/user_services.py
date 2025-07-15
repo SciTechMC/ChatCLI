@@ -529,18 +529,49 @@ def submit_profile():
         old_email   = user.get("email", "")
         # ——— handle delete/disable first ———
         if delete_acc:
-            update_records("session_tokens",
-                           {"revoked": True},
-                           where_clause="userID = %s",
-                           where_params=(user_id,))
-            update_records("users",
-                           {"deleted": True},
-                           where_clause="userID = %s",
-                           where_params=(user_id,))
+            # 1) Revoke all tokens
+            update_records(
+                table="session_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(user_id,)
+            )
+            update_records(
+                table="refresh_tokens",
+                data={"revoked": True},
+                where_clause="user_id = %s",
+                where_params=(user_id,)
+            )
+
+            # 2) Strip PII from their messages
+            update_records(
+                table="messages",
+                data={"message": "[Message Deleted]"},
+                where_clause="userID = %s",
+                where_params=(user_id,)
+            )
+
+            # 3) Wipe their profile with unique placeholders
+            placeholder_username = f"removed_user_{user_id}"
+            placeholder_email    = f"{placeholder_username}@deleted.com"
+            update_records(
+                table="users",
+                data={
+                    "username": placeholder_username,
+                    "email":    placeholder_email,
+                    "password": "",       # empty but NOT NULL
+                    "deleted":  True,     # BOOLEAN → 1
+                    "disabled": True      # BOOLEAN → 1
+                },
+                where_clause="userID = %s",
+                where_params=(user_id,)
+            )
+
             return return_statement(
                 {"disable": disable, "delete": delete_acc},
-                "Account deleted",
-                200)
+                "Account deleted, messages scrubbed, and profile cleared",
+                200
+            )
 
         if disable:
             update_records("session_tokens",
