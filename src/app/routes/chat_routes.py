@@ -30,12 +30,10 @@ def route_fetch_chats():
 @chat.route("/create-chat", methods=["POST"])
 def route_create_chat():
     try:
-        # existing private‐chat creation
         return create_chat()
     except Exception as e:
         current_app.logger.error("Unhandled exception in create_chat", exc_info=e)
         return jsonify({"status": "error", "message": "Internal server error"}), 500
-
 
 @chat.route("/create-group", methods=["POST"])
 def route_create_group():
