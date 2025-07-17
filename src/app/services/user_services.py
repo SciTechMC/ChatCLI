@@ -648,3 +648,80 @@ def submit_profile():
     except Exception:
         current_app.logger.exception("Error in submit-profile")
         return return_statement("", "Internal server error", 500)
+    
+def change_password():
+    """
+    Changes the user's password.
+    Requires session token and new password.
+    """
+    data = request.get_json(silent=True) or {}
+    token = (data.get("session_token") or "").strip()
+    old_password = (data.get("old_password") or "").strip()
+    new_password = (data.get("new_password") or "").strip()
+
+    if not token:
+        return return_statement("", "Session token is required", 400)
+    if not new_password:
+        return return_statement("", "New password is required", 400)
+    if not old_password:
+        return return_statement("", "Old password is required", 400)
+    
+    if new_password == old_password:
+        return return_statement("", "New password cannot be the same as old password", 400)
+
+    stored_hash = user["password"]
+    if not bcrypt.checkpw(old_password.encode("utf-8"), stored_hash.encode("utf-8")):
+        return return_statement("", "Incorrect current password", 403)
+        
+    # Validate new password
+    if (
+        len(new_password) < 8 or
+        not any(ch.isupper() for ch in new_password) or
+        not any(ch.islower() for ch in new_password) or
+        not any(ch.isdigit() for ch in new_password) or
+        not any(ch in string.punctuation for ch in new_password)
+    ):
+        return return_statement(
+            "", 
+            "Password must be ≥8 chars, include upper, lower, digit & special",
+            400
+        )
+
+    username = authenticate_token(token)
+    if not username:
+        return return_statement("", "Invalid or expired session token", 401)
+
+    try:
+        # Fetch user by username
+        user = fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(username,),
+            fetch_all=False
+        )
+        if not user:
+            return return_statement("", "User not found", 404)
+
+        # Hash the new password
+        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+
+        # Update the user's password
+        update_records(
+            table="users",
+            data={"password": hashed},
+            where_clause="userID = %s",
+            where_params=(user["userID"],)
+        )
+
+        # Revoke all session tokens
+        update_records(
+            table="session_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user["userID"],)
+        )
+        return return_statement("", "Password changed successfully", 200)
+
+    except Exception:
+        current_app.logger.exception("Error changing password")
+        return return_statement("", "Internal server error", 500)

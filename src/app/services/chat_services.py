@@ -349,60 +349,50 @@ def remove_participant():
     return return_statement({"chatID": chat_id}, "Members removed", 200)
 
 @transactional
-def _create_chat_logic(sender_id: int, receiver_id: int) -> None:
+def _create_chat_logic(sender_id: int, receiver_id: int) -> int:
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1) Check if chat already exists (atomic check)
-    cursor.execute(
-        """
+    # Check if a private chat already exists between these two users
+    cursor.execute("""
         SELECT c.chatID
         FROM chats c
         JOIN participants p1 ON c.chatID = p1.chatID AND p1.userID = %s
         JOIN participants p2 ON c.chatID = p2.chatID AND p2.userID = %s
         WHERE c.type = 'private'
-        """,
-        (sender_id, receiver_id)
-    )
+    """, (sender_id, receiver_id))
+
     row = cursor.fetchone()
     if row:
-        raise Exception("Chat already exists between these users!")
+        chat_id = row[0]
 
-    # 2) create chat
+        # If it exists, unarchive it for both users (just in case)
+        cursor.execute("""
+            UPDATE participants 
+            SET archived = 0 
+            WHERE chatID = %s AND userID IN (%s, %s)
+        """, (chat_id, sender_id, receiver_id))
+
+        return chat_id
+
+    # Otherwise, create a new chat
     cursor.execute("INSERT INTO chats (type) VALUES ('private')")
     chat_id = cursor.lastrowid
 
-    # 3) link participants
-    try:
+    # Add both participants
+    for uid in (sender_id, receiver_id):
         cursor.execute(
             "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
-            (chat_id, sender_id),
+            (chat_id, uid)
         )
-        if os.getenv("FLASK_ENV") == "development":
-            print(f"Inserted sender {sender_id} into chat {chat_id}")
-        cursor.execute(
-            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
-            (chat_id, receiver_id),
-        )
-        if os.getenv("FLASK_ENV") == "development":
-            print(f"Inserted receiver {receiver_id} into chat {chat_id}")
-    except mysql.connector.IntegrityError as e:
-        # If duplicate, rollback and raise a user-friendly error
-        conn.rollback()
-        raise Exception("Participant already exists in this chat") from e
-    except mysql.connector.Error as e:
-        # Handle other MySQL errors
-        conn.rollback()
-        if os.getenv("FLASK_ENV") == "development":
-            print(f"Database error: {str(e)}")
-        else:
-            tmp_logger.error("Database error: %s", str(e))
-        raise Exception(f"Database error: {str(e)}") from e
+
+    return chat_id
+
 
 def create_chat():
     """
-    Endpoint: verifies token, resolves IDs, checks duplicates,
-    then calls the transactional helper above.
+    Creates a private chat between two users.
+    Verifies token, resolves user IDs, then calls transactional logic.
     """
     client = request.get_json() or {}
     session_tok = client.get("session_token")
@@ -411,54 +401,31 @@ def create_chat():
     if not session_tok or not receiver:
         return return_statement("", "Session token and receiver are required", 400)
 
-    # Verify the session token
     username = authenticate_token(session_tok)
     if not username:
-        return return_statement("", "Unable to verify user!", 400)
+        return return_statement("", "Unable to verify user!", 401)
+
+    if username.lower() == receiver:
+        return return_statement("", "Cannot chat with yourself", 400)
 
     try:
-        # Resolve sender and receiver IDs
-        send = fetch_records(
-            table="users",
-            where_clause="LOWER(username) = %s",
-            params=(username,),
-            fetch_all=True,
-        )
-        rec = fetch_records(
-            table="users",
-            where_clause="LOWER(username) = %s",
-            params=(receiver,),
-            fetch_all=True,
-        )
+        # Get sender and receiver IDs
+        send = fetch_records("users", "LOWER(username) = %s", (username,), fetch_all=True)
+        rec = fetch_records("users", "LOWER(username) = %s", (receiver,), fetch_all=True)
+
         if not send or not rec:
-            return return_statement("", "Sender or receiver not found!", 400)
+            return return_statement("", "User not found", 404)
 
         sender_id = send[0]["userID"]
         receiver_id = rec[0]["userID"]
 
-        # Prevent duplicate chats
-        existing = fetch_records(
-            table="participants",
-            where_clause=(
-                "userID IN (%s, %s) "
-                "AND chatID IN ("
-                " SELECT chatID FROM participants WHERE userID IN (%s, %s) "
-                " GROUP BY chatID HAVING COUNT(DISTINCT userID) = 2"
-                ")"
-            ),
-            params=(sender_id, receiver_id, sender_id, receiver_id),
-            fetch_all=True,
-        )
-        if existing:
-            return return_statement("", "Chat already exists between these users!", 409)
-
-        # Run the atomic logic
-        _create_chat_logic(sender_id, receiver_id)
-        return return_statement("Chat created successfully!", "", 200)
+        # Call logic (this handles reactivating archived chat or creating new)
+        chat_id = _create_chat_logic(sender_id, receiver_id)
+        return return_statement({"chatID": chat_id}, "", 200)
 
     except Exception as e:
-        current_app.logger.exception("Error during chat creation")
-        return return_statement("", "An internal server error occurred", 500)
+        current_app.logger.exception("Error creating chat")
+        return return_statement("", str(e), 500)
 
 @transactional
 def _create_group_logic(owner_id: int, group_name: str, member_ids: list[int]) -> int:
@@ -523,3 +490,95 @@ def create_group():
     except Exception as e:
         current_app.logger.exception("Error creating group")
         return return_statement("", "Could not create group", 500)
+
+def fetch_archived():
+    """
+    POST JSON: { session_token }
+    Returns: { response: [ { chatID, name, type }, … ], status }
+    """
+    client = request.get_json() or {}
+    session_token = client.get("session_token")
+
+    username = authenticate_token(session_token)
+    if not username:
+        return return_statement([], "Unable to verify user!", 401)
+
+    # Get userID
+    rows = fetch_records(
+        table="users",
+        where_clause="LOWER(username) = %s",
+        params=(username.lower(),),
+        fetch_all=True
+    )
+    if not rows:
+        return return_statement([], "User not found", 404)
+
+    user_id = rows[0]["userID"]
+
+    # Get archived chat info
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT p.chatID, c.type, 
+               COALESCE(c.group_name, u.username) AS name
+        FROM participants p
+        JOIN chats c ON c.chatID = p.chatID
+        LEFT JOIN participants pu ON pu.chatID = p.chatID AND pu.userID != %s
+        LEFT JOIN users u ON u.userID = pu.userID
+        WHERE p.userID = %s AND p.archived = 1
+    """, (user_id, user_id))
+
+    results = cursor.fetchall()
+
+    if not results:
+        return return_statement([], "", 200)
+
+    # Format output
+    response = [
+        { "chatID": row[0], "type": row[1], "name": row[2] }
+        for row in results
+    ]
+
+    return return_statement(response, "", 200)
+
+def unarchive_chat():
+    """
+    Unarchives a chat for the user by setting archived=0.
+    Other participants still see it.
+    """
+    client = request.get_json() or {}
+    session_token = client.get("session_token")
+    chat_id = client.get("chatID")
+
+    if not session_token or not chat_id:
+        return return_statement("", "Session token and chatID are required", 400)
+
+    # Verify the session token
+    username = authenticate_token(session_token)
+    if not username:
+        return return_statement("", "Unable to verify user!", 401)
+
+    # Get the user's ID
+    user_rows = fetch_records(
+        table="users",
+        where_clause="LOWER(username) = %s",
+        params=(username.lower(),),
+        fetch_all=True
+    )
+    if not user_rows:
+        return return_statement("", "User not found!", 404)
+    user_id = user_rows[0]["userID"]
+
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        # Set archived=0 for this user+chat
+        cursor.execute(
+            "UPDATE participants SET archived = 0 WHERE chatID = %s AND userID = %s",
+            (chat_id, user_id)
+        )
+        conn.commit()
+        return return_statement("", "Chat unarchived", 200)
+    except Exception as e:
+        current_app.logger.exception("Error unarchiving chat")
+        return return_statement("", "Could not unarchive chat", 500)

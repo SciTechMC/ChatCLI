@@ -111,13 +111,17 @@ body {
 }
 
 .chat-list-title {
-  padding: 8px 16px;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  padding: 16px 16px 8px 16px;
+  background-color: transparent;
+  border-bottom: none;
+  position: relative;
 }
+
 
 .chat-item {
   display: flex;
@@ -387,6 +391,7 @@ body {
 }
 
 /* Modals */
+/* Modal backdrop styles */
 .modal {
   position: fixed;
   top: 0;
@@ -418,6 +423,7 @@ body {
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   transform: translateY(20px);
   transition: transform 0.3s ease;
+  position: relative; /* Important for proper click handling */
 }
 
 .modal.active .modal-content {
@@ -429,15 +435,20 @@ body {
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  position: relative;
 }
 
 .modal-title {
   font-weight: 600;
   font-size: 16px;
+  text-align: center;
 }
 
 .modal-close {
+  position: absolute;
+  left: 16px;
+  top: 16px;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -449,12 +460,20 @@ body {
 }
 
 .modal-close:hover {
-  background-color: var(--bg-tertiary);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .modal-close svg {
   width: 20px;
   height: 20px;
+}
+
+.modal-footer {
+  padding: 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .modal-body {
@@ -659,4 +678,292 @@ body {
 
 .fade-in {
   animation: fadeIn 0.3s ease forwards;
+}
+/* Hide the entire input area when no chat is selected */
+.chat-input.hidden {
+  display: none !important;
+}
+
+/* Prevent manual resize & hide scrollbar, allow auto-height */
+.message-input {
+  resize: none;
+  overflow-y: hidden;
+  /* ensure box sizing so padding doesn’t push content out */
+  box-sizing: border-box;
+}
+
+/* Make sure the send button stays aligned next to growing textarea */
+.chat-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem; /* adjust as needed */
+}
+/* Message styling updates */
+.message {
+  display: block;
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  width: auto;
+  max-width: 100%;
+}
+
+.message-header {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  margin-bottom: 4px;
+  width: auto;
+  gap: 8px;
+}
+
+.message-sender {
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+}
+
+.message-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.message-text {
+  display: block;
+  font-size: 15px;
+  line-height: 1.4;
+  word-break: break-word;
+  color: var(--text-primary);
+  margin-top: 4px;
+  padding-left: 2px;
+  white-space: pre-wrap;
+}
+/* For toggling chat type sections */
+#privateChatSection,
+#groupChatSection {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Classes for transitions */
+.hidden {
+  display: none !important;
+}
+
+.showing {
+  display: block !important;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hiding {
+  display: none !important;
+  opacity: 0;
+  transform: translateY(10px);
+}
+/* Add to modal-related styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal-content {
+  background-color: var(--bg-tertiary);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  transform: translateY(20px);
+  transition: transform 0.3s ease;
+  position: relative;
+}
+
+#privateChatSection,
+#groupChatSection {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.hidden {
+  display: none !important;
+}
+/* Refine spacing inside profile modal */
+#profileModal .modal-body .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+#profileModal input[type="text"],
+#profileModal input[type="email"] {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+#profileModal input[type="text"]:focus,
+#profileModal input[type="email"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+/* Danger buttons stacked and full-width */
+#profileModal .danger-button {
+  width: 100%;
+  text-align: center;
+  padding: 10px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+#profileModal #changePasswordBtn {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+#profileModal #changePasswordBtn:hover {
+  background-color: var(--accent-color);
+  color: white;
+}
+/* Reset Password Modal Layout */
+#resetPasswordModal .modal-body .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+#resetPasswordModal input[type="password"] {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+#resetPasswordModal input[type="password"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+/* Reset Password Buttons */
+#resetPasswordModal .modal-footer .modal-button {
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+}
+#createChatModal .modal-body .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+#createChatModal input[type="text"] {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+#createChatModal input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+#createChatModal #groupChatSection .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+#createChatModal .modal-body .input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+#createChatModal input[type="text"] {
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+#createChatModal input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+.chat-list-actions {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.archived-chats-button {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.archived-chats-button:hover {
+  background-color: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+}
+.chat-archived-entry {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: center;
+}
+
+.archived-chats-button {
+  margin: 16px auto;
+  display: block;
+  padding: 8px 12px;
+  font-size: 14px;
+  background-color: var(--surface-color);
+  color: var(--accent-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.archived-chats-button:hover {
+  background-color: var(--accent-color);
+  color: white;
 }

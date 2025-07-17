@@ -7,7 +7,9 @@ from app.services.chat_services import (
     create_group,        # group‐chat creator
     add_participant,     # add to group
     remove_participant,   # remove from group
-    get_members
+    get_members,
+    fetch_archived,  # fetch archived chats
+    unarchive_chat  # unarchive a chat
 )
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
@@ -17,7 +19,6 @@ chat = Blueprint("chat", __name__, url_prefix="/chat")
 def index():
     return "chat's index route"
 
-
 @chat.route("/fetch-chats", methods=["POST"])
 def route_fetch_chats():
     try:
@@ -25,7 +26,6 @@ def route_fetch_chats():
     except Exception as e:
         current_app.logger.error("Unhandled exception in fetch_chats", exc_info=e)
         return jsonify({"status": "error", "message": "Internal server error"}), 500
-
 
 @chat.route("/create-chat", methods=["POST"])
 def route_create_chat():
@@ -109,4 +109,26 @@ def route_get_members():
         return get_members()
     except Exception as e:
         current_app.logger.error("Unhandled exception in get_members", exc_info=e)
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    
+@chat.route("/fetch-archived", methods=["POST"])
+def route_fetch_archived():
+    """
+    Fetch archived chats
+    """
+    try:
+        return fetch_archived()
+    except Exception as e:
+        current_app.logger.error("Unhandled exception in fetch_archived", exc_info=e)
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
+
+@chat.route("/unarchive-chat", methods=["POST"])
+def route_unarchive_chat():
+    """
+    Unarchive a chat
+    """
+    try:
+        return unarchive_chat()
+    except Exception as e:
+        current_app.logger.error("Unhandled exception in unarchive_chat", exc_info=e)
         return jsonify({"status": "error", "message": "Internal server error"}), 500

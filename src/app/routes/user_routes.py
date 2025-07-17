@@ -1,6 +1,7 @@
 from flask import Blueprint
 from app.services.user_services import register, verify_email, login, reset_password, reset_password_request, refresh_token
 from app.services.user_services import profile, submit_profile
+from app.services.user_services import change_password
 from app.extensions  import limiter
 
 user = Blueprint("user", __name__, url_prefix="/user")
@@ -48,3 +49,8 @@ def route_profile():
 @limiter.limit("10 per minute")
 def route_submit_profile():
     return submit_profile()
+
+@user.route("/change-password", methods=["POST"])
+@limiter.limit("5 per minute")
+def route_change_password():
+    return change_password()
