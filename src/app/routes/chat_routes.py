@@ -11,9 +11,9 @@ from app.services.chat_services import (
     fetch_archived,  # fetch archived chats
     unarchive_chat  # unarchive a chat
 )
+from app.extensions  import limiter
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
-
 
 @chat.route("/")
 def index():
@@ -96,6 +96,7 @@ def route_messages():
 
 
 @chat.route("/archive-chat", methods=["POST"])
+@limiter.limit("10 per minute")
 def route_archive_chat():
     try:
         return archive_chat()
@@ -123,6 +124,7 @@ def route_fetch_archived():
         return jsonify({"status": "error", "message": "Internal server error"}), 500
 
 @chat.route("/unarchive-chat", methods=["POST"])
+@limiter.limit("10 per minute")
 def route_unarchive_chat():
     """
     Unarchive a chat

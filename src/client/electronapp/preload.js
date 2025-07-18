@@ -1,7 +1,6 @@
 //  G:\ChatCLI\src\client\electronapp\preload.js
 
 // OPTIONAL: keep these two lines for sanity logs
-console.log('[preload] starting, __dirname =', __dirname);
 
 const { contextBridge, ipcRenderer } = require('electron');
 const api = require('./pages/api.js');               // stays CommonJS
@@ -29,8 +28,6 @@ contextBridge.exposeInMainWorld('secureStore', {
   get:    (account)        => ipcRenderer.invoke('secureStore:get', account),
   delete: (account)        => ipcRenderer.invoke('secureStore:delete', account),
 });
-
-console.log('[preload] expose complete');
 
 const WebSocket = require('ws');
 

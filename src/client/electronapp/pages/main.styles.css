@@ -122,7 +122,6 @@ body {
   position: relative;
 }
 
-
 .chat-item {
   display: flex;
   align-items: center;
@@ -679,6 +678,7 @@ body {
 .fade-in {
   animation: fadeIn 0.3s ease forwards;
 }
+
 /* Hide the entire input area when no chat is selected */
 .chat-input.hidden {
   display: none !important;
@@ -698,6 +698,7 @@ body {
   align-items: flex-end;
   gap: 0.5rem; /* adjust as needed */
 }
+
 /* Message styling updates */
 .message {
   display: block;
@@ -738,6 +739,7 @@ body {
   padding-left: 2px;
   white-space: pre-wrap;
 }
+
 /* For toggling chat type sections */
 #privateChatSection,
 #groupChatSection {
@@ -760,6 +762,7 @@ body {
   opacity: 0;
   transform: translateY(10px);
 }
+
 /* Add to modal-related styles */
 .modal {
   position: fixed;
@@ -803,6 +806,7 @@ body {
 .hidden {
   display: none !important;
 }
+
 /* Refine spacing inside profile modal */
 #profileModal .modal-body .input-group {
   display: flex;
@@ -835,6 +839,7 @@ body {
   font-size: 14px;
   margin-bottom: 8px;
 }
+
 #profileModal #changePasswordBtn {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -846,6 +851,7 @@ body {
   background-color: var(--accent-color);
   color: white;
 }
+
 /* Reset Password Modal Layout */
 #resetPasswordModal .modal-body .input-group {
   display: flex;
@@ -874,6 +880,7 @@ body {
   padding: 10px;
   font-size: 14px;
 }
+
 #createChatModal .modal-body .input-group {
   display: flex;
   flex-direction: column;
@@ -894,12 +901,14 @@ body {
   outline: none;
   border-color: var(--accent-color);
 }
+
 #createChatModal #groupChatSection .input-group {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 20px;
 }
+
 #createChatModal .modal-body .input-group {
   display: flex;
   flex-direction: column;
@@ -920,28 +929,13 @@ body {
   outline: none;
   border-color: var(--accent-color);
 }
+
 .chat-list-actions {
   padding: 8px 16px;
   display: flex;
   justify-content: flex-end;
 }
 
-.archived-chats-button {
-  background-color: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 6px 12px;
-  font-size: 13px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.archived-chats-button:hover {
-  background-color: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
-}
 .chat-archived-entry {
   margin-top: 8px;
   padding: 12px 16px;
@@ -951,19 +945,17 @@ body {
 }
 
 .archived-chats-button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  font-size: 13px;
   margin: 16px auto;
   display: block;
-  padding: 8px 12px;
-  font-size: 14px;
-  background-color: var(--surface-color);
-  color: var(--accent-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
   cursor: pointer;
-  text-align: center;
 }
 
 .archived-chats-button:hover {
-  background-color: var(--accent-color);
-  color: white;
+  background: rgba(79, 84, 92, 0.16);
+  color: var(--text-primary);
 }
