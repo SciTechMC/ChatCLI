@@ -6,9 +6,6 @@ This project is licensed under the GNU General Public License v3.0. You are free
 
 You must retain appropriate credit to the original author. Misrepresentation of authorship is a violation of both the license and developer ethics.
 
-No patent or trademark rights are granted or implied. Use of the name "ChatCLI" or any branding elements is not permitted without express written consent.
-
 Original repository: https://github.com/SciTechMC/ChatCLI
 
 Author: SciTechMC Year: 2025
-
