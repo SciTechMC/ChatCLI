@@ -1,6 +1,6 @@
 // api.js
 const fetch = require('node-fetch');      // ← use v2 CJS
-const BASE_URL = 'http://127.0.0.1:5123';
+const BASE_URL = 'http://192.168.133.58:5123';
 
 let sessionToken      = null;
 let refreshTokenValue = null;

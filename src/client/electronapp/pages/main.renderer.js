@@ -94,7 +94,7 @@ async function apiRequest(endpoint, options = {}) {
 // =============================================
 // WEBSOCKET FUNCTIONS
 // =============================================
-const ip = "ws://127.0.0.1:8765/ws";
+const ip = "ws://192.168.133.58:8765/ws";
 let ws;
 let token;
 let username;
@@ -617,8 +617,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   typingIndicator.style.display = 'none';
   typingIndicator.style.fontSize = '12px';
   typingIndicator.style.color = 'var(--text-secondary)';
-  typingIndicator.style.marginLeft = '10px';
-  document.querySelector('.chat-header').appendChild(typingIndicator);
+  const chatArea   = document.querySelector('.chat-area');
+  const chatInput  = document.querySelector('.chat-input');
+  chatArea.insertBefore(typingIndicator, chatInput);
   // Set up modal closing functionality
   setupModalClosing();
   try {
