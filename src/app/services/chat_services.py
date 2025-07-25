@@ -113,11 +113,15 @@ def get_messages():
       - chatID (int)
       - limit (int, optional, defaults to 50, max 200)
     """
-    data = request.get_json() or {}
-    username = data.get("username", "").lower()
-    session_token = data.get("session_token")
-    chat_id = data.get("chatID")
-    limit = data.get("limit", 50)
+    try:
+        data = request.get_json() or {}
+        username = data.get("username", "").lower()
+        session_token = data.get("session_token")
+        chat_id = data.get("chatID")
+        limit = data.get("limit", 50)
+    except Exception as e:
+        current_app.logger.exception("Error parsing request data")
+        return return_statement("", "Invalid request data", 400)
 
     # Basic validation
     if not username or not session_token or not chat_id:
@@ -138,24 +142,34 @@ def get_messages():
         return return_statement("", "Unable to verify user!", 401)
 
     # 2) Check participation
-    participants = fetch_records(
-        table="participants",
-        where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
-        params=(chat_id, username),
-        fetch_all=True,
-    )
+    try:
+        participants = fetch_records(
+            table="participants",
+            where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
+            params=(chat_id, username),
+            fetch_all=True,
+        )
+    except mysql.connector.Error as e:
+        current_app.logger.exception("Database error while checking participants")
+        return return_statement("", "Database error", 500)
+    
     if not participants:
         return return_statement("", "Chat not found or access denied", 404)
 
     # 3) Fetch messages
-    rows = fetch_records(
-        table="messages",
-        where_clause="chatID = %s",
-        params=(chat_id,),
-        order_by="timestamp DESC",
-        limit=limit,
-        fetch_all=True,
-    )
+
+    try:
+        rows = fetch_records(
+            table="messages",
+            where_clause="chatID = %s",
+            params=(chat_id,),
+            order_by="timestamp DESC",
+            limit=limit,
+            fetch_all=True,
+        )
+    except mysql.connector.Error as e:
+        current_app.logger.exception("Database error while fetching messages")
+        return return_statement("", "Database error", 500)
 
     # Map userIDs to usernames in bulk
     user_ids = list({r["userID"] for r in rows})
@@ -310,42 +324,51 @@ def remove_participant():
     """
     POST JSON:
       - session_token (str)
-      - chatID (int)
-      - members (list[str])
+      - chatID       (int)
+      - members      (list[str])
     """
     client = request.get_json() or {}
-    token = client.get("session_token")
+    token   = client.get("session_token")
     chat_id = client.get("chatID")
-    rem_us = client.get("members", [])
+    rem_us  = client.get("members", [])
 
+    # 1) Auth check
     user = authenticate_token(token)
     if not user:
         return return_statement([], "Invalid session token", 401)
 
-    # Verify group
-    chat = fetch_records("chats", "chatID=%s AND type='group'", (chat_id,), fetch_all=True)
+    # 2) Ensure it’s a group
+    chat = fetch_records(
+        table="chats",
+        where_clause="chatID=%s AND type='group'",
+        params=(chat_id,),
+        fetch_all=True
+    )
     if not chat:
         return return_statement([], "Group not found", 404)
 
-    # Lookup userIDs
-    ph = ",".join(["%s"] * len(rem_us))
-    rows = fetch_records("users", f"LOWER(username) IN ({ph})", tuple(u.lower() for u in rem_us), fetch_all=True)
+    # 3) Lookup the users to remove
+    placeholders = ",".join(["%s"] * len(rem_us))
+    rows = fetch_records(
+        table="users",
+        where_clause=f"LOWER(username) IN ({placeholders})",
+        params=tuple(u.lower() for u in rem_us),
+        fetch_all=True
+    )
+    if len(rows) != len(rem_us):
+        return return_statement([], "One or more users not found", 404)
     ids = [r["userID"] for r in rows]
 
-    # Delete them
+    # 4) Delete only those participants
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute(f"DELETE FROM participants WHERE chatID=%s AND userID IN ({ph})", (chat_id, *ids))
+    cur  = conn.cursor()
+    cur.execute(
+        f"DELETE FROM participants WHERE chatID=%s AND userID IN ({placeholders})",
+        (chat_id, *ids)
+    )
     conn.commit()
 
-    # If <2 left, just remove the last participant — leave chat & messages intact
-    cur.execute("SELECT COUNT(*) FROM participants WHERE chatID=%s", (chat_id,))
-    if cur.fetchone()[0] < 2:
-        # delete any remaining participant row(s)
-        cur.execute("DELETE FROM participants WHERE chatID=%s", (chat_id,))
-        conn.commit()
-        return return_statement({"chatID": chat_id}, "Participant removed, chat retained", 200)
-
+    # 5) Always leave any remaining participant(s) intact
     return return_statement({"chatID": chat_id}, "Members removed", 200)
 
 @transactional
@@ -499,46 +522,72 @@ def fetch_archived():
     client = request.get_json() or {}
     session_token = client.get("session_token")
 
+    # 1) Authenticate
     username = authenticate_token(session_token)
     if not username:
         return return_statement([], "Unable to verify user!", 401)
 
-    # Get userID
-    rows = fetch_records(
+    # 2) Lookup userID (correct fetch_records signature)
+    user_rows = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not rows:
+    if not user_rows:
         return return_statement([], "User not found", 404)
+    user_id = user_rows[0]["userID"]
 
-    user_id = rows[0]["userID"]
-
-    # Get archived chat info
+    # 3) Run two queries via raw cursor
     conn = get_db()
     cursor = conn.cursor()
+
+    # — Archived group chats —
     cursor.execute("""
-        SELECT p.chatID, c.type, 
-               COALESCE(c.group_name, u.username) AS name
+        SELECT 
+          p.chatID,
+          'group'   AS type,
+          c.group_name AS name
         FROM participants p
-        JOIN chats c ON c.chatID = p.chatID
-        LEFT JOIN participants pu ON pu.chatID = p.chatID AND pu.userID != %s
-        LEFT JOIN users u ON u.userID = pu.userID
-        WHERE p.userID = %s AND p.archived = 1
+        JOIN chats c 
+          ON c.chatID = p.chatID
+        WHERE 
+          p.userID = %s
+          AND p.archived = 1
+          AND c.type = 'group'
+    """, (user_id,))
+    group_rows = cursor.fetchall()
+
+    # — Archived private chats —
+    cursor.execute("""
+        SELECT 
+          p.chatID,
+          'private' AS type,
+          u.username AS name
+        FROM participants p
+        JOIN chats c 
+          ON c.chatID = p.chatID 
+         AND c.type = 'private'
+        JOIN participants pu 
+          ON pu.chatID = p.chatID 
+         AND pu.userID != %s
+        JOIN users u 
+          ON u.userID = pu.userID
+        WHERE 
+          p.userID = %s
+          AND p.archived = 1
     """, (user_id, user_id))
+    private_rows = cursor.fetchall()
 
-    results = cursor.fetchall()
-
-    if not results:
+    # 4) Combine, format, and return
+    all_rows = group_rows + private_rows
+    if not all_rows:
         return return_statement([], "", 200)
 
-    # Format output
     response = [
-        { "chatID": row[0], "type": row[1], "name": row[2] }
-        for row in results
+        {"chatID": row[0], "type": row[1], "name": row[2]}
+        for row in all_rows
     ]
-
     return return_statement(response, "", 200)
 
 def unarchive_chat():

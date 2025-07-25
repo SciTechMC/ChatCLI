@@ -156,3 +156,23 @@ The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
     return send_email(subject, body, recipient)
+
+def send_email_change_verification(username: str, token: str, recipient: str) -> bool:
+    """
+    Compose and send email‐change verification code.
+    """
+    subject = "ChatCLI Email Change Confirmation Code"
+    body = f"""
+Dear {username},
+
+You requested to change your ChatCLI account’s email address. To confirm this change, please enter the code below in the application:
+
+Confirmation code: {token}
+
+This code is valid for 5 minutes. If you did not request this change, please ignore this email or contact support.
+
+Best regards,
+The ChatCLI Team
+https://github.com/SciTechMC/ChatCLI
+"""
+    return send_email(subject, body, recipient)

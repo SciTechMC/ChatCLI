@@ -8,7 +8,7 @@ import hashlib
 import random
 from flask import request, jsonify, render_template, current_app
 from app.services.base_services import return_statement, authenticate_token
-from app.services.mail_services import send_verification_email, send_password_reset_email
+from app.services.mail_services import send_verification_email, send_password_reset_email, send_email_change_verification
 from app.database.db_helper import fetch_records, insert_record, update_records
 import os
 
@@ -628,7 +628,7 @@ def submit_profile():
                     }
                 )
                 # send mail
-                send_verification_email(new_u or current_username, code, new_e)
+                send_email_change_verification(new_u or current_username, code, new_e)
                 verification_sent = True
 
             # prepare response
@@ -652,47 +652,29 @@ def submit_profile():
 def change_password():
     """
     Changes the user's password.
-    Requires session token and new password.
+    Requires session token, current_password, new_password.
     """
     data = request.get_json(silent=True) or {}
-    token = (data.get("session_token") or "").strip()
-    old_password = (data.get("old_password") or "").strip()
-    new_password = (data.get("new_password") or "").strip()
+    token        = (data.get("session_token")    or "").strip()
+    old_password = (data.get("current_password") or "").strip()
+    new_password = (data.get("new_password")     or "").strip()
 
     if not token:
         return return_statement("", "Session token is required", 400)
-    if not new_password:
-        return return_statement("", "New password is required", 400)
     if not old_password:
         return return_statement("", "Old password is required", 400)
-    
+    if not new_password:
+        return return_statement("", "New password is required", 400)
     if new_password == old_password:
         return return_statement("", "New password cannot be the same as old password", 400)
 
-    stored_hash = user["password"]
-    if not bcrypt.checkpw(old_password.encode("utf-8"), stored_hash.encode("utf-8")):
-        return return_statement("", "Incorrect current password", 403)
-        
-    # Validate new password
-    if (
-        len(new_password) < 8 or
-        not any(ch.isupper() for ch in new_password) or
-        not any(ch.islower() for ch in new_password) or
-        not any(ch.isdigit() for ch in new_password) or
-        not any(ch in string.punctuation for ch in new_password)
-    ):
-        return return_statement(
-            "", 
-            "Password must be ≥8 chars, include upper, lower, digit & special",
-            400
-        )
-
+    # 1) Validate session token → get username
     username = authenticate_token(token)
     if not username:
         return return_statement("", "Invalid or expired session token", 401)
 
     try:
-        # Fetch user by username
+        # 2) Fetch the user record
         user = fetch_records(
             table="users",
             where_clause="username = %s",
@@ -702,10 +684,27 @@ def change_password():
         if not user:
             return return_statement("", "User not found", 404)
 
-        # Hash the new password
-        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+        # 3) Check old password
+        stored_hash = user["password"]
+        if not bcrypt.checkpw(old_password.encode("utf-8"), stored_hash.encode("utf-8")):
+            return return_statement("", "Incorrect current password", 403)
 
-        # Update the user's password
+        # 4) Validate new password strength
+        if (
+            len(new_password) < 8 or
+            not any(ch.isupper()       for ch in new_password) or
+            not any(ch.islower()       for ch in new_password) or
+            not any(ch.isdigit()       for ch in new_password) or
+            not any(ch in string.punctuation for ch in new_password)
+        ):
+            return return_statement(
+                "", 
+                "Password must be ≥8 chars, include upper, lower, digit & special",
+                400
+            )
+
+        # 5) Hash & update
+        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
         update_records(
             table="users",
             data={"password": hashed},
@@ -713,13 +712,14 @@ def change_password():
             where_params=(user["userID"],)
         )
 
-        # Revoke all session tokens
+        # 6) Revoke all session tokens for this user
         update_records(
             table="session_tokens",
             data={"revoked": True},
             where_clause="userID = %s",
             where_params=(user["userID"],)
         )
+
         return return_statement("", "Password changed successfully", 200)
 
     except Exception:

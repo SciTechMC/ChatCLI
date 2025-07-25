@@ -72,6 +72,10 @@
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>
       </button>
+      <div id="charCounter"
+        class="char-counter"
+        style="font-size:12px; margin-top:4px; display:none;">
+      </div>
     </div>
   </div>
 
@@ -119,40 +123,38 @@
   <!-- Profile Modal -->
   <div class="modal" id="profileModal">
     <div class="modal-content">
-      <div class="modal-header">
-        <div class="modal-title">Profile Settings</div>
-        <div class="modal-close" id="closeProfileModal">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+      <form id="profileForm">
+        <div class="modal-header">
+          <div class="modal-title">Profile Settings</div>
+          <div class="modal-close" id="closeProfileModal">×</div>
         </div>
-      </div>
-      <div class="modal-body">
-        <div class="input-group">
-          <label>Username</label>
-          <input type="text" name="username">
+        <div class="modal-body">
+          <div class="input-group">
+            <label>Username</label>
+            <input type="text" name="username">
+          </div>
+          <div class="input-group">
+            <label>Email</label>
+            <input type="email" name="email">
+          </div>
+          <div class="input-group">
+            <button type="button" class="modal-button" id="changePasswordBtn">Change Password</button>
+          </div>
+          <div class="input-group">
+            <button type="button" class="modal-button danger-button" name="disable">Disable Account</button>
+          </div>
+          <div class="input-group">
+            <button type="button" class="modal-button danger-button" name="delete">Delete Account</button>
+          </div>
         </div>
-        <div class="input-group">
-          <label>Email</label>
-          <input type="email" name="email">
+        <div class="modal-footer">
+          <button type="button" class="modal-button secondary" id="cancelProfile">Cancel</button>
+          <button type="submit" class="modal-button primary" id="profileSubmitBtn">Save Changes</button>
         </div>
-        <div class="input-group">
-          <button class="modal-button" id="changePasswordBtn">Change Password</button>
-        </div>
-        <div class="input-group">
-          <button class="modal-button danger-button" name="disable">Disable Account</button>
-        </div>
-        <div class="input-group">
-          <button class="modal-button danger-button" name="delete">Delete Account</button>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="modal-button secondary" id="cancelProfile">Cancel</button>
-        <button class="modal-button primary" id="profileSubmitBtn">Save Changes</button>
-      </div>
+      </form>
     </div>
   </div>
+
 
   <!-- Reset Password Modal -->
   <div class="modal" id="resetPasswordModal">

@@ -959,3 +959,40 @@ body {
   background: rgba(79, 84, 92, 0.16);
   color: var(--text-primary);
 }
+.message-input {
+  max-height: 200px;        /* cap height so it never grows forever */
+  overflow-y: hidden;       /* hidden until you hit max */
+  transition: border-color .2s;
+}
+.message-input.error {
+  border-color: red;        /* goes red when over limit */
+}
+textarea.message-input {
+  border: 1px solid var(--border-color);
+}
+textarea.message-input.error {
+  border: 1px solid red !important;
+}
+textarea.message-input:focus {
+  outline: none;
+}
+
+textarea.message-input {
+  border: 1px solid var(--border-color);
+}
+
+textarea.message-input.error {
+  border-color: red !important;
+}
+
+textarea.message-input.error:focus {
+  outline: none;
+}
+
+.char-counter {
+  color: var(--text-secondary);
+}
+
+.char-counter.error {
+  color: red;
+}

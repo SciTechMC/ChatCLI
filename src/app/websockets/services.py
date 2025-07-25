@@ -97,6 +97,24 @@ async def post_msg(msg: dict) -> dict | None:
     user_id = users[0]["userID"]
     user_name = users[0]["username"]  # Capture the username
 
+    if text.strip() == "":
+        logging.warning(f"Empty message from {username} in chat {chat_id}.")
+        return {
+            "status": "error",
+            "code": "EMPTY_MESSAGE",
+            "message": "Cannot send an empty message."
+        }
+
+    if len(text) > 2048:
+        logging.warning(f"Message too long ({len(text)} chars) from {username} in chat {chat_id}.")
+        return {
+            "status": "error",
+            "code": "TOO_LONG",
+            "message": f"Message exceeds 2048‐character limit ({len(text)}).",
+            "limit": 2048,
+            "length": len(text)
+        }
+
     # insert into messages
     message_id = await insert_record(
         "messages",

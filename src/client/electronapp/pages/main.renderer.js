@@ -2,7 +2,6 @@
 // UTILITY FUNCTIONS
 // =============================================
 let toastContainer;
-
 // Modal closing functionality
 function setupModalClosing() {
   // Set up close buttons for all modals
@@ -29,7 +28,6 @@ function setupModalClosing() {
     }
   });
 }
-
 // Updated showModal function
 function showModal(modal) {
   // Function to close the modal when clicking outside
@@ -50,7 +48,6 @@ function showModal(modal) {
   modal.style.pointerEvents = 'all';
   modal.querySelector('.modal-content').style.transform = 'translateY(0)';
 }
-
 // Updated hideModal function
 function hideModal(modal) {
   // Clean up the backdrop click handler
@@ -63,7 +60,6 @@ function hideModal(modal) {
   modal.style.pointerEvents = 'none';
   modal.querySelector('.modal-content').style.transform = 'translateY(20px)';
 }
-
 // Show toast notification
 function showToast(message, type = 'info') {
   const toast = document.createElement('div');
@@ -83,7 +79,6 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 500);
   }, 3000);
 }
-
 // API request wrapper
 async function apiRequest(endpoint, options = {}) {
   try {
@@ -96,12 +91,10 @@ async function apiRequest(endpoint, options = {}) {
     throw new Error(`Request failed: ${err.message}`);
   }
 }
-
 // =============================================
 // WEBSOCKET FUNCTIONS
 // =============================================
 const ip = "ws://127.0.0.1:8765/ws";
-
 let ws;
 let token;
 let username;
@@ -146,6 +139,32 @@ let closeResetPasswordModalBtn;
 let cancelResetPasswordBtn;
 let submitResetPasswordBtn;
 
+// Typing indicator management
+const typingUsers = new Set();
+const typingTimeouts = new Map();
+
+function updateTypingIndicator() {
+  if (typingUsers.size === 0) {
+    typingIndicator.style.display = 'none';
+    return;
+  }
+
+  const users = Array.from(typingUsers);
+  let text;
+
+  if (users.length === 1) {
+    text = `${users[0]} is typing...`;
+  } else if (users.length === 2) {
+    text = `${users[0]} and ${users[1]} are typing...`;
+  } else {
+    const last = users.pop();
+    text = `${users.join(', ')}, and ${last} are typing...`;
+  }
+
+  typingIndicator.textContent = text;
+  typingIndicator.style.display = 'block';
+}
+
 // =============================================
 // CHAT MANAGEMENT FUNCTIONS
 // =============================================
@@ -154,117 +173,97 @@ let archivedVisible = false;
 let archivedChatsData = [];
 let groupMembers = [];
 let currentMembers = [];
-
 // Update send button state
 function updateSendButtonState() {
   const hasContent = messageInput.value.trim().length > 0;
   sendBtn.classList.toggle('disabled', !hasContent);
 }
-
 function createChatItem(chatID, name, type) {
   const chatItem = document.createElement('div');
   chatItem.classList.add('chat-item');
   chatItem.dataset.chatId = chatID;
   chatItem.dataset.username = name;
   chatItem.dataset.type = type;
-
   const chatInfo = document.createElement('div');
   chatInfo.classList.add('chat-info');
-
   const chatName = document.createElement('div');
   chatName.classList.add('chat-name');
   chatName.textContent = name;
-
   chatInfo.appendChild(chatName);
   chatItem.appendChild(chatInfo);
   chatItem.addEventListener('click', () => selectChat(chatID));
   return chatItem;
 }
-
 function renderArchivedChats() {
   document.querySelectorAll('.chat-item.archived').forEach(el => el.remove());
-
   if (!archivedVisible) return;
-
   archivedChatsData.forEach(({ chatID, name, type }) => {
     const item = document.createElement('div');
     item.classList.add('chat-item', 'archived');
     item.dataset.chatId = chatID;
     item.dataset.username = name;
     item.dataset.type = type;
-
     const chatInfo = document.createElement('div');
     chatInfo.classList.add('chat-info');
-
     const chatName = document.createElement('div');
     chatName.classList.add('chat-name');
     chatName.textContent = name;
-
     chatInfo.appendChild(chatName);
     item.appendChild(chatInfo);
-
     // Unarchive button
     const unarchiveBtn = document.createElement('div');
     unarchiveBtn.classList.add('chat-close');
     unarchiveBtn.title = 'Unarchive';
     unarchiveBtn.innerHTML = '⤴'; // icon suggestion
-
     unarchiveBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
         const res = await apiRequest('/chat/unarchive-chat', {
           body: JSON.stringify({ session_token: token, chatID })
         });
-        if (!res.ok) throw new Error(res.message || 'Failed to unarchive');
-        showToast('Chat unarchived!');
-        archivedChatsData = archivedChatsData.filter(c => c.chatID !== chatID);
-        item.remove();
-        // Create fresh active chat item and insert it into Recent Chats
-        const activeItem = createChatItem(chatID, name, type);
-        const chatClose = document.createElement('div');
-        chatClose.classList.add('chat-close');
-        chatClose.title = 'Archive chat';
-        chatClose.innerHTML = '×';
-        chatClose.addEventListener('click', evt => {
-          evt.stopPropagation();
-          handleArchiveChat(chatID);
-        });
-        activeItem.appendChild(chatClose);
-        const titleEl = document.querySelector('.chat-list-title');
-        if (titleEl) titleEl.after(activeItem);
+        // check the same property your archive code does:
+        if (res.status !== 'ok') {
+          throw new Error(res.message || 'Failed to unarchive chat');
+        }
+
+        showToast('Chat unarchived!', 'info');
+
+        // ensure we switch back to the "Recent Chats" view:
+        archivedVisible = false;
+
+        // now reload the full list from scratch:
+        await loadChats();
+
+        // if the user was looking at that chat, deselect it
+        if (currentChatID === chatID) selectChat(null);
+
       } catch (err) {
+        console.error('Unarchive error:', err);
         showToast(err.message || 'Could not unarchive chat', 'error');
       }
     });
-
     item.appendChild(unarchiveBtn);
     item.addEventListener('click', () => selectChat(chatID));
     chatListEl.appendChild(item);
   });
 }
-
 // Load and render the user's chat list
 async function loadChats() {
   try {
     const res = await apiRequest('/chat/fetch-chats', {
       body: JSON.stringify({ session_token: token })
     });
-
     if (!res.response) {
       throw new Error('No response data received');
     }
-
     const chats = Array.isArray(res.response) ? res.response : [];
-
     chatListEl.innerHTML = '';
     document.querySelector('.chat-input').classList.add('hidden');
     placeholder.style.display = 'flex';
-
     const title = document.createElement('div');
     title.classList.add('chat-list-title');
     title.textContent = 'Recent Chats';
     chatListEl.appendChild(title);
-
     if (chats.length === 0) {
       const emptyDiv = document.createElement('div');
       emptyDiv.textContent = 'No conversations yet';
@@ -272,73 +271,64 @@ async function loadChats() {
       emptyDiv.style.color = 'var(--text-secondary)';
       chatListEl.appendChild(emptyDiv);
     }
-
     chats.forEach(({ chatID, name, type }) => {
       const chatItem = document.createElement('div');
       chatItem.classList.add('chat-item');
       chatItem.dataset.chatId = chatID;
       chatItem.dataset.username = name;
       chatItem.dataset.type = type;
-
       if (type === 'private') {
         const statusIndicator = document.createElement('div');
         statusIndicator.classList.add('chat-status', 'offline');
         chatItem.appendChild(statusIndicator);
       }
-
       const chatInfo = document.createElement('div');
       chatInfo.classList.add('chat-info');
-
       const chatName = document.createElement('div');
       chatName.classList.add('chat-name');
       chatName.textContent = name;
-
       const chatPreview = document.createElement('div');
       chatPreview.classList.add('chat-preview');
       chatPreview.textContent = 'No messages yet';
-
-      chatInfo.appendChild(chatName);
-      chatInfo.appendChild(chatPreview);
-      chatItem.appendChild(chatInfo);
-
+      chatInfo.append(chatName, chatPreview);
+      chatItem.append(chatInfo);
       const chatClose = document.createElement('div');
       chatClose.classList.add('chat-close');
       chatClose.innerHTML = '×';
       chatClose.title = 'Archive chat';
-      chatClose.addEventListener('click', (e) => {
+      chatClose.addEventListener('click', e => {
         e.stopPropagation();
         handleArchiveChat(chatID);
       });
-
-      chatItem.appendChild(chatClose);
+      chatItem.append(chatClose);
       chatItem.addEventListener('click', () => selectChat(chatID));
-      chatListEl.appendChild(chatItem);
+      chatListEl.append(chatItem);
     });
-
-    // === ARCHIVE TOGGLE INTEGRATION ===
-    const archiveToggleContainer = document.createElement('div');
-    archiveToggleContainer.style.textAlign = 'center';
-    archiveToggleContainer.style.margin = '16px 0';
-
-    const archiveToggleBtn = document.createElement('button');
-    archiveToggleBtn.className = 'archived-chats-button';
-    archiveToggleBtn.textContent = archivedVisible ? '📂 Hide Archived Chats' : '📁 Show Archived Chats';
-
-    archiveToggleBtn.addEventListener('click', () => {
-      archivedVisible = !archivedVisible;
-      archiveToggleBtn.textContent = archivedVisible ? '📂 Hide Archived Chats' : '📁 Show Archived Chats';
-      renderArchivedChats();
-    });
-
-    archiveToggleContainer.appendChild(archiveToggleBtn);
-    chatListEl.appendChild(archiveToggleContainer);
-
     // Fetch archived data
     const archivedRes = await apiRequest('/chat/fetch-archived', {
       body: JSON.stringify({ session_token: token })
     });
-
-    archivedChatsData = archivedRes.response || [];
+    archivedChatsData = Array.isArray(archivedRes.response) ? archivedRes.response : [];
+    // only show toggle if there are archived chats
+    if (archivedChatsData.length > 0) {
+      const archiveToggleContainer = document.createElement('div');
+      archiveToggleContainer.style.textAlign = 'center';
+      archiveToggleContainer.style.margin = '16px 0';
+      const archiveToggleBtn = document.createElement('button');
+      archiveToggleBtn.className = 'archived-chats-button';
+      archiveToggleBtn.textContent = archivedVisible
+        ? '📂 Hide Archived Chats'
+        : '📁 Show Archived Chats';
+      archiveToggleBtn.addEventListener('click', () => {
+        archivedVisible = !archivedVisible;
+        archiveToggleBtn.textContent = archivedVisible
+          ? '📂 Hide Archived Chats'
+          : '📁 Show Archived Chats';
+        renderArchivedChats();
+      });
+      archiveToggleContainer.append(archiveToggleBtn);
+      chatListEl.append(archiveToggleContainer);
+    }
     renderArchivedChats();
     if (archivedVisible) renderArchivedChats();
   } catch (err) {
@@ -346,7 +336,6 @@ async function loadChats() {
     showToast('Failed to load chats: ' + err.message, 'error');
   }
 }
-
 // Select a chat by ID
 async function selectChat(chatID) {
   if (!chatID) {
@@ -382,6 +371,11 @@ async function selectChat(chatID) {
   }
   document.querySelector('.chat-input').classList.remove('hidden');
   typingIndicator.style.display = 'none';
+  // Clear typing state when switching chats
+  typingUsers.clear();
+  typingTimeouts.forEach(timeout => clearTimeout(timeout));
+  typingTimeouts.clear();
+
   if (currentChatID != null && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
   }
@@ -406,7 +400,6 @@ async function selectChat(chatID) {
     el.classList.toggle('active', el.dataset.chatId == chatID);
   });
 }
-
 // Render a single message
 function appendMessage({ username: msgUser, message, timestamp }) {
   const messageDiv = document.createElement('div');
@@ -432,38 +425,66 @@ function appendMessage({ username: msgUser, message, timestamp }) {
   messagesEl.appendChild(messageDiv);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
-
 // Send a new message via WebSocket
-function sendMessage() {
+async function sendMessage() {
   if (!currentChatID) {
     return showToast('Select a chat first.', 'error');
   }
   const text = messageInput.value.trim();
   if (!text) return;
+  const len = text.length;
+  if (len > 2048) {
+    showConfirmationModal(
+      `Your message is ${len} characters long and will be split into ${Math.ceil(len / 2048)} messages. Continue?`,
+      'Split Message?',
+      async () => {
+        const chunks = [];
+        let start = 0;
+        while (start < text.length) {
+          let end = Math.min(text.length, start + 2048);
+          if (end < text.length) {
+            const lastSpace = text.lastIndexOf(' ', end);
+            if (lastSpace > start) end = lastSpace;
+          }
+          chunks.push(text.slice(start, end));
+          start = end;
+        }
+        for (const chunk of chunks) {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'post_msg', chatID: currentChatID, text: chunk }));
+          } else {
+            showToast('Not connected—reconnecting...', 'warning');
+            connectWS();
+            await new Promise(r => setTimeout(r, 2000));
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'post_msg', chatID: currentChatID, text: chunk }));
+            }
+          }
+        }
+        messageInput.value = '';
+        messageInput.style.height = 'auto';
+        updateSendButtonState();
+        charCounter.style.display = 'none';
+      }
+    );
+    return;
+  }
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({
-      type: 'post_msg',
-      chatID: currentChatID,
-      text
-    }));
+    ws.send(JSON.stringify({ type: 'post_msg', chatID: currentChatID, text }));
   } else {
-    showToast('Not connected to server. Trying to reconnect...', 'warning');
+    showToast('Not connected—reconnecting...', 'warning');
     connectWS();
     setTimeout(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-          type: 'post_msg',
-          chatID: currentChatID,
-          text
-        }));
+        ws.send(JSON.stringify({ type: 'post_msg', chatID: currentChatID, text }));
       }
     }, 2000);
   }
   messageInput.value = '';
   messageInput.style.height = 'auto';
   updateSendButtonState();
+  charCounter.style.display = 'none';
 }
-
 // Archive a chat
 async function archiveChat(chatID) {
   try {
@@ -481,7 +502,6 @@ async function archiveChat(chatID) {
     showToast(`Could not archive chat: ${err.message || 'Unknown error'}`, 'error');
   }
 }
-
 // Handle archiving a chat with confirmation
 async function handleArchiveChat(chatID) {
   showConfirmationModal(
@@ -492,7 +512,6 @@ async function handleArchiveChat(chatID) {
     }
   );
 }
-
 // =============================================
 // MODAL MANAGEMENT FUNCTIONS
 // =============================================
@@ -501,32 +520,43 @@ function showConfirmationModal(message, title = 'Confirm Action', onConfirm) {
   confirmationMessage.textContent = message;
   confirmationTitle.textContent = title;
   showModal(confirmationModal);
-  // Clean up existing event listeners
-  confirmActionBtn.onclick = null;
-  cancelConfirmBtn.onclick = null;
-  closeConfirmationModalBtn.onclick = null;
-  // Set up new event listeners
-  const confirmHandler = async () => {
-    hideModal(confirmationModal);
-    await onConfirm();
-  };
-  confirmActionBtn.onclick = confirmHandler;
-  cancelConfirmBtn.onclick = () => hideModal(confirmationModal);
-  closeConfirmationModalBtn.onclick = () => hideModal(confirmationModal);
-  // Add keyboard support
+  // --- set up a single keydown handler and a cleanup function ---
   const keyHandler = (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       confirmHandler();
     }
     if (event.key === 'Escape') {
+      cleanup();
       hideModal(confirmationModal);
     }
   };
   document.addEventListener('keydown', keyHandler);
-  return () => document.removeEventListener('keydown', keyHandler);
+  function cleanup() {
+    document.removeEventListener('keydown', keyHandler);
+    // also remove all button callbacks so nothing lingers
+    confirmActionBtn.onclick = null;
+    cancelConfirmBtn.onclick = null;
+    closeConfirmationModalBtn.onclick = null;
+  }
+  // --- wire up the three “close” buttons to also run cleanup() ---
+  const confirmHandler = async () => {
+    cleanup();
+    hideModal(confirmationModal);
+    await onConfirm();
+  };
+  confirmActionBtn.onclick = confirmHandler;
+  cancelConfirmBtn.onclick = () => {
+    cleanup();
+    hideModal(confirmationModal);
+  };
+  closeConfirmationModalBtn.onclick = () => {
+    cleanup();
+    hideModal(confirmationModal);
+  };
+  // return cleanup in case someone else needs it
+  return cleanup;
 }
-
 // =============================================
 // WEBSOCKET FUNCTIONS
 // =============================================
@@ -541,12 +571,15 @@ function connectWS() {
       appendMessage(msg);
     }
     if (msg.type === "user_typing" && msg.chatID === currentChatID && msg.username.toLowerCase() !== username.toLowerCase()) {
-      typingIndicator.textContent = `${msg.username} is typing...`;
-      typingIndicator.style.display = 'block';
-      clearTimeout(typingIndicator._timeout);
-      typingIndicator._timeout = setTimeout(() => {
-        typingIndicator.style.display = 'none';
-      }, 3000);
+      const user = msg.username;
+      // add or refresh
+      typingUsers.add(user);
+      clearTimeout(typingTimeouts.get(user));
+      typingTimeouts.set(user, setTimeout(() => {
+        typingUsers.delete(user);
+        updateTypingIndicator();
+      }, 3000));
+      updateTypingIndicator();
     }
     if (msg.type === "user_status") {
       const chatItems = document.querySelectorAll(`.chat-item[data-username="${msg.username}"]`);
@@ -566,7 +599,6 @@ function connectWS() {
     console.error('WebSocket error:', error);
   });
 }
-
 // =============================================
 // MAIN APPLICATION LOGIC
 // =============================================
@@ -579,7 +611,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   toastContainer.style.right = '20px';
   toastContainer.style.zIndex = '1000';
   document.body.appendChild(toastContainer);
-
   // Create typing indicator
   typingIndicator = document.createElement('div');
   typingIndicator.id = 'typing-indicator';
@@ -588,10 +619,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   typingIndicator.style.color = 'var(--text-secondary)';
   typingIndicator.style.marginLeft = '10px';
   document.querySelector('.chat-header').appendChild(typingIndicator);
-
   // Set up modal closing functionality
   setupModalClosing();
-
   try {
     // Get stored credentials
     token = await window.secureStore.get('session_token');
@@ -600,7 +629,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'login.html';
       return;
     }
-
     // Set up username display
     const userInfoEl = document.querySelector('.username');
     if (userInfoEl) {
@@ -612,16 +640,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       userInfoEl.style.overflowWrap = 'break-word';
       userInfoEl.style.color = 'var(--text-primary)';
     }
-
     // Cache DOM elements
     chatListEl = document.querySelector('.chat-list');
     messagesEl = document.querySelector('.chat-messages');
     messageInput = document.querySelector('.message-input');
+    charCounter   = document.getElementById('charCounter');
     sendBtn = document.querySelector('.send-button');
     logoutBtn = document.querySelector('.logout-button');
     chatTitle = document.querySelector('.chat-title');
     editMembersBtn = document.getElementById('manageUsersBtn');
-
     // Create placeholder for when no chat is selected
     placeholder = document.createElement('div');
     placeholder.id = 'no-chat-selected';
@@ -632,11 +659,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     placeholder.style.height = '100%';
     placeholder.style.color = 'var(--text-secondary)';
     messagesEl.appendChild(placeholder);
-
     // Modal elements
     profileModal = document.getElementById('profileModal');
-    profileForm = document.querySelector('#profileModal .modal-body');
+    profileForm = document.getElementById('profileForm');
     closeProfileBtn = document.getElementById('closeProfileModal');
+    cancelProfileBtn = document.getElementById('cancelProfile');
     disableAccountBtn = document.querySelector('#profileModal button[name="disable"]');
     deleteAccountBtn = document.querySelector('#profileModal button[name="delete"]');
     createChatModal = document.getElementById('createChatModal');
@@ -665,10 +692,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     closeResetPasswordModalBtn = document.getElementById('closeResetPasswordModal');
     cancelResetPasswordBtn = document.getElementById('cancelResetPassword');
     submitResetPasswordBtn = document.getElementById('submitResetPassword');
-
     // Initialize create chat modal toggle state
     privateChatSection.classList.remove('hidden');
     groupChatSection.classList.add('hidden');
+    closeProfileBtn.addEventListener('click',  () => hideModal(profileModal));
+    cancelProfileBtn.addEventListener('click', () => hideModal(profileModal));
+
+    profileForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const newUsername = profileForm.querySelector('input[name="username"]').value.trim();
+      const newEmail    = profileForm.querySelector('input[name="email"]').value.trim();
+      try {
+        const res = await apiRequest('/user/submit-profile', {
+          body: JSON.stringify({
+            session_token: token,
+            action: 'update',
+            username: newUsername,
+            email: newEmail
+          })
+        });
+        hideModal(profileModal);
+        if (res.response?.verificationSent) {
+          showToast('Email changed—please verify.', 'info');
+          window.location.href = `verify.html?username=${encodeURIComponent(newUsername)}`;
+        } else {
+          showToast('Profile updated!', 'info');
+          document.querySelector('.username').textContent = newUsername;
+        }
+      } catch (err) {
+        showToast('Failed to update profile: ' + err.message, 'error');
+      }
+    });
 
     // Set up radio button event listeners for create chat modal
     document.querySelectorAll('input[name="chatType"]').forEach(radio => {
@@ -687,11 +741,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     });
-
     // Create chat modal opening handler
     document.getElementById('openCreateChat').addEventListener('click', () => {
       const selectedType = document.querySelector('input[name="chatType"]:checked')?.value;
-
       if (selectedType === 'group') {
         privateChatSection.classList.add('hidden');
         groupChatSection.classList.remove('hidden');
@@ -699,14 +751,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         privateChatSection.classList.remove('hidden');
         groupChatSection.classList.add('hidden');
       }
-
       newChatInput.value = '';
       newGroupNameInput.value = '';
       groupMemberInput.value = '';
-
       showModal(createChatModal);
     });
-
     // =============================================
     // EVENT LISTENERS
     // =============================================
@@ -715,24 +764,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         const res = await apiRequest('/chat/fetch-archived', {
           body: JSON.stringify({ session_token: token })
         });
-
         if (!res || !Array.isArray(res.response)) {
           throw new Error('Failed to fetch archived chats');
         }
-
         chatListEl.innerHTML = '';
         const title = document.createElement('div');
         title.classList.add('chat-list-title');
         title.textContent = 'Archived Chats';
         chatListEl.appendChild(title);
-
         res.response.forEach(({ chatID, name, type }) => {
           const chatItem = document.createElement('div');
           chatItem.classList.add('chat-item');
           chatItem.dataset.chatId = chatID;
           chatItem.dataset.username = name;
           chatItem.dataset.type = type;
-
           const chatInfo = document.createElement('div');
           chatInfo.classList.add('chat-info');
           const chatName = document.createElement('div');
@@ -740,10 +785,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           chatName.textContent = name;
           chatInfo.appendChild(chatName);
           chatItem.appendChild(chatInfo);
-
           chatItem.addEventListener('click', () => selectChat(chatID));
           chatListEl.appendChild(chatItem);
-
           // Add Archived Chats button at the bottom
           const archivedBtnContainer = document.createElement('div');
           archivedBtnContainer.classList.add('chat-archived-entry');
@@ -788,13 +831,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           archivedBtnContainer.appendChild(archivedBtn);
           chatListEl.appendChild(archivedBtnContainer);
         });
-
         showToast('Showing archived chats', 'info');
       } catch (err) {
         showToast(err.message || 'Could not load archived chats', 'error');
       }
     });
-
     // Profile modal logic
     document.getElementById('profileBtn').addEventListener('click', async () => {
       try {
@@ -812,53 +853,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast('Failed to load profile: ' + (err.message || 'Unknown error'), 'error');
       }
     });
-
     // Profile modal closing
     closeProfileBtn.addEventListener('click', () => hideModal(profileModal));
     document.getElementById('cancelProfile').addEventListener('click', () => hideModal(profileModal));
-
-    // Submit profile updates
-    if (profileForm) {
-      profileForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const newUsername = document.querySelector('#profileModal input[name="username"]').value.trim();
-        const newEmail = document.querySelector('#profileModal input[name="email"]').value.trim();
-        try {
-          const res = await apiRequest('/user/submit-profile', {
-            body: JSON.stringify({
-              session_token: token,
-              action: 'update',
-              username: newUsername,
-              email: newEmail
-            })
-          });
-          if (!res) {
-            throw new Error('No response from server');
-          }
-          hideModal(profileModal);
-          if (res.response && res.response.verificationSent) {
-            showToast('Email changed - please verify your new address.', 'info');
-            await window.secureStore.delete('session_token');
-            await window.secureStore.delete('refresh_token');
-            await window.secureStore.delete('username');
-            await window.secureStore.delete('email');
-            window.location.href = `verify.html?username=${encodeURIComponent(newUsername)}`;
-            return;
-          }
-          showToast('Profile updated!', 'info');
-          if (newUsername !== username) {
-            await window.secureStore.set('username', newUsername);
-            username = newUsername;
-            if (userInfoEl) {
-              userInfoEl.textContent = newUsername;
-            }
-          }
-        } catch (err) {
-          showToast('Failed to update profile: ' + (err.message || 'Unknown error'), 'error');
-        }
-      });
-    }
-
     // Disable account
     if (disableAccountBtn) {
       disableAccountBtn.addEventListener('click', () => {
@@ -891,7 +888,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       });
     }
-
     // Delete account
     if (deleteAccountBtn) {
       deleteAccountBtn.addEventListener('click', () => {
@@ -924,35 +920,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       });
     }
-
     document.getElementById('changePasswordBtn')?.addEventListener('click', () => {
       document.querySelector('#resetPasswordModal input[name="currentPassword"]').value = '';
       document.querySelector('#resetPasswordModal input[name="newPassword"]').value = '';
       document.querySelector('#resetPasswordModal input[name="confirmPassword"]').value = '';
       showModal(resetPasswordModal);
     });
-
     closeResetPasswordModalBtn.addEventListener('click', () => hideModal(resetPasswordModal));
     cancelResetPasswordBtn.addEventListener('click', () => hideModal(resetPasswordModal));
-
     submitResetPasswordBtn.addEventListener('click', async () => {
       const current = document.querySelector('#resetPasswordModal input[name="currentPassword"]').value.trim();
       const newPw = document.querySelector('#resetPasswordModal input[name="newPassword"]').value.trim();
       const confirmPw = document.querySelector('#resetPasswordModal input[name="confirmPassword"]').value.trim();
-
       // Basic client-side validation
       if (!current || !newPw || !confirmPw) {
         return showToast('All fields are required', 'error');
       }
-
       if (newPw !== confirmPw) {
         return showToast('New passwords do not match', 'error');
       }
-
       if (newPw.length < 8 || !/\d/.test(newPw) || !/[a-zA-Z]/.test(newPw)) {
         return showToast('Password must be at least 8 characters and include letters and numbers', 'error');
       }
-
       try {
         const res = await apiRequest('/user/change-password', {
           body: JSON.stringify({
@@ -961,20 +950,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             new_password: newPw
           })
         });
-
         if (!res || res.status !== 'ok') {
           throw new Error(res?.message || 'Password update failed');
         }
-
         showToast('Password updated. Please log in again.', 'info');
         hideModal(resetPasswordModal);
-
         // Strip all PII
         await window.secureStore.delete('session_token');
         await window.secureStore.delete('refresh_token');
         await window.secureStore.delete('username');
         await window.secureStore.delete('email');
-
         // Redirect to login
         setTimeout(() => {
           window.location.href = 'login.html';
@@ -983,7 +968,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         showToast(err.message || 'Password change failed', 'error');
       }
     });
-
     // Create chat modal closing
     if (closeCreateChatBtn) {
       closeCreateChatBtn.addEventListener('click', () => hideModal(createChatModal));
@@ -991,22 +975,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (cancelCreateChatBtn) {
       cancelCreateChatBtn.addEventListener('click', () => hideModal(createChatModal));
     }
-
     // Create chat (private or group)
     if (createChatSubmitBtn) {
       createChatSubmitBtn.addEventListener('click', async () => {
         const chatType = document.querySelector('input[name="chatType"]:checked')?.value;
-
         if (!chatType) {
           return showToast('Please select a chat type', 'error');
         }
-
         if (chatType === 'private') {
           const receiver = newChatInput.value.trim();
           if (!receiver) {
             return showToast('Please enter a username', 'error');
           }
-
           try {
             const res = await apiRequest('/chat/create-chat', {
               body: JSON.stringify({
@@ -1014,11 +994,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 session_token: token
               })
             });
-
             if (!res || res.status !== "ok") {
               throw new Error(res?.message || 'Failed to create chat');
             }
-
             showToast('Private chat created!', 'info');
             hideModal(createChatModal);
             newChatInput.value = '';
@@ -1026,18 +1004,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           } catch (err) {
             showToast(err.message || 'Could not create private chat', 'error');
           }
-
         } else if (chatType === 'group') {
           const groupName = newGroupNameInput.value.trim();
           const membersInput = groupMemberInput.value.trim();
-
           if (!groupName) return showToast('Please enter a group name', 'error');
           if (!membersInput) return showToast('Please add at least one member', 'error');
-
           const members = membersInput.split(',')
             .map(m => m.trim())
             .filter(Boolean);
-
           try {
             const res = await apiRequest('/chat/create-group', {
               body: JSON.stringify({
@@ -1046,11 +1020,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 members: members
               })
             });
-
             if (!res || !res.response?.chatID) {
               throw new Error(res?.message || 'Failed to create group');
             }
-
             const newChatID = res.response.chatID;
             showToast('Group created!', 'info');
             hideModal(createChatModal);
@@ -1064,55 +1036,87 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
-
     // Group editor modal logic
     if (editMembersBtn) {
       editMembersBtn.addEventListener('click', async () => {
         if (!currentChatID) return;
+
+        // 1) Fetch current members
+        let res;
         try {
-          const res = await apiRequest('/chat/get-members', {
+          res = await apiRequest('/chat/get-members', {
             body: JSON.stringify({ session_token: token, chatID: currentChatID })
           });
-          if (!res || !res.response) {
-            throw new Error('Failed to get group members');
-          }
-          currentMembers = Array.isArray(res.response) ? res.response : [];
-          groupMemberList.innerHTML = '';
-          currentMembers.forEach(u => {
-            const userItem = document.createElement('div');
-            userItem.classList.add('user-item');
-            const userName = document.createElement('span');
-            userName.textContent = u;
-            const removeBtn = document.createElement('span');
-            removeBtn.classList.add('user-remove');
-            removeBtn.textContent = '×';
-            removeBtn.onclick = async (e) => {
-              e.stopPropagation();
+        } catch (err) {
+          return showToast('Failed to load group members: ' + err.message, 'error');
+        }
+        if (!res || !Array.isArray(res.response)) {
+          return showToast('Failed to load group members', 'error');
+        }
+        currentMembers = res.response;
+
+        // 2) Render each member with the new click logic
+        groupMemberList.innerHTML = '';
+        const me = username.toLowerCase();
+
+        currentMembers.forEach(member => {
+          const userItem = document.createElement('div');
+          userItem.classList.add('user-item');
+
+          const userName = document.createElement('span');
+          userName.textContent = member;
+
+          const removeBtn = document.createElement('span');
+          removeBtn.classList.add('user-remove');
+          removeBtn.textContent = '×';
+
+          removeBtn.addEventListener('click', e => {
+            e.stopPropagation();
+
+            // actual API call & UI removal
+            const performRemoval = async () => {
               try {
                 const removeRes = await apiRequest('/chat/remove-members', {
                   body: JSON.stringify({
                     session_token: token,
                     chatID: currentChatID,
-                    members: [u]
+                    members: [member]
                   })
                 });
-                if (!removeRes || !removeRes.ok) {
-                  throw new Error('Failed to remove member');
+                if (!removeRes || removeRes.status !== 'ok') {
+                  throw new Error(removeRes?.message || 'Failed to remove member');
                 }
                 userItem.remove();
-                currentMembers = currentMembers.filter(member => member !== u);
+                currentMembers = currentMembers.filter(u => u !== member);
               } catch (err) {
-                showToast('Failed to remove member: ' + (err.message || 'Unknown error'), 'error');
+                showToast('Failed to remove member: ' + err.message, 'error');
               }
             };
-            userItem.appendChild(userName);
-            userItem.appendChild(removeBtn);
-            groupMemberList.appendChild(userItem);
+
+            // If I'm removing *myself*, confirm first
+            if (member.toLowerCase() === me) {
+              showConfirmationModal(
+                'Are you sure you want to leave this group? This cannot be undone unless someone else adds you back.',
+                'Leave Group',
+                async () => {
+                  await performRemoval();
+                  // refresh sidebar & clear chat
+                  await loadChats();
+                  selectChat(null);
+                  hideModal(groupEditorModal);
+                }
+              );
+            } else {
+              // removing someone else
+              performRemoval();
+            }
           });
-          showModal(groupEditorModal);
-        } catch (err) {
-          showToast('Failed to load group members: ' + (err.message || 'Unknown error'), 'error');
-        }
+
+          userItem.append(userName, removeBtn);
+          groupMemberList.appendChild(userItem);
+        });
+
+        showModal(groupEditorModal);
       });
     }
 
@@ -1122,7 +1126,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (cancelGroupEditBtn) {
       cancelGroupEditBtn.addEventListener('click', () => hideModal(groupEditorModal));
     }
-
     // Add member to group
     if (editMemberAddBtn) {
       editMemberAddBtn.addEventListener('click', async () => {
@@ -1149,25 +1152,47 @@ document.addEventListener('DOMContentLoaded', async () => {
           const removeBtn = document.createElement('span');
           removeBtn.classList.add('user-remove');
           removeBtn.textContent = '×';
-          removeBtn.onclick = async (e) => {
+          removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            try {
-              const removeRes = await apiRequest('/chat/remove-members', {
-                body: JSON.stringify({
-                  session_token: token,
-                  chatID: currentChatID,
-                  members: [username]
-                })
-              });
-              if (!removeRes || !removeRes.ok) {
-                throw new Error('Failed to remove member');
+
+            // 1) wrap the actual delete logic in its own function
+            const doRemove = async () => {
+              try {
+                const res = await apiRequest('/chat/remove-members', {
+                  body: JSON.stringify({
+                    session_token: token,
+                    chatID: currentChatID,
+                    members: [member]
+                  })
+                });
+                if (!res || res.status !== 'ok') {
+                  throw new Error(res?.message || 'Failed to remove member');
+                }
+                // remove from UI
+                userItem.remove();
+                currentMembers = currentMembers.filter(u => u !== member);
+              } catch (err) {
+                showToast('Failed to remove member: ' + err.message, 'error');
               }
-              userItem.remove();
-              currentMembers = currentMembers.filter(member => member !== username);
-            } catch (err) {
-              showToast('Failed to remove member: ' + (err.message || 'Unknown error'), 'error');
+            };
+
+            // 2) if they're removing *themselves*, show confirmation first
+            if (memberName === me) {
+              showConfirmationModal(
+                'Are you sure you want to leave this group? This cannot be undone unless someone else adds you back.',
+                'Leave Group',
+                async () => {
+                  await doRemove();
+                  // 3) once they leave, refresh sidebar and clear chat pane:
+                  await loadChats();
+                  selectChat(null);
+                }
+              );
+            } else {
+              // removing someone else – no confirm
+              doRemove();
             }
-          };
+          });
           userItem.appendChild(userName);
           userItem.appendChild(removeBtn);
           groupMemberList.appendChild(userItem);
@@ -1178,14 +1203,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
-
     // Save group changes
     if (saveGroupChangesBtn) {
       saveGroupChangesBtn.addEventListener('click', () => {
         hideModal(groupEditorModal);
       });
     }
-
     // Logout
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
@@ -1201,7 +1224,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
     }
-
     // Event listeners for message input
     if (sendBtn) {
       sendBtn.addEventListener('click', sendMessage);
@@ -1214,14 +1236,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
       messageInput.addEventListener('input', () => {
+        // auto‐resize up to max‐height, then scroll
         messageInput.style.height = 'auto';
-        messageInput.style.height = `${messageInput.scrollHeight}px`;
+        const maxH = 200;
+        const needed = messageInput.scrollHeight;
+        if (needed <= maxH) {
+          messageInput.style.height = `${needed}px`;
+          messageInput.style.overflowY = 'hidden';
+        } else {
+          messageInput.style.height = `${maxH}px`;
+          messageInput.style.overflowY = 'auto';
+        }
+
         updateSendButtonState();
+
+        // live char counter
+        const len = messageInput.value.length;
+        if (len >= 1950) {
+          charCounter.style.display = 'block';
+          charCounter.textContent = len <= 2100
+            ? `${len}/2048`
+            : 'Message too long';
+        } else {
+          charCounter.style.display = 'none';
+        }
+
+        // highlight over‐limit
+        messageInput.classList.toggle('error', len > 2048);
+        charCounter.classList.toggle('error', len > 2048);
+
         if (!currentChatID || !ws || ws.readyState !== WebSocket.OPEN) return;
         ws.send(JSON.stringify({ type: "typing", chatID: currentChatID }));
       });
-    }
 
+    }
     // Initialize the application
     connectWS();
     await loadChats();
