@@ -11,10 +11,16 @@ all_blueprints = [user, chat, base]
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv("FLASK_SECRET_KEY")
-
     limiter.init_app(app)
 
-    # Register blueprints
+    from .errors import APIError, BadRequest, NotFound
+    from flask import jsonify
+
+    @app.errorhandler(APIError)
+    def handle_api_error(err):
+        app.logger.error(f"{err.__class__.__name__}: {err}", exc_info=err)
+        return jsonify({"status": "error", "message": err.message}), err.status_code
+
     for bp in all_blueprints:
         app.register_blueprint(bp)
 
