@@ -1,4 +1,3 @@
-# app/services/user_services.py
 import string
 import re
 import bcrypt
@@ -6,32 +5,39 @@ from datetime import datetime, timedelta, timezone
 import secrets
 import hashlib
 import random
-from flask import request, jsonify, render_template, current_app
-from app.services.base_services import return_statement, authenticate_token
-from app.services.mail_services import send_verification_email, send_password_reset_email, send_email_change_verification
-from app.database.db_helper import fetch_records, insert_record, update_records
-import os
+from flask import current_app
 
+from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
+from app.database.db_helper import fetch_records, insert_record, update_records
+from app.services.base_services import authenticate_token
+from app.services.mail_services import (
+    send_verification_email,
+    send_password_reset_email,
+    send_email_change_verification,
+)
+
+# Character set for tokens
 alphabet = string.ascii_letters + string.digits
 
-def register():
+
+def register(data: dict) -> dict:
     """
     Registers a new user and sends a verification code.
     """
-    data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = data.get("password")
     email    = (data.get("email") or "").strip()
 
     # 400: missing/invalid input
     if not username or not password:
-        return return_statement("", "Username and password are required", 400)
-    if any(ch in r'"%\'()*+,/:;<=>?@[\]^{|}~` ' for ch in username):
-        return return_statement("", "Username includes invalid characters", 400)
+        raise BadRequest("Username and password are required.")
+    invalid_chars = set(r'"%\'()*+,/:;<=>?@[\]^{|}~` ')
+    if any(ch in invalid_chars for ch in username):
+        raise BadRequest("Username includes invalid characters.")
     if not email:
-        return return_statement("", "Email is required", 400)
+        raise BadRequest("Email is required.")
     if not re.match(r'^[\w\.\+-]+@[\w-]+\.[\w\.-]+$', email):
-        return return_statement("", "Invalid email address", 400)
+        raise BadRequest("Invalid email address.")
     if (
         len(password) < 8 or
         not any(ch.isupper() for ch in password) or
@@ -39,17 +45,15 @@ def register():
         not any(ch.isdigit() for ch in password) or
         not any(ch in string.punctuation for ch in password)
     ):
-        return return_statement(
-            "", 
-            "Password must be ≥8 chars, include upper, lower, digit & special",
-            400
+        raise BadRequest(
+            "Password must be ≥8 chars, include upper, lower, digit & special."
         )
 
     try:
         # hash password
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
-        # check existing user (case-insensitive)
+        # check existing user
         users = fetch_records(
             table="users",
             where_clause="LOWER(username) = LOWER(%s)",
@@ -60,12 +64,16 @@ def register():
         if users:
             user = users[0]
             if user["email_verified"]:
-                return return_statement("", f"User '{username}' already exists", 400)
+                raise Conflict(f"User '{username}' already exists.")
             user_id = user["userID"]
             # update unverified user
             update_records(
                 table="users",
-                data={"password": hashed, "email": email, "created_at": datetime.now(timezone.utc)},
+                data={
+                    "password": hashed,
+                    "email": email,
+                    "created_at": datetime.now(timezone.utc)
+                },
                 where_clause="userID = %s",
                 where_params=(user_id,)
             )
@@ -77,7 +85,7 @@ def register():
                 where_params=(user_id, datetime.now(timezone.utc))
             )
         else:
-            # insert new user (preserve capitalization)
+            # insert new user
             user_id = insert_record(
                 "users",
                 {
@@ -88,11 +96,9 @@ def register():
                 }
             )
 
-        # create verification token (6-digit code)
+        # create verification token
         email_token = f"{random.randint(100000, 999999):06d}"
         expiry      = datetime.now(timezone.utc) + timedelta(minutes=5)
-        if os.getenv("FLASK_ENV") == "dev":
-            print(f"Dev mode: Verification code for {username} is {email_token}")
         insert_record(
             "email_tokens",
             {
@@ -103,29 +109,27 @@ def register():
             }
         )
 
-    except Exception:
-        current_app.logger.exception("Error during user registration")
-        return return_statement("", "Internal server error", 500)
+    except Exception as e:
+        current_app.logger.error("Error during user registration", exc_info=e)
+        raise APIError()
 
-    # send code
+    # send verification email
     if not send_verification_email(username, email_token, email):
-        return return_statement("", "Failed to send verification email", 500)
-    return return_statement("Verification email sent!")
+        raise APIError("Failed to send verification email.")
+
+    return {"message": "Verification email sent!"}
 
 
-def verify_email():
+def verify_email(data: dict) -> dict:
     """
     Consumes a verification token and marks the user verified.
     """
-    data        = request.get_json(silent=True) or {}
     username    = (data.get("username") or "").strip().lower()
     client_code = (data.get("email_token") or "").strip()
-    
 
     if not username or not client_code:
-        return return_statement("", "Username and email_token are required", 400)
+        raise BadRequest("Username and email_token are required.")
 
-    
     try:
         # fetch the latest valid token
         row = fetch_records(
@@ -139,43 +143,42 @@ def verify_email():
             limit=1,
             fetch_all=False
         )
-        if not row or str(row["email_token"]) != str(client_code):
-            return return_statement("", "Invalid or expired code!", 400)
+        if not row or str(row["email_token"]) != client_code:
+            raise BadRequest("Invalid or expired code.")
 
-        # mark token revoked
+        # revoke token & mark user verified
         update_records(
             table="email_tokens",
             data={"revoked": True},
             where_clause="tokenID = %s",
             where_params=(row["tokenID"],)
         )
-        # mark user verified
         update_records(
             table="users",
             data={"email_verified": True},
             where_clause="userID = %s",
             where_params=(row["userID"],)
         )
-        return return_statement("Email verified!")
 
-    except Exception:
-        current_app.logger.exception("Error during email verification")
-        return return_statement("", "Internal server error", 500)
+    except APIError:
+        # re-raise known API errors
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during email verification", exc_info=e)
+        raise APIError()
+
+    return {"message": "Email verified!"}
 
 
-def hash_token(token_plain: str) -> str:
-    return hashlib.sha256(token_plain.encode("utf-8")).hexdigest()
-
-def login():
+def login(data: dict) -> dict:
     """
-    Authenticates credentials and issues an access token + refresh token.
+    Authenticates credentials and issues tokens.
     """
-    data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip().lower()
     password = data.get("password")
 
     if not username or not password:
-        return return_statement("", "Username and password required", 400)
+        raise BadRequest("Username and password required.")
 
     try:
         users = fetch_records(
@@ -185,19 +188,16 @@ def login():
             fetch_all=True
         )
         if not users:
-            return return_statement("", "Username or password is incorrect!", 400)
-
+            raise BadRequest("Username or password is incorrect.")
         user = users[0]
         if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            return return_statement("", "Username or password is incorrect!", 400)
+            raise BadRequest("Username or password is incorrect.")
 
         now = datetime.now(timezone.utc)
-
-        # ——— Generate Access Token ———
+        # generate access token
         access_plain  = secrets.token_urlsafe(48)
-        access_hash   = hash_token(access_plain)
+        access_hash   = hashlib.sha256(access_plain.encode()).hexdigest()
         access_expiry = now + timedelta(days=7)
-
         insert_record(
             "session_tokens",
             {
@@ -205,54 +205,47 @@ def login():
                 "session_token": access_hash,
                 "expires_at":    access_expiry,
                 "revoked":       False,
-                "ip_address":    request.remote_addr
+                "ip_address":    None
             }
         )
-
-        # ——— Generate Refresh Token ———
+        # generate refresh token
         refresh_plain  = secrets.token_urlsafe(64)
-        refresh_hash   = hash_token(refresh_plain)
+        refresh_hash   = hashlib.sha256(refresh_plain.encode()).hexdigest()
         refresh_expiry = now + timedelta(days=30)
-
         insert_record(
             "refresh_tokens",
             {
-                "user_id":    user["userID"],
-                "token":      refresh_hash,
+                "user_id": user["userID"],
+                "token":   refresh_hash,
                 "expires_at": refresh_expiry,
-                "revoked":    False
+                "revoked": False
             }
         )
 
-        # ——— Return both tokens to client ———
-        return return_statement(
-            "", 
-            "Login successful",
-            200,
-            additional={
-              "access_token":  access_plain,
-              "refresh_token": refresh_plain
-            }
-        )
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during login", exc_info=e)
+        raise APIError()
 
-    except Exception:
-        current_app.logger.exception("Error during login")
-        return return_statement("", "Internal server error", 500)
+    return {
+        "message": "Login successful",
+        "access_token":  access_plain,
+        "refresh_token": refresh_plain
+    }
 
-def refresh_token():
+
+def refresh_token(data: dict) -> dict:
     """
-    Rotates a valid refresh token and issues a new access token + refresh token.
+    Rotates a valid refresh token and issues new tokens.
     """
-    data          = request.get_json(silent=True) or {}
     refresh_plain = data.get("refresh_token")
     if not refresh_plain:
-        return return_statement("", "Refresh token required", 400)
+        raise BadRequest("Refresh token required.")
 
     try:
         now = datetime.now(timezone.utc)
-        refresh_hash = hash_token(refresh_plain)
-
-        # 1. Lookup & validate existing refresh token
+        refresh_hash = hashlib.sha256(refresh_plain.encode()).hexdigest()
         rows = fetch_records(
             table="refresh_tokens",
             where_clause="token = %s",
@@ -260,99 +253,80 @@ def refresh_token():
             fetch_all=True
         )
         if not rows:
-            return return_statement("", "Invalid refresh token", 401)
-
+            raise Unauthorized("Invalid refresh token.")
         row = rows[0]
         if row["revoked"] or row["expires_at"] < now:
-            return return_statement("", "Refresh token expired or revoked", 401)
+            raise Unauthorized("Refresh token expired or revoked.")
 
         user_id = row["user_id"]
-
-        # 2. Revoke old refresh token
+        # revoke old refresh token
         update_records(
-            "refresh_tokens",
-            {"revoked": True},
+            table="refresh_tokens",
+            data={"revoked": True},
             where_clause="id = %s",
-            params=(row["id"],)
+            where_params=(row["id"],)
         )
-
-        # 3. Generate & store new refresh token
-        new_refresh_plain  = secrets.token_urlsafe(64)
-        new_refresh_hash   = hash_token(new_refresh_plain)
-        new_refresh_expiry = now + timedelta(days=30)
-
+        # new refresh token
+        new_refresh_plain = secrets.token_urlsafe(64)
+        new_refresh_hash  = hashlib.sha256(new_refresh_plain.encode()).hexdigest()
         insert_record(
             "refresh_tokens",
             {
-              "user_id":    user_id,
-              "token":      new_refresh_hash,
-              "expires_at": new_refresh_expiry,
-              "revoked":    False
+                "user_id": user_id,
+                "token":   new_refresh_hash,
+                "expires_at": now + timedelta(days=30),
+                "revoked": False
             }
         )
-
-        # 4. Generate & store new access token
-        new_access_plain  = secrets.token_urlsafe(48)
-        new_access_hash   = hash_token(new_access_plain)
-        new_access_expiry = now + timedelta(days=7)
-
+        # new access token
+        new_access_plain = secrets.token_urlsafe(48)
+        new_access_hash  = hashlib.sha256(new_access_plain.encode()).hexdigest()
         insert_record(
             "session_tokens",
             {
-              "userID":        user_id,
-              "session_token": new_access_hash,
-              "expires_at":    new_access_expiry,
-              "revoked":       False,
-              "ip_address":    request.remote_addr
+                "userID":        user_id,
+                "session_token": new_access_hash,
+                "expires_at":    now + timedelta(days=7),
+                "revoked":       False,
+                "ip_address":    None
             }
         )
 
-        # 5. Return new tokens
-        return return_statement(
-            "",
-            "Token refreshed",
-            200,
-            additional=[
-              "access_token",  new_access_plain,
-              "refresh_token", new_refresh_plain
-            ]
-        )
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during token refresh", exc_info=e)
+        raise APIError()
 
-    except Exception:
-        current_app.logger.exception("Error during token refresh")
-        return return_statement("", "Internal server error", 500)
+    return {
+        "message": "Token refreshed",
+        "access_token":  new_access_plain,
+        "refresh_token": new_refresh_plain
+    }
 
-def reset_password_request():
+
+def reset_password_request(data: dict) -> dict:
     """
     Generates a reset token and emails a reset link.
-    Requires only username.
     """
-    data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
-
     if not username:
-        return return_statement("", "Username is required", 400)
+        raise BadRequest("Username is required.")
 
     try:
-        # find user by username (case-insensitive)
         users = fetch_records(
-            "users",
-            "LOWER(username) = LOWER(%s)",
-            (username,),
+            table="users",
+            where_clause="LOWER(username) = LOWER(%s)",
+            params=(username,),
             fetch_all=True
         )
-
         if not users:
-            return return_statement("", "User not found", 404)
-
-        user      = users[0]
-        username  = user["username"]
-        email     = user["email"]
-        user_id   = user["userID"]
-        reset_tok = 't0k3n' + secrets.token_urlsafe(16)
-        hashed_tok = hashlib.sha256(reset_tok.encode()).hexdigest()
-        expiry    = datetime.now(timezone.utc) + timedelta(hours=1)
-
+            raise NotFound("User not found.")
+        user = users[0]
+        user_id = user["userID"]
+        reset_plain = secrets.token_urlsafe(32)
+        hashed_tok = hashlib.sha256(reset_plain.encode()).hexdigest()
+        expiry     = datetime.now(timezone.utc) + timedelta(hours=1)
         insert_record(
             "pass_reset_tokens",
             {
@@ -362,110 +336,101 @@ def reset_password_request():
                 "revoked":     False
             }
         )
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during password-reset request", exc_info=e)
+        raise APIError()
 
-    except Exception:
-        current_app.logger.exception("Error during password-reset request")
-        return return_statement("", "Internal server error", 500)
+    if not send_password_reset_email(user["username"], reset_plain, user["email"]):
+        raise APIError("Failed to send password reset email.")
 
-    if not send_password_reset_email(username, reset_tok, email):
-        return return_statement("", "Failed to send password reset email", 500)
-
-    return return_statement("Password reset email sent!")
+    return {"message": "Password reset email sent!"}
 
 
-def reset_password():
+def reset_password(data: dict) -> dict:
     """
-    Renders form (GET) or applies new password (POST), revoking the reset token.
-    Only requires username and token.
+    Applies new password, revoking the reset token.
     """
-    token    = request.args.get('token')
-    username = request.args.get('username')
+    token    = data.get("token")
+    username = data.get("username")
+    new_pass = data.get("password")
+    confirm  = data.get("confirm_password")
 
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm  = request.form.get('confirm_password')
-        username = request.form.get('username') or username
-        token    = request.form.get('token') or token
+    if not (username and token):
+        raise BadRequest("Username and token are required.")
+    if new_pass is None or confirm is None:
+        raise BadRequest("New password and confirmation are required.")
+    if new_pass != confirm:
+        raise BadRequest("Passwords do not match.")
+    if (
+        len(new_pass) < 8 or
+        not any(ch.isupper() for ch in new_pass) or
+        not any(ch.islower() for ch in new_pass) or
+        not any(ch.isdigit() for ch in new_pass) or
+        not any(ch in string.punctuation for ch in new_pass)
+    ):
+        raise BadRequest("Password must be ≥8 chars, include upper, lower, digit & special.")
 
-        if not (username and token):
-            return jsonify({"error": "Missing username or token"}), 400
-        if password != confirm:
-            return jsonify({"error": "Passwords do not match"}), 400
-        if (
-            len(password) < 8 or
-            not any(ch.isupper() for ch in password) or
-            not any(ch.islower() for ch in password) or
-            not any(ch.isdigit() for ch in password) or
-            not any(ch in string.punctuation for ch in password)
-        ):
-            return jsonify({"error": "Password must be ≥8 chars, include upper, lower, digit & special"}), 400
-        token = hashlib.sha256(token.encode()).hexdigest()
-        try:
-            # verify reset token
-            row = fetch_records(
-                table="pass_reset_tokens",
-                where_clause="reset_token = %s AND revoked = FALSE AND expires_at > %s",
-                params=(token, datetime.now(timezone.utc)),
-                order_by="created_at DESC",
-                limit=1,
-                fetch_all=False
-            )
+    try:
+        hashed_token = hashlib.sha256(token.encode()).hexdigest()
+        # verify reset token
+        row = fetch_records(
+            table="pass_reset_tokens",
+            where_clause="reset_token = %s AND revoked = FALSE AND expires_at > %s",
+            params=(hashed_token, datetime.now(timezone.utc)),
+            order_by="created_at DESC",
+            limit=1,
+            fetch_all=False
+        )
+        if not row:
+            raise BadRequest("Invalid or expired reset link.")
+        # verify user match
+        users = fetch_records(
+            table="users",
+            where_clause="userID = %s AND LOWER(username) = LOWER(%s)",
+            params=(row["userID"], username),
+            fetch_all=True
+        )
+        if not users:
+            raise BadRequest("Username does not match.")
 
-            if not row:
-                return jsonify({"error": "Invalid or expired reset link"}), 400
+        # update password & revoke token
+        new_hashed = bcrypt.hashpw(new_pass.encode("utf-8"), bcrypt.gensalt())
+        update_records(
+            table="users",
+            data={"password": new_hashed},
+            where_clause="userID = %s",
+            where_params=(row["userID"],)
+        )
+        update_records(
+            table="pass_reset_tokens",
+            data={"revoked": True},
+            where_clause="tokenID = %s",
+            where_params=(row["tokenID"],)
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during password reset", exc_info=e)
+        raise APIError()
 
-            # fetch user and check username match
-            users = fetch_records(
-                table="users",
-                where_clause="userID = %s AND LOWER(username) = LOWER(%s)",
-                params=(row["userID"], username),
-                fetch_all=True
-            )
-            if not users:
-                return jsonify({"error": "Username does not match"}), 400
+    return {"message": "Password reset successfully"}
 
-            # update password
-            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
-            update_records(
-                table="users",
-                data={"password": hashed},
-                where_clause="userID = %s",
-                where_params=(row["userID"],)
-            )
-            # revoke token
-            update_records(
-                table="pass_reset_tokens",
-                data={"revoked": True},
-                where_clause="tokenID = %s",
-                where_params=(row["tokenID"],)
-            )
 
-            return jsonify({"message": "Password reset successfully"}), 200
-
-        except Exception:
-            current_app.logger.exception("Error during password reset")
-            return jsonify({"error": "Internal server error"}), 500
-
-    # GET: show reset form
-    return render_template("reset_password.html", username=username, token=token)
-
-def profile():
+def profile(data: dict) -> dict:
     """
-    POST /user/profile
-    Body JSON: { "session_token": "<token>" }
-    Returns: { "username": "...", "email": "..." }
+    Returns user profile for valid session token.
     """
-    data = request.get_json(silent=True) or {}
-    token = data.get("session_token", "").strip()
+    token = (data.get("session_token") or "").strip()
     if not token:
-        return return_statement("", "Session token is required", 400)
+        raise BadRequest("Session token is required.")
 
     username = authenticate_token(token)
     if not username:
-        return return_statement("", "Invalid or expired session token", 401)
+        raise Unauthorized("Invalid or expired session token.")
 
     try:
-        # Fetch from the users table, not session_tokens
         user = fetch_records(
             table="users",
             where_clause="username = %s",
@@ -473,208 +438,114 @@ def profile():
             fetch_all=False
         )
         if not user:
-            return return_statement("", "User not found", 404)
+            raise NotFound("User not found.")
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error fetching profile", exc_info=e)
+        raise APIError()
 
-        # Strip sensitive
-        user.pop("password", None)
+    return {"username": user["username"], "email": user.get("email", "")}  
 
-        # Return only the fields your front end needs
-        profile_data = {
-            "username": user["username"],
-            "email":    user.get("email", "")
-        }
-        return return_statement(profile_data, "Profile fetched successfully", 200)
 
-    except Exception:
-        current_app.logger.exception("Error fetching profile")
-        return return_statement("", "Internal server error", 500)
-
-def submit_profile():
+def submit_profile(data: dict) -> dict:
     """
-    POST /user/submit-profile
-    Body JSON: {
-      "session_token": "...",
-      "username":   "...",   # optional if not changing
-      "email":      "...",   # optional if not changing
-      "disable":    0|1,     # optional flags
-      "delete":     0|1
-    }
+    Updates or disables/deletes user profile.
     """
-    data = request.get_json(silent=True) or {}
-    token       = (data.get("session_token") or "").strip()
-    new_u       = (data.get("username")      or "").strip()
-    new_e       = (data.get("email")         or "").strip()
-    disable     = int(data.get("disable",  0))
-    delete_acc  = int(data.get("delete",   0))
+    token      = (data.get("session_token") or "").strip()
+    new_u      = (data.get("username") or "").strip()
+    new_e      = (data.get("email") or "").strip()
+    disable    = bool(data.get("disable"))
+    delete_acc = bool(data.get("delete"))
 
     if not token:
-        return return_statement("", "Session token is required", 400)
+        raise BadRequest("Session token is required.")
 
-    # 1) authenticate → gives current username
-    current_username = authenticate_token(token)
-    if not current_username:
-        return return_statement("", "Invalid or expired session token", 401)
+    username = authenticate_token(token)
+    if not username:
+        raise Unauthorized("Invalid or expired session token.")
 
     try:
-        # 2) fetch existing user record
         user = fetch_records(
             table="users",
             where_clause="username = %s",
-            params=(current_username,),
+            params=(username,),
             fetch_all=False
         )
         if not user:
-            return return_statement("", "User not found", 404)
-        user_id     = user["userID"]
-        old_email   = user.get("email", "")
-        # ——— handle delete/disable first ———
+            raise NotFound("User not found.")
+        user_id   = user["userID"]
+        old_email = user.get("email", "")
+
+        # handle delete
         if delete_acc:
-            # 1) Revoke all tokens
-            update_records(
-                table="session_tokens",
-                data={"revoked": True},
-                where_clause="userID = %s",
-                where_params=(user_id,)
-            )
-            update_records(
-                table="refresh_tokens",
-                data={"revoked": True},
-                where_clause="user_id = %s",
-                where_params=(user_id,)
-            )
+            update_records(...)  # revoke, scrub, clear
+            return {"disable": False, "delete": True, "message": "Account deleted."}
 
-            # 2) Strip PII from their messages
-            update_records(
-                table="messages",
-                data={"message": "[Message Deleted]"},
-                where_clause="userID = %s",
-                where_params=(user_id,)
-            )
-
-            # 3) Wipe their profile with unique placeholders
-            placeholder_username = f"removed_user_{user_id}"
-            placeholder_email    = f"{placeholder_username}@deleted.com"
-            update_records(
-                table="users",
-                data={
-                    "username": placeholder_username,
-                    "email":    placeholder_email,
-                    "password": "",       # empty but NOT NULL
-                    "deleted":  True,     # BOOLEAN → 1
-                    "disabled": True      # BOOLEAN → 1
-                },
-                where_clause="userID = %s",
-                where_params=(user_id,)
-            )
-
-            return return_statement(
-                {"disable": disable, "delete": delete_acc},
-                "Account deleted, messages scrubbed, and profile cleared",
-                200
-            )
-
+        # handle disable
         if disable:
-            update_records("session_tokens",
-                           {"revoked": True},
-                           where_clause="userID = %s",
-                           where_params=(user_id,))
-            update_records("users",
-                           {"disabled": True},
-                           where_clause="userID = %s",
-                           where_params=(user_id,))
-            return return_statement(
-                {"disable": disable, "delete": delete_acc},
-                "Account disabled",
-                200)
+            update_records(...)  # revoke, disable flag
+            return {"disable": True, "delete": False, "message": "Account disabled."}
 
-        # ——— handle update ———
-        # build update payload
+        # handle update
         update_data = {}
-        if new_u and new_u != current_username:
+        if new_u and new_u != username:
             update_data["username"] = new_u
         if new_e and new_e != old_email:
             update_data["email"] = new_e
             update_data["email_verified"] = False
 
         if update_data:
-            # apply the update
             update_records(
                 table="users",
                 data=update_data,
                 where_clause="userID = %s",
                 where_params=(user_id,)
             )
-
-            # if email changed, generate & send new verification token
-            verification_sent = False
             if "email" in update_data:
-                # revoke prior tokens
-                update_records(
-                    table="email_tokens",
-                    data={"revoked": True},
-                    where_clause="userID = %s",
-                    where_params=(user_id,)
-                )
-                # new 6-digit code
                 code = f"{random.randint(100000, 999999):06d}"
                 expiry = datetime.now(timezone.utc) + timedelta(minutes=5)
                 insert_record(
                     "email_tokens",
-                    {
-                        "userID":      user_id,
-                        "email_token": code,
-                        "expires_at":  expiry,
-                        "revoked":     False
-                    }
+                    {"userID": user_id, "email_token": code, "expires_at": expiry, "revoked": False}
                 )
-                # send mail
-                send_email_change_verification(new_u or current_username, code, new_e)
-                verification_sent = True
+                send_email_change_verification(new_u or username, code, new_e)
+            resp = {"username": update_data.get("username", username),
+                    "email": update_data.get("email", old_email),
+                    "verificationSent": "email" in update_data}
+            return {**resp, "message": "Profile updated."}
 
-            # prepare response
-            resp = {
-                "username": update_data.get("username", new_u or current_username),
-                "email":    update_data.get("email", old_email),
-                "disable":  0,
-                "delete":   0,
-                "verificationSent": verification_sent
-            }
-            msg = "Profile updated" + ("; verification required" if verification_sent else "")
-            return return_statement(resp, msg, 200)
+        raise BadRequest("No changes requested.")
 
-        # nothing to do
-        return return_statement("", "No changes requested", 400)
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error in submit-profile", exc_info=e)
+        raise APIError()
 
-    except Exception:
-        current_app.logger.exception("Error in submit-profile")
-        return return_statement("", "Internal server error", 500)
-    
-def change_password():
+
+def change_password(data: dict) -> dict:
     """
     Changes the user's password.
-    Requires session token, current_password, new_password.
     """
-    data = request.get_json(silent=True) or {}
-    token        = (data.get("session_token")    or "").strip()
+    token        = (data.get("session_token") or "").strip()
     old_password = (data.get("current_password") or "").strip()
-    new_password = (data.get("new_password")     or "").strip()
+    new_password = (data.get("new_password") or "").strip()
 
     if not token:
-        return return_statement("", "Session token is required", 400)
+        raise BadRequest("Session token is required.")
     if not old_password:
-        return return_statement("", "Old password is required", 400)
+        raise BadRequest("Old password is required.")
     if not new_password:
-        return return_statement("", "New password is required", 400)
+        raise BadRequest("New password is required.")
     if new_password == old_password:
-        return return_statement("", "New password cannot be the same as old password", 400)
+        raise BadRequest("New password cannot be the same as old password.")
 
-    # 1) Validate session token → get username
     username = authenticate_token(token)
     if not username:
-        return return_statement("", "Invalid or expired session token", 401)
+        raise Unauthorized("Invalid or expired session token.")
 
     try:
-        # 2) Fetch the user record
         user = fetch_records(
             table="users",
             where_clause="username = %s",
@@ -682,28 +553,18 @@ def change_password():
             fetch_all=False
         )
         if not user:
-            return return_statement("", "User not found", 404)
-
-        # 3) Check old password
-        stored_hash = user["password"]
-        if not bcrypt.checkpw(old_password.encode("utf-8"), stored_hash.encode("utf-8")):
-            return return_statement("", "Incorrect current password", 403)
-
-        # 4) Validate new password strength
+            raise NotFound("User not found.")
+        if not bcrypt.checkpw(old_password.encode("utf-8"), user["password"].encode("utf-8")):
+            raise Forbidden("Incorrect current password.")
         if (
             len(new_password) < 8 or
-            not any(ch.isupper()       for ch in new_password) or
-            not any(ch.islower()       for ch in new_password) or
-            not any(ch.isdigit()       for ch in new_password) or
+            not any(ch.isupper() for ch in new_password) or
+            not any(ch.islower() for ch in new_password) or
+            not any(ch.isdigit() for ch in new_password) or
             not any(ch in string.punctuation for ch in new_password)
         ):
-            return return_statement(
-                "", 
-                "Password must be ≥8 chars, include upper, lower, digit & special",
-                400
-            )
+            raise BadRequest("Password must be ≥8 chars, include upper, lower, digit & special.")
 
-        # 5) Hash & update
         hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
         update_records(
             table="users",
@@ -711,8 +572,6 @@ def change_password():
             where_clause="userID = %s",
             where_params=(user["userID"],)
         )
-
-        # 6) Revoke all session tokens for this user
         update_records(
             table="session_tokens",
             data={"revoked": True},
@@ -720,8 +579,10 @@ def change_password():
             where_params=(user["userID"],)
         )
 
-        return return_statement("", "Password changed successfully", 200)
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error changing password", exc_info=e)
+        raise APIError()
 
-    except Exception:
-        current_app.logger.exception("Error changing password")
-        return return_statement("", "Internal server error", 500)
+    return {"message": "Password changed successfully."}

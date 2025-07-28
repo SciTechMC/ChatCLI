@@ -4,18 +4,20 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
 
-tmp_logger = logging.getLogger(__name__)
+from app.errors import APIError
 
-# Utility to send raw emails via SMTP
+logger = logging.getLogger(__name__)
 
-def send_email(subject: str, body: str, recipient: str) -> bool:
+
+def send_email(subject: str, body: str, recipient: str) -> None:
     """
     Send an email via configured SMTP server.
+
+    Raises APIError on failure.
 
     :param subject:   Email subject
     :param body:      Email body (plain text)
     :param recipient: Recipient email address
-    :return:          True if sent successfully, False otherwise
     """
     email_acc = os.getenv("EMAIL_USER")
     email_pssw = os.getenv("EMAIL_PASSWORD")
@@ -30,21 +32,21 @@ def send_email(subject: str, body: str, recipient: str) -> bool:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(email_acc, email_pssw)
             server.sendmail(email_acc, recipient, msg.as_string())
-        return True
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error("SMTP auth failed for %s: %s", recipient, e, exc_info=e)
+        raise APIError("Email service authentication failed.")
+    except smtplib.SMTPConnectError as e:
+        logger.error("SMTP connection failed: %s", e, exc_info=e)
+        raise APIError("Email service unavailable.")
     except Exception as e:
-        # Consider logging this error in production
-        if os.getenv("FLASK_ENV") == "development":
-            print(f"Failed to send email to {recipient}: {e}")
-        else:
-            tmp_logger.error("Failed to send email to %s: %s", recipient, e)
-        return False
+        logger.error("Failed to send email to %s: %s", recipient, e, exc_info=e)
+        raise APIError("Failed to send email.")
 
 
-# High-level email scenarios
-
-def send_verification_email(username: str, token: str, recipient: str) -> bool:
+def send_verification_email(username: str, token: str, recipient: str) -> None:
     """
     Compose and send account verification code email.
+    Raises APIError on failure.
     """
     subject = "ChatCLI Account Verification Code"
     body = f"""
@@ -60,12 +62,13 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
-    return send_email(subject, body, recipient)
+    send_email(subject, body, recipient)
 
 
-def send_password_reset_email(username: str, token: str, recipient: str) -> bool:
+def send_password_reset_email(username: str, token: str, recipient: str) -> None:
     """
     Compose and send password reset instructions email.
+    Raises APIError on failure.
     """
     reset_link = f"http://fortbow.zapto.org:5123/user/reset-password?token={token}&username={username}"
     subject = "Password Reset Request for Your ChatCLI Account"
@@ -82,20 +85,17 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
-    return send_email(subject, body, recipient)
+    send_email(subject, body, recipient)
 
 
-def send_release_notification():
+def send_release_notification() -> None:
     """
     Notify all subscribers about a new ChatCLI release.
+    Raises APIError if any send fails.
     """
     from app.database.db_helper import fetch_records
 
-    # Fetch all subscriber emails
-    rows = fetch_records(
-        table="email_subscribers",
-        fetch_all=True
-    )
+    rows = fetch_records(table="email_subscribers", fetch_all=True)
     emails = [r['email'] for r in rows]
 
     subject = "🎉 New ChatCLI Release Available!"
@@ -115,15 +115,21 @@ Thank you for using ChatCLI!
 Best regards,
 The ChatCLI Team
 """
-    success = True
+    errors = []
     for email in emails:
-        if not send_email(subject, body, email):
-            success = False
-    return success
+        try:
+            send_email(subject, body, email)
+        except APIError as e:
+            errors.append((email, str(e)))
+    if errors:
+        logger.error("Failed to notify some subscribers: %s", errors)
+        raise APIError("Some release notifications failed.")
 
-def send_account_disable_notification(username: str, recipient: str) -> bool:
+
+def send_account_disable_notification(username: str, recipient: str) -> None:
     """
     Notify user about account disablement.
+    Raises APIError on failure.
     """
     subject = "Your ChatCLI Account Has Been Disabled"
     body = f"""
@@ -137,11 +143,13 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
-    return send_email(subject, body, recipient)
+    send_email(subject, body, recipient)
 
-def send_account_deletion_notification(username: str, recipient: str) -> bool:
+
+def send_account_deletion_notification(username: str, recipient: str) -> None:
     """
     Notify user about account deletion.
+    Raises APIError on failure.
     """
     subject = "Your ChatCLI Account Has Been Deleted"
     body = f"""
@@ -155,11 +163,13 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
-    return send_email(subject, body, recipient)
+    send_email(subject, body, recipient)
 
-def send_email_change_verification(username: str, token: str, recipient: str) -> bool:
+
+def send_email_change_verification(username: str, token: str, recipient: str) -> None:
     """
-    Compose and send email‐change verification code.
+    Compose and send email-change verification code.
+    Raises APIError on failure.
     """
     subject = "ChatCLI Email Change Confirmation Code"
     body = f"""
@@ -175,4 +185,4 @@ Best regards,
 The ChatCLI Team
 https://github.com/SciTechMC/ChatCLI
 """
-    return send_email(subject, body, recipient)
+    send_email(subject, body, recipient)

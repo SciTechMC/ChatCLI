@@ -1,8 +1,17 @@
-from flask import Blueprint
-from app.services.user_services import register, verify_email, login, reset_password, reset_password_request, refresh_token
-from app.services.user_services import profile, submit_profile
-from app.services.user_services import change_password
-from app.extensions  import limiter
+from flask import Blueprint, request, jsonify
+from app.services.user_services import (
+    register,
+    verify_email,
+    login,
+    reset_password_request,
+    reset_password,
+    refresh_token,
+    profile,
+    submit_profile,
+    change_password,
+)
+from app.extensions import limiter
+import app.errors as errors
 
 user = Blueprint("user", __name__, url_prefix="/user")
 
@@ -10,47 +19,97 @@ user = Blueprint("user", __name__, url_prefix="/user")
 def route_index():
     return "User's index route"
 
+
 @user.route("/register", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_register():
-    return register()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    new_user = register(data)
+    return jsonify(new_user), 201
+
 
 @user.route("/verify-email", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_verify_email():
-    return verify_email()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = verify_email(data)
+    return jsonify(result)
+
 
 @user.route("/login", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_login():
-    return login()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = login(data)
+    return jsonify(result)
+
 
 @user.route("/reset-password-request", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_reset_password_request():
-    return reset_password_request()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = reset_password_request(data)
+    return jsonify(result)
+
 
 @user.route("/reset-password", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def route_reset_password():
-    return reset_password()
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        if not data:
+            raise errors.BadRequest("Invalid JSON format.")
+    else:
+        data = request.args.to_dict()
+        if not data:
+            raise errors.BadRequest("Missing query parameters.")
+    result = reset_password(data)
+    return jsonify(result)
+
 
 @user.route("/refresh-token", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_refresh_token():
-    return refresh_token()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = refresh_token(data)
+    return jsonify(result)
+
 
 @user.route("/profile", methods=["POST"])
 @limiter.limit("10 per minute")
 def route_profile():
-    return profile()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = profile(data)
+    return jsonify(result)
+
 
 @user.route("/submit-profile", methods=["POST"])
 @limiter.limit("10 per minute")
 def route_submit_profile():
-    return submit_profile()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = submit_profile(data)
+    return jsonify(result)
+
 
 @user.route("/change-password", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_change_password():
-    return change_password()
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = change_password(data)
+    return jsonify(result)

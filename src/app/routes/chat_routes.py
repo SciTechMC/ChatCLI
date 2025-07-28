@@ -1,6 +1,18 @@
-from flask import Blueprint, current_app, jsonify, request
-import app.services.chat_services as chat_services
-from app.extensions  import limiter
+from flask import Blueprint, request, jsonify
+from app.services.chat_services import (
+    fetch_chats,
+    create_chat,
+    create_group,
+    add_participant,
+    remove_participant,
+    get_messages,
+    archive_chat,
+    get_members,
+    fetch_archived,
+    unarchive_chat,
+)
+from app.errors import BadRequest
+from app.extensions import limiter
 
 chat = Blueprint("chat", __name__, url_prefix="/chat")
 
@@ -10,92 +22,82 @@ def index():
 
 @chat.route("/fetch-chats", methods=["POST"])
 def route_fetch_chats():
-    try:
-        return chat_services.fetch_chats()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in fetch_chats", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = fetch_chats(data)
+    return jsonify(result)
 
 @chat.route("/create-chat", methods=["POST"])
 def route_create_chat():
-    try:
-        return chat_services.create_chat()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in create_chat", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = create_chat(data)
+    return jsonify(result), 201
 
 @chat.route("/create-group", methods=["POST"])
 def route_create_group():
-    try:
-        return chat_services.create_group()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in create_group", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
-
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = create_group(data)
+    return jsonify(result), 201
 
 @chat.route("/add-members", methods=["POST"])
 def route_add_members():
-    try:
-        return chat_services.add_participant()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in add_participant", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
-
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = add_participant(data)
+    return jsonify(result)
 
 @chat.route("/remove-members", methods=["POST"])
 def route_remove_members():
-    try:
-        return chat_services.remove_participant()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in remove_participant", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
-
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = remove_participant(data)
+    return jsonify(result)
 
 @chat.route("/messages", methods=["POST"])
 def route_messages():
-    try:
-        return chat_services.get_messages()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in get_messages", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
-
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = get_messages(data)
+    return jsonify(result)
 
 @chat.route("/archive-chat", methods=["POST"])
 @limiter.limit("10 per minute")
 def route_archive_chat():
-    try:
-        return chat_services.archive_chat()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in archive_chat", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = archive_chat(data)
+    return jsonify(result)
 
 @chat.route("/get-members", methods=["POST"])
 def route_get_members():
-    try:
-        return chat_services.get_members()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in get_members", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
-    
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = get_members(data)
+    return jsonify(result)
+
 @chat.route("/fetch-archived", methods=["POST"])
 def route_fetch_archived():
-    """
-    Fetch archived chats
-    """
-    try:
-        return chat_services.fetch_archived()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in fetch_archived", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = fetch_archived(data)
+    return jsonify(result)
 
 @chat.route("/unarchive-chat", methods=["POST"])
 @limiter.limit("10 per minute")
 def route_unarchive_chat():
-    """
-    Unarchive a chat
-    """
-    try:
-        return chat_services.unarchive_chat()
-    except Exception as e:
-        current_app.logger.error("Unhandled exception in unarchive_chat", exc_info=e)
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+    data = request.get_json(silent=True)
+    if not data:
+        raise BadRequest("Invalid JSON format.")
+    result = unarchive_chat(data)
+    return jsonify(result)

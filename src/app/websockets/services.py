@@ -1,190 +1,218 @@
-# app/websockets/services.py
-
-from fastapi import WebSocket, status
-from db_helper import fetch_records, insert_record
 import logging
 import hashlib
+import mysql.connector
+from fastapi import WebSocket, status
+from db_helper import fetch_records, insert_record
 
 # In-memory connection & subscription registries
 active_connections: dict[str, WebSocket] = {}
-# In-memory: chat_id -> set of WebSocket connections
 chat_subscriptions: dict[int, set[WebSocket]] = {}
-# In-memory idle list subscriptions
 idle_subscriptions: set[WebSocket] = set()
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     """
-    Token-only auth. Client must send:
-      { "type": "auth", "token": "<plain-text session token>" }
-    We SHA-256 hash it, then:
-      - find a non-revoked, unexpired session_tokens row matching that hash
-      - load the user’s username from users
-      - register the WS and broadcast status
+    Token-only auth handshake over WebSocket.
     """
-    # 1) Validate payload
+    # Validate payload
     if msg.get("type") != "auth" or not isinstance(msg.get("token"), str):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
-    # 2) Hash the incoming plain‐text token
-    token_hash = hashlib.sha256(msg["token"].encode()).hexdigest()
+    # Hash token
+    token_plain = msg["token"]
+    token_hash = hashlib.sha256(token_plain.encode()).hexdigest()
 
-    # 3) Look up exactly that session row
-    sessions = await fetch_records(
-        table="session_tokens",
-        where_clause="session_token = %s AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
-        params=(token_hash,),
-        fetch_all=True
-    )
+    # Lookup session
+    try:
+        sessions = await fetch_records(
+            table="session_tokens",
+            where_clause="session_token = %s AND revoked = FALSE AND expires_at > CURRENT_TIMESTAMP()",
+            params=(token_hash,),
+            fetch_all=True
+        )
+    except mysql.connector.Error as e:
+        logger.error("DB error during session lookup: %s", e, exc_info=e)
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return None
+    except Exception as e:
+        logger.error("Unexpected error during session lookup: %s", e, exc_info=e)
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return None
+
     if not sessions:
-        logging.warning("No matching session token found or it’s expired/revoked.")
+        logger.warning("Invalid or expired session token.")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return None
 
     user_id = sessions[0]["userID"]
 
-    # 4) Fetch the user’s username
-    users = await fetch_records(
-        table="users",
-        where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
-        params=(user_id,),
-        fetch_all=True
-    )
+    # Fetch user record
+    try:
+        users = await fetch_records(
+            table="users",
+            where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
+            params=(user_id,),
+            fetch_all=True
+        )
+    except mysql.connector.Error as e:
+        logger.error("DB error during user lookup: %s", e, exc_info=e)
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return None
+    except Exception as e:
+        logger.error("Unexpected error during user lookup: %s", e, exc_info=e)
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return None
+
     if not users:
-        logging.error("Session token matched, but no user record (or user disabled).")
+        logger.error("Session valid but no active user found (userID=%s).", user_id)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return None
 
     username = users[0]["username"]
 
-    # 5) Register and broadcast
+    # Register connection and broadcast online
     active_connections[username] = websocket
-    await notify_status(username, is_online=True)
+    try:
+        await notify_status(username, is_online=True)
+    except Exception as e:
+        logger.warning("Failed to notify status for %s: %s", username, e, exc_info=e)
 
-    logging.info(f"User authenticated: {username} (userID={user_id})")
+    logger.info("User authenticated: %s (userID=%s)", username, user_id)
     return username
 
-
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
-    chat_subscriptions.setdefault(chat_id, set()).add(ws)
+    try:
+        chat_subscriptions.setdefault(chat_id, set()).add(ws)
+        logger.debug("%s joined chat %s", username, chat_id)
+    except Exception as e:
+        logger.error("Error adding %s to chat %s: %s", username, chat_id, e, exc_info=e)
 
 async def leave_chat(username: str, chat_id: int, ws: WebSocket):
-    chat_subscriptions.get(chat_id, set()).discard(ws)
+    try:
+        chat_subscriptions.get(chat_id, set()).discard(ws)
+        logger.debug("%s left chat %s", username, chat_id)
+    except Exception as e:
+        logger.error("Error removing %s from chat %s: %s", username, chat_id, e, exc_info=e)
 
 async def post_msg(msg: dict) -> dict | None:
     """
-    Inserts a new chat message into the DB and broadcasts it.
-    Expects: { 'username': str, 'chatID': int, 'text': str }
-    Returns the payload that was broadcast.
+    Inserts and broadcasts a message.
+    Returns the payload or error payload dict.
     """
     username = msg.get("username", "").lower()
-    chat_id  = msg.get("chatID")
-    text     = msg.get("text", "")
+    chat_id = msg.get("chatID")
+    text = msg.get("text", "")
 
-    # basic validation
-    if not (username and chat_id and text):
+    # Validate inputs
+    if not username or chat_id is None or text is None:
         return None
 
-    # get userID
-    users = await fetch_records(
-        table="users",
-        where_clause="username = %s",
-        params=(username,),
-        fetch_all=True
-    )
+    # Fetch userID
+    try:
+        users = await fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(username,),
+            fetch_all=True
+        )
+    except mysql.connector.Error as e:
+        logger.error("DB error fetching user %s: %s", username, e, exc_info=e)
+        return {"status": "error", "code": "DB_ERROR", "message": "Internal server error."}
+    except Exception as e:
+        logger.error("Unexpected error fetching user %s: %s", username, e, exc_info=e)
+        return {"status": "error", "code": "INTERNAL_ERROR", "message": "Internal server error."}
+
     if not users:
-        return None
-    user_id = users[0]["userID"]
-    user_name = users[0]["username"]  # Capture the username
+        return {"status": "error", "code": "USER_NOT_FOUND", "message": "User not found."}
+    user_rec = users[0]
+    user_id = user_rec["userID"]
+    display_name = user_rec.get("username", username)
 
-    if text.strip() == "":
-        logging.warning(f"Empty message from {username} in chat {chat_id}.")
-        return {
-            "status": "error",
-            "code": "EMPTY_MESSAGE",
-            "message": "Cannot send an empty message."
-        }
-
+    # Validate text
+    if not text.strip():
+        logger.warning("Empty message from %s in chat %s", username, chat_id)
+        return {"status": "error", "code": "EMPTY_MESSAGE", "message": "Cannot send an empty message."}
     if len(text) > 2048:
-        logging.warning(f"Message too long ({len(text)} chars) from {username} in chat {chat_id}.")
-        return {
-            "status": "error",
-            "code": "TOO_LONG",
-            "message": f"Message exceeds 2048‐character limit ({len(text)}).",
-            "limit": 2048,
-            "length": len(text)
-        }
+        logger.warning("Message too long (%s chars) from %s in chat %s", len(text), username, chat_id)
+        return {"status": "error", "code": "TOO_LONG", "message": "Message exceeds 2048-character limit.", "limit": 2048, "length": len(text)}
 
-    # insert into messages
-    message_id = await insert_record(
-        "messages",
-        {"chatID": chat_id, "userID": user_id, "message": text}
-    )
+    # Insert message
+    try:
+        message_id = await insert_record(
+            "messages",
+            {"chatID": chat_id, "userID": user_id, "message": text}
+        )
+    except mysql.connector.Error as e:
+        logger.error("DB error inserting message for %s: %s", username, e, exc_info=e)
+        return {"status": "error", "code": "DB_ERROR", "message": "Internal server error."}
+    except Exception as e:
+        logger.error("Unexpected error inserting message for %s: %s", username, e, exc_info=e)
+        return {"status": "error", "code": "INTERNAL_ERROR", "message": "Internal server error."}
 
-    # re-fetch the row to get timestamp etc.
-    rows = await fetch_records(
-        table="messages",
-        where_clause="messageID = %s",
-        params=(message_id,),
-        fetch_all=True
-    )
+    # Fetch inserted
+    try:
+        rows = await fetch_records(
+            table="messages",
+            where_clause="messageID = %s",
+            params=(message_id,),
+            fetch_all=True
+        )
+    except Exception as e:
+        logger.error("Error fetching inserted message %s: %s", message_id, e, exc_info=e)
+        return None
+
     if not rows:
         return None
     row = rows[0]
 
     payload = {
-        "type":      "new_message",
+        "type": "new_message",
         "messageID": row["messageID"],
-        "chatID":    row["chatID"],
-        "userID":    row["userID"],
-        "username":  user_name,  # Add username to payload
-        "message":   row["message"],
+        "chatID": row["chatID"],
+        "userID": row["userID"],
+        "username": display_name,
+        "message": row["message"],
         "timestamp": row["timestamp"].isoformat()
     }
 
-    # broadcast to everyone in the chat
     await broadcast_msg(chat_id, payload)
     return payload
 
 async def broadcast_msg(chat_id: int, payload: dict):
     """
-    Sends `payload` (a dict) as JSON to every WebSocket
-    subscribed to `chat_id`. Silently skips closed connections.
+    Send payload to subscribers of chat_id.
     """
     subscribers = chat_subscriptions.get(chat_id, set())
     for ws in set(subscribers):
         try:
             await ws.send_json(payload)
-        except Exception:
-            # remove dead connections
+        except Exception as e:
+            logger.warning("Removing dead connection in chat %s: %s", chat_id, e)
             subscribers.discard(ws)
 
 async def broadcast_typing(username: str, chat_id: int):
-    payload = {
-        "type": "user_typing",
-        "username": username,
-        "chatID": chat_id
-    }
+    payload = {"type": "user_typing", "username": username, "chatID": chat_id}
     await broadcast_msg(chat_id, payload)
 
 async def notify_status(username: str, is_online: bool):
-    payload = {
-        "type": "user_status",
-        "username": username,
-        "online": is_online
-    }
+    payload = {"type": "user_status", "username": username, "online": is_online}
 
-    # Notify active chat participants
-    for subscribers in chat_subscriptions.values():
-        for ws in set(subscribers):
+    # Notify chat participants
+    for subs in chat_subscriptions.values():
+        for ws in set(subs):
             try:
                 await ws.send_json(payload)
-            except:
-                subscribers.discard(ws)
+            except Exception as e:
+                logger.warning("Removing dead connection in status notify: %s", e)
+                subs.discard(ws)
 
-    # Notify idle listeners too
+    # Notify idle subscriptions
     for ws in set(idle_subscriptions):
         try:
             await ws.send_json(payload)
-        except:
+        except Exception as e:
+            logger.warning("Removing dead idle connection: %s", e)
             idle_subscriptions.discard(ws)

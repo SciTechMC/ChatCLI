@@ -1,6 +1,6 @@
-from flask import Blueprint
-import app.services.base_services as base_services
-from flask import render_template
+from flask import Blueprint, request, jsonify, render_template
+from app.services.base_services import verify_connection, subscribe
+from app.errors import BadRequest
 
 base = Blueprint("base", __name__)
 
@@ -8,10 +8,28 @@ base = Blueprint("base", __name__)
 def index():
     return render_template("welcome.html")
 
-@base.route("/verify-connection", methods=["POST", "GET"])
-def verif_connection():
-    return base_services.verify_connection()
+@base.route("/verify-connection", methods=["GET", "POST"])
+def route_verify_connection():
+    # Parse JSON only for POST
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        if data is None:
+            raise BadRequest("Invalid JSON format.")
+    else:
+        data = {}
+
+    result = verify_connection(data)
+    return jsonify(result)
 
 @base.route("/subscribe", methods=["GET", "POST"])
-def subscribe():
-    return base_services.subscribe()
+def route_subscribe():
+    # Parse JSON only for POST
+    if request.method == "POST":
+        data = request.get_json(silent=True)
+        if data is None:
+            raise BadRequest("Invalid JSON format.")
+    else:
+        data = {}
+
+    result = subscribe(data)
+    return jsonify(result)

@@ -1,5 +1,10 @@
-from flask import request, current_app
-from app.services.base_services import authenticate_token, return_statement
+from datetime import datetime, timedelta, timezone
+import random
+import mysql.connector
+from flask import current_app
+
+from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
+from app.services.base_services import authenticate_token
 from app.database.db_helper import (
     transactional,
     insert_record,
@@ -7,48 +12,48 @@ from app.database.db_helper import (
     get_db,
     update_records
 )
-import mysql.connector
-import logging
-import os
 
-tmp_logger = logging.getLogger(__name__)
 
-def fetch_chats():
+def fetch_chats(data: dict) -> dict:
     """
-    POST JSON: { session_token }
-    Returns: { response: [ { chatID, name, type }, … ], status }
+    data: { session_token: str }
+    Returns: { response: [ { chatID, name, type }, ... ] }
     """
-    client = request.get_json() or {}
-    session_token = client.get("session_token")
+    session_token = data.get("session_token")
+    if not session_token:
+        raise BadRequest("Session token is required.")
 
     username = authenticate_token(session_token)
     if not username:
-        return return_statement([], "Unable to verify user!", 401)
+        raise Unauthorized("Unable to verify user!")
 
-    # Get userID
-    rows = fetch_records(
+    # fetch user ID
+    users = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not rows:
-        return return_statement([], "User not found", 404)
-    user_id = rows[0]["userID"]
+    if not users:
+        raise NotFound("User not found.")
+    user_id = users[0]["userID"]
 
-    # Get all chatIDs
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT chatID FROM participants WHERE userID = %s AND archived = 0",
-        (user_id,)
-    )
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT chatID FROM participants WHERE userID = %s AND archived = 0",
+            (user_id,)
+        )
+        chat_ids = [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        current_app.logger.error("DB error fetching chat IDs", exc_info=e)
+        raise APIError()
 
-    chat_ids = [r[0] for r in cursor.fetchall()]
     if not chat_ids:
-        return return_statement([], "", 200)
+        return {"response": []}
 
-    # Fetch chat metadata (type + group_name)
+    # fetch chat metadata
     fmt = ",".join(["%s"] * len(chat_ids))
     chats = fetch_records(
         table="chats",
@@ -56,12 +61,9 @@ def fetch_chats():
         params=tuple(chat_ids),
         fetch_all=True
     )
-
-    # Build maps
-    group_map = {c["chatID"]: c["group_name"] for c in chats if c["type"] == "group"}
+    group_map = {c["chatID"]: c.get("group_name") for c in chats if c["type"] == "group"}
     private_ids = [c["chatID"] for c in chats if c["type"] == "private"]
 
-    # For private chats: find the other user
     chat_to_user = {}
     id_to_name = {}
     if private_ids:
@@ -73,91 +75,67 @@ def fetch_chats():
             fetch_all=True
         )
         chat_to_user = {r["chatID"]: r["userID"] for r in others}
-
-        # Resolve their usernames
         user_ids = list(chat_to_user.values())
-        fmt3 = ",".join(["%s"] * len(user_ids))
-        user_rows = fetch_records(
-            table="users",
-            where_clause=f"userID IN ({fmt3})",
-            params=tuple(user_ids),
-            fetch_all=True
-        )
-        id_to_name = {r["userID"]: r["username"] for r in user_rows}
+        if user_ids:
+            fmt3 = ",".join(["%s"] * len(user_ids))
+            rows = fetch_records(
+                table="users",
+                where_clause=f"userID IN ({fmt3})",
+                params=tuple(user_ids),
+                fetch_all=True
+            )
+            id_to_name = {r["userID"]: r["username"] for r in rows}
 
-    # Build the response array, now including type
     response = []
     for cid in chat_ids:
         if cid in group_map:
-            response.append({
-                "chatID": cid,
-                "name": group_map[cid],
-                "type": "group"
-            })
+            response.append({"chatID": cid, "name": group_map[cid], "type": "group"})
         else:
-            const_peer = chat_to_user.get(cid)
-            response.append({
-                "chatID": cid,
-                "name": id_to_name.get(const_peer, "Unknown"),
-                "type": "private"
-            })
-    return return_statement(response, "", 200)
+            peer = chat_to_user.get(cid)
+            response.append({"chatID": cid, "name": id_to_name.get(peer, "Unknown"), "type": "private"})
 
-def get_messages():
+    return {"response": response}
+
+
+def get_messages(data: dict) -> dict:
     """
-    Retrieve the most recent messages from a chat.
-
-    JSON body:
-      - username (str)
-      - session_token (str)
-      - chatID (int)
-      - limit (int, optional, defaults to 50, max 200)
+    data: { session_token: str, chatID: int, limit (optional) }
+    Returns: { messages: [ ... ] }
     """
-    try:
-        data = request.get_json() or {}
-        username = data.get("username", "").lower()
-        session_token = data.get("session_token")
-        chat_id = data.get("chatID")
-        limit = data.get("limit", 50)
-    except Exception as e:
-        current_app.logger.exception("Error parsing request data")
-        return return_statement("", "Invalid request data", 400)
+    username = (data.get("username") or "").lower()
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    limit = data.get("limit", 50)
 
-    # Basic validation
-    if not username or not session_token or not chat_id:
-        return return_statement("", "username, session_token and chatID are required", 400)
-
+    # validate inputs
+    if not username or not session_token or chat_id is None:
+        raise BadRequest("username, session_token and chatID are required.")
     try:
         limit = int(limit)
     except (ValueError, TypeError):
-        return return_statement("", "limit must be an integer", 400)
-
-    # Enforce sensible bounds
+        raise BadRequest("limit must be an integer.")
     if limit < 1 or limit > 200:
-        return return_statement("", "limit must be between 1 and 200", 400)
+        raise BadRequest("limit must be between 1 and 200.")
 
-    # 1) Verify credentials
     username = authenticate_token(session_token)
     if not username:
-        return return_statement("", "Unable to verify user!", 401)
+        raise Unauthorized("Unable to verify user!")
 
-    # 2) Check participation
+    # check participation
     try:
-        participants = fetch_records(
+        parts = fetch_records(
             table="participants",
             where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
             params=(chat_id, username),
-            fetch_all=True,
+            fetch_all=True
         )
     except mysql.connector.Error as e:
-        current_app.logger.exception("Database error while checking participants")
-        return return_statement("", "Database error", 500)
-    
-    if not participants:
-        return return_statement("", "Chat not found or access denied", 404)
+        current_app.logger.error("DB error checking participants", exc_info=e)
+        raise APIError()
+    if not parts:
+        raise NotFound("Chat not found or access denied.")
 
-    # 3) Fetch messages
-
+    # fetch messages
     try:
         rows = fetch_records(
             table="messages",
@@ -165,26 +143,24 @@ def get_messages():
             params=(chat_id,),
             order_by="timestamp DESC",
             limit=limit,
-            fetch_all=True,
+            fetch_all=True
         )
     except mysql.connector.Error as e:
-        current_app.logger.exception("Database error while fetching messages")
-        return return_statement("", "Database error", 500)
+        current_app.logger.error("DB error fetching messages", exc_info=e)
+        raise APIError()
 
-    # Map userIDs to usernames in bulk
     user_ids = list({r["userID"] for r in rows})
     id_to_username = {}
     if user_ids:
         fmt = ",".join(["%s"] * len(user_ids))
-        user_rows = fetch_records(
+        users = fetch_records(
             table="users",
             where_clause=f"userID IN ({fmt})",
             params=tuple(user_ids),
-            fetch_all=True,
+            fetch_all=True
         )
-        id_to_username = {r["userID"]: r["username"] for r in user_rows}
+        id_to_username = {r["userID"]: r["username"] for r in users}
 
-    # Reverse to chronological order and include username
     messages = [
         {
             "messageID": r["messageID"],
@@ -196,79 +172,82 @@ def get_messages():
         for r in reversed(rows)
     ]
 
-    return return_statement(messages, "", 200)
+    return {"messages": messages}
 
-def archive_chat():
+
+@transactional
+def archive_chat(data: dict) -> dict:
     """
-    Archives a chat for the user by setting archived=1.
-    Other participants still see it.
+    data: { session_token: str, chatID: int }
+    Returns: { message: str }
     """
-    client = request.get_json() or {}
-    session_token = client.get("session_token")
-    chat_id = client.get("chatID")
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    if not session_token or chat_id is None:
+        raise BadRequest("Session token and chatID are required.")
 
-    if not session_token or not chat_id:
-        return return_statement("", "Session token and chatID are required", 400)
-
-    # Verify the session token
     username = authenticate_token(session_token)
     if not username:
-        return return_statement("", "Unable to verify user!", 401)
+        raise Unauthorized("Unable to verify user!")
 
-    # Get the user's ID
-    user_rows = fetch_records(
+    users = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not user_rows:
-        return return_statement("", "User not found!", 404)
-    user_id = user_rows[0]["userID"]
+    if not users:
+        raise NotFound("User not found.")
+    user_id = users[0]["userID"]
 
-    conn = get_db()
-    cursor = conn.cursor()
     try:
-        # Set archived=1 for this user+chat
-        cursor.execute(
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
             "UPDATE participants SET archived = 1 WHERE chatID = %s AND userID = %s",
             (chat_id, user_id)
         )
         conn.commit()
-        return return_statement("", "Chat archived", 200)
     except Exception as e:
-        current_app.logger.exception("Error archiving chat")
-        return return_statement("", "Could not archive chat", 500)
+        current_app.logger.error("Error archiving chat", exc_info=e)
+        raise APIError()
 
-def get_members():
-    """
-    POST JSON:
-      - session_token (str)
-      - chatID (int)
-    Returns: { response: [username1, username2, ...], status }
-    """
-    client = request.get_json() or {}
-    tok = client.get("session_token")
-    cid = client.get("chatID")
-    user = authenticate_token(tok)
-    if not user:
-        return return_statement([], "Invalid session token", 401)
+    return {"message": "Chat archived"}
 
-    # Validate group
-    grp = fetch_records("chats", "chatID=%s AND type='group'", (cid,), fetch_all=True)
+
+def get_members(data: dict) -> dict:
+    """
+    data: { session_token: str, chatID: int }
+    Returns: { members: [username, ...] }
+    """
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    if not session_token or chat_id is None:
+        raise BadRequest("session_token and chatID are required.")
+
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Invalid session token.")
+
+    grp = fetch_records(
+        table="chats",
+        where_clause="chatID=%s AND type='group'",
+        params=(chat_id,),
+        fetch_all=True
+    )
     if not grp:
-        return return_statement([], "Group not found", 404)
+        raise NotFound("Group not found.")
 
-    # Get participants
     parts = fetch_records(
         table="participants",
         where_clause="chatID=%s",
-        params=(cid,),
+        params=(chat_id,),
         fetch_all=True
     )
     ids = [p["userID"] for p in parts]
+    if not ids:
+        return {"members": []}
 
-    # Resolve usernames
     fmt = ",".join(["%s"] * len(ids))
     users = fetch_records(
         table="users",
@@ -277,357 +256,349 @@ def get_members():
         fetch_all=True
     )
     names = [u["username"] for u in users]
-    return return_statement(names, "", 200)
+    return {"members": names}
+
 
 @transactional
-def add_participant():
+def add_participant(data: dict) -> dict:
     """
-    POST JSON:
-      - session_token (str)
-      - chatID (int)
-      - members (list[str])
+    data: { session_token: str, chatID: int, members: [str, ...] }
+    Returns: { chatID: int }
     """
-    client = request.get_json() or {}
-    token = client.get("session_token")
-    chat_id = client.get("chatID")
-    new_us = client.get("members", [])
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    new_users = data.get("members", [])
 
-    user = authenticate_token(token)
-    if not user:
-        return return_statement([], "Invalid session token", 401)
+    if not session_token or chat_id is None or not isinstance(new_users, list) or not new_users:
+        raise BadRequest("session_token, chatID and members list are required.")
 
-    # Verify group
-    chat = fetch_records("chats", "chatID=%s AND type='group'", (chat_id,), fetch_all=True)
-    if not chat:
-        return return_statement([], "Group not found", 404)
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Invalid session token.")
 
-    # Lookup userIDs
-    ph = ",".join(["%s"] * len(new_us))
-    rows = fetch_records("users", f"LOWER(username) IN ({ph})", tuple(u.lower() for u in new_us), fetch_all=True)
-    if len(rows) != len(new_us):
-        return return_statement([], "One or more users not found", 404)
-    ids = [r["userID"] for r in rows]
-
-    # Insert, ignore duplicates
-    conn = get_db()
-    cur = conn.cursor()
-    for uid in set(ids):
-        try:
-            cur.execute("INSERT INTO participants (chatID,userID) VALUES (%s,%s)", (chat_id, uid))
-        except:
-            pass
-    conn.commit()
-    return return_statement({"chatID": chat_id}, "Members added", 200)
-
-@transactional
-def remove_participant():
-    """
-    POST JSON:
-      - session_token (str)
-      - chatID       (int)
-      - members      (list[str])
-    """
-    client = request.get_json() or {}
-    token   = client.get("session_token")
-    chat_id = client.get("chatID")
-    rem_us  = client.get("members", [])
-
-    # 1) Auth check
-    user = authenticate_token(token)
-    if not user:
-        return return_statement([], "Invalid session token", 401)
-
-    # 2) Ensure it’s a group
-    chat = fetch_records(
+    grp = fetch_records(
         table="chats",
         where_clause="chatID=%s AND type='group'",
         params=(chat_id,),
         fetch_all=True
     )
-    if not chat:
-        return return_statement([], "Group not found", 404)
+    if not grp:
+        raise NotFound("Group not found.")
 
-    # 3) Lookup the users to remove
-    placeholders = ",".join(["%s"] * len(rem_us))
+    placeholders = ",".join(["%s"] * len(new_users))
     rows = fetch_records(
         table="users",
         where_clause=f"LOWER(username) IN ({placeholders})",
-        params=tuple(u.lower() for u in rem_us),
+        params=tuple(u.lower() for u in new_users),
         fetch_all=True
     )
-    if len(rows) != len(rem_us):
-        return return_statement([], "One or more users not found", 404)
-    ids = [r["userID"] for r in rows]
+    if len(rows) != len(new_users):
+        raise NotFound("One or more users not found.")
+    user_ids = [r["userID"] for r in rows]
 
-    # 4) Delete only those participants
     conn = get_db()
-    cur  = conn.cursor()
+    cur = conn.cursor()
+    for uid in set(user_ids):
+        try:
+            cur.execute(
+                "INSERT INTO participants (chatID, userID) VALUES (%s,%s)",
+                (chat_id, uid)
+            )
+        except mysql.connector.Error:
+            pass
+    conn.commit()
+
+    return {"chatID": chat_id}
+
+
+@transactional
+def remove_participant(data: dict) -> dict:
+    """
+    data: { session_token: str, chatID: int, members: [str, ...] }
+    Returns: { chatID: int }
+    """
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    rem_users = data.get("members", [])
+
+    if not session_token or chat_id is None or not isinstance(rem_users, list) or not rem_users:
+        raise BadRequest("session_token, chatID and members list are required.")
+
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Invalid session token.")
+
+    grp = fetch_records(
+        table="chats",
+        where_clause="chatID=%s AND type='group'",
+        params=(chat_id,),
+        fetch_all=True
+    )
+    if not grp:
+        raise NotFound("Group not found.")
+
+    placeholders = ",".join(["%s"] * len(rem_users))
+    rows = fetch_records(
+        table="users",
+        where_clause=f"LOWER(username) IN ({placeholders})",
+        params=tuple(u.lower() for u in rem_users),
+        fetch_all=True
+    )
+    if len(rows) != len(rem_users):
+        raise NotFound("One or more users not found.")
+    user_ids = [r["userID"] for r in rows]
+
+    conn = get_db()
+    cur = conn.cursor()
     cur.execute(
         f"DELETE FROM participants WHERE chatID=%s AND userID IN ({placeholders})",
-        (chat_id, *ids)
+        (chat_id, *user_ids)
     )
     conn.commit()
 
-    # 5) Always leave any remaining participant(s) intact
-    return return_statement({"chatID": chat_id}, "Members removed", 200)
+    return {"chatID": chat_id}
+
 
 @transactional
 def _create_chat_logic(sender_id: int, receiver_id: int) -> int:
+    """
+    Internal: ensures a private chat exists, reactivates if archived.
+    Returns chatID.
+    """
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if a private chat already exists between these two users
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT c.chatID
         FROM chats c
         JOIN participants p1 ON c.chatID = p1.chatID AND p1.userID = %s
         JOIN participants p2 ON c.chatID = p2.chatID AND p2.userID = %s
         WHERE c.type = 'private'
-    """, (sender_id, receiver_id))
-
+        """,
+        (sender_id, receiver_id)
+    )
     row = cursor.fetchone()
     if row:
         chat_id = row[0]
-
-        # If it exists, unarchive it for both users (just in case)
-        cursor.execute("""
-            UPDATE participants 
-            SET archived = 0 
+        cursor.execute(
+            """
+            UPDATE participants
+            SET archived = 0
             WHERE chatID = %s AND userID IN (%s, %s)
-        """, (chat_id, sender_id, receiver_id))
-
+            """,
+            (chat_id, sender_id, receiver_id)
+        )
         return chat_id
 
-    # Otherwise, create a new chat
     cursor.execute("INSERT INTO chats (type) VALUES ('private')")
     chat_id = cursor.lastrowid
-
-    # Add both participants
     for uid in (sender_id, receiver_id):
         cursor.execute(
-            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            "INSERT INTO participants (chatID, userID) VALUES (%s,%s)",
             (chat_id, uid)
         )
-
     return chat_id
 
 
-def create_chat():
+def create_chat(data: dict) -> dict:
     """
-    Creates a private chat between two users.
-    Verifies token, resolves user IDs, then calls transactional logic.
+    data: { session_token: str, receiver: str }
+    Returns: { chatID: int }
     """
-    client = request.get_json() or {}
-    session_tok = client.get("session_token")
-    receiver = (client.get("receiver") or "").lower()
+    session_token = data.get("session_token")
+    receiver = (data.get("receiver") or "").lower()
+    if not session_token or not receiver:
+        raise BadRequest("Session token and receiver are required.")
 
-    if not session_tok or not receiver:
-        return return_statement("", "Session token and receiver are required", 400)
-
-    username = authenticate_token(session_tok)
+    username = authenticate_token(session_token)
     if not username:
-        return return_statement("", "Unable to verify user!", 401)
-
+        raise Unauthorized("Unable to verify user!")
     if username.lower() == receiver:
-        return return_statement("", "Cannot chat with yourself", 400)
+        raise BadRequest("Cannot chat with yourself.")
 
     try:
-        # Get sender and receiver IDs
-        send = fetch_records("users", "LOWER(username) = %s", (username,), fetch_all=True)
-        rec = fetch_records("users", "LOWER(username) = %s", (receiver,), fetch_all=True)
-
-        if not send or not rec:
-            return return_statement("", "User not found", 404)
-
-        sender_id = send[0]["userID"]
-        receiver_id = rec[0]["userID"]
-
-        # Call logic (this handles reactivating archived chat or creating new)
-        chat_id = _create_chat_logic(sender_id, receiver_id)
-        return return_statement({"chatID": chat_id}, "", 200)
-
+        sender = fetch_records(
+            table="users",
+            where_clause="LOWER(username) = %s",
+            params=(username.lower(),),
+            fetch_all=True
+        )
+        rec = fetch_records(
+            table="users",
+            where_clause="LOWER(username) = %s",
+            params=(receiver,),
+            fetch_all=True
+        )
+        if not sender or not rec:
+            raise NotFound("User not found.")
+        chat_id = _create_chat_logic(sender[0]["userID"], rec[0]["userID"])
+    except APIError:
+        raise
     except Exception as e:
-        current_app.logger.exception("Error creating chat")
-        return return_statement("", str(e), 500)
+        current_app.logger.error("Error creating chat", exc_info=e)
+        raise APIError()
+
+    return {"chatID": chat_id}
+
 
 @transactional
 def _create_group_logic(owner_id: int, group_name: str, member_ids: list[int]) -> int:
+    """
+    Internal: creates a group chat and adds participants.
+    Returns chatID.
+    """
     conn = get_db()
     cursor = conn.cursor()
 
-    # 1) insert the group chat
     cursor.execute(
         "INSERT INTO chats (type, group_name) VALUES ('group', %s)",
         (group_name,)
     )
     chat_id = cursor.lastrowid
-
-    # 2) insert participants (owner + each member)
-    all_ids = {owner_id, *member_ids}
-    for uid in all_ids:
+    for uid in {owner_id, *member_ids}:
         cursor.execute(
-            "INSERT INTO participants (chatID, userID) VALUES (%s, %s)",
+            "INSERT INTO participants (chatID, userID) VALUES (%s,%s)",
             (chat_id, uid)
         )
-
     return chat_id
 
-def create_group():
+
+def create_group(data: dict) -> dict:
     """
-    JSON body:
-      - session_token (str)
-      - name (str): the group’s name
-      - members (list[str]): usernames to include
+    data: { session_token: str, name: str, members: [str, ...] }
+    Returns: { chatID: int }
     """
-    client = request.get_json() or {}
-    tok = client.get("session_token")
-    name = client.get("name", "").strip()
-    mems = client.get("members", [])
+    session_token = data.get("session_token")
+    name = (data.get("name") or "").strip()
+    members = data.get("members")
+    if not session_token or not name or not isinstance(members, list) or not members:
+        raise BadRequest("token, name and members list are required.")
 
-    if not tok or not name or not isinstance(mems, list) or not mems:
-        return return_statement("", "token, name and members list are required", 400)
-
-    username = authenticate_token(tok)
-    if not username:
-        return return_statement("", "Invalid session token", 401)
-
-    # Lookup owner
-    send = fetch_records("users", "LOWER(username)=%s", (username,), fetch_all=True)
-    owner_id = send[0]["userID"]
-
-    # Lookup member IDs
-    placeholders = ",".join(["%s"] * len(mems))
-    rows = fetch_records(
-        table="users",
-        where_clause=f"LOWER(username) IN ({placeholders})",
-        params=tuple(u.lower() for u in mems),
-        fetch_all=True
-    )
-    if len(rows) != len(mems):
-        return return_statement("", "One or more members not found", 404)
-    member_ids = [r["userID"] for r in rows]
-
-    try:
-        chat_id = _create_group_logic(owner_id, name, member_ids)
-        return return_statement({"chatID": chat_id}, "", 201)
-    except Exception as e:
-        current_app.logger.exception("Error creating group")
-        return return_statement("", "Could not create group", 500)
-
-def fetch_archived():
-    """
-    POST JSON: { session_token }
-    Returns: { response: [ { chatID, name, type }, … ], status }
-    """
-    client = request.get_json() or {}
-    session_token = client.get("session_token")
-
-    # 1) Authenticate
     username = authenticate_token(session_token)
     if not username:
-        return return_statement([], "Unable to verify user!", 401)
+        raise Unauthorized("Invalid session token.")
 
-    # 2) Lookup userID (correct fetch_records signature)
-    user_rows = fetch_records(
+    try:
+        owner = fetch_records(
+            table="users",
+            where_clause="LOWER(username) = %s",
+            params=(username.lower(),),
+            fetch_all=True
+        )
+        if not owner:
+            raise NotFound("User not found.")
+        ph = ",".join(["%s"] * len(members))
+        rows = fetch_records(
+            table="users",
+            where_clause=f"LOWER(username) IN ({ph})",
+            params=tuple(u.lower() for u in members),
+            fetch_all=True
+        )
+        if len(rows) != len(members):
+            raise NotFound("One or more members not found.")
+        member_ids = [r["userID"] for r in rows]
+        chat_id = _create_group_logic(owner[0]["userID"], name, member_ids)
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error creating group", exc_info=e)
+        raise APIError()
+
+    return {"chatID": chat_id}
+
+
+def fetch_archived(data: dict) -> dict:
+    """
+    data: { session_token: str }
+    Returns: { response: [ { chatID, name, type }, ... ] }
+    """
+    session_token = data.get("session_token")
+    if not session_token:
+        raise BadRequest("Session token is required.")
+
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Unable to verify user!")
+
+    users = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not user_rows:
-        return return_statement([], "User not found", 404)
-    user_id = user_rows[0]["userID"]
+    if not users:
+        raise NotFound("User not found.")
+    user_id = users[0]["userID"]
 
-    # 3) Run two queries via raw cursor
-    conn = get_db()
-    cursor = conn.cursor()
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT p.chatID, 'group' AS type, c.group_name AS name
+            FROM participants p
+            JOIN chats c ON c.chatID = p.chatID
+            WHERE p.userID = %s AND p.archived = 1 AND c.type = 'group'
+        """, (user_id,))
+        group_rows = cur.fetchall()
 
-    # — Archived group chats —
-    cursor.execute("""
-        SELECT 
-          p.chatID,
-          'group'   AS type,
-          c.group_name AS name
-        FROM participants p
-        JOIN chats c 
-          ON c.chatID = p.chatID
-        WHERE 
-          p.userID = %s
-          AND p.archived = 1
-          AND c.type = 'group'
-    """, (user_id,))
-    group_rows = cursor.fetchall()
+        cur.execute("""
+            SELECT p.chatID, 'private' AS type, u.username AS name
+            FROM participants p
+            JOIN chats c ON c.chatID = p.chatID AND c.type = 'private'
+            JOIN participants pu ON pu.chatID = p.chatID AND pu.userID != %s
+            JOIN users u ON u.userID = pu.userID
+            WHERE p.userID = %s AND p.archived = 1
+        """, (user_id, user_id))
+        private_rows = cur.fetchall()
+    except Exception as e:
+        current_app.logger.error("DB error fetching archived chats", exc_info=e)
+        raise APIError()
 
-    # — Archived private chats —
-    cursor.execute("""
-        SELECT 
-          p.chatID,
-          'private' AS type,
-          u.username AS name
-        FROM participants p
-        JOIN chats c 
-          ON c.chatID = p.chatID 
-         AND c.type = 'private'
-        JOIN participants pu 
-          ON pu.chatID = p.chatID 
-         AND pu.userID != %s
-        JOIN users u 
-          ON u.userID = pu.userID
-        WHERE 
-          p.userID = %s
-          AND p.archived = 1
-    """, (user_id, user_id))
-    private_rows = cursor.fetchall()
-
-    # 4) Combine, format, and return
     all_rows = group_rows + private_rows
     if not all_rows:
-        return return_statement([], "", 200)
+        return {"response": []}
 
     response = [
-        {"chatID": row[0], "type": row[1], "name": row[2]}
-        for row in all_rows
+        {"chatID": row[0], "type": row[1], "name": row[2]} for row in all_rows
     ]
-    return return_statement(response, "", 200)
+    return {"response": response}
 
-def unarchive_chat():
+
+def unarchive_chat(data: dict) -> dict:
     """
-    Unarchives a chat for the user by setting archived=0.
-    Other participants still see it.
+    data: { session_token: str, chatID: int }
+    Returns: { message: str }
     """
-    client = request.get_json() or {}
-    session_token = client.get("session_token")
-    chat_id = client.get("chatID")
+    session_token = data.get("session_token")
+    chat_id = data.get("chatID")
+    if not session_token or chat_id is None:
+        raise BadRequest("Session token and chatID are required.")
 
-    if not session_token or not chat_id:
-        return return_statement("", "Session token and chatID are required", 400)
-
-    # Verify the session token
     username = authenticate_token(session_token)
     if not username:
-        return return_statement("", "Unable to verify user!", 401)
+        raise Unauthorized("Unable to verify user!")
 
-    # Get the user's ID
-    user_rows = fetch_records(
+    users = fetch_records(
         table="users",
         where_clause="LOWER(username) = %s",
         params=(username.lower(),),
         fetch_all=True
     )
-    if not user_rows:
-        return return_statement("", "User not found!", 404)
-    user_id = user_rows[0]["userID"]
+    if not users:
+        raise NotFound("User not found.")
+    user_id = users[0]["userID"]
 
-    conn = get_db()
-    cursor = conn.cursor()
     try:
-        # Set archived=0 for this user+chat
-        cursor.execute(
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
             "UPDATE participants SET archived = 0 WHERE chatID = %s AND userID = %s",
             (chat_id, user_id)
         )
         conn.commit()
-        return return_statement("", "Chat unarchived", 200)
     except Exception as e:
-        current_app.logger.exception("Error unarchiving chat")
-        return return_statement("", "Could not unarchive chat", 500)
+        current_app.logger.error("Error unarchiving chat", exc_info=e)
+        raise APIError()
+
+    return {"message": "Chat unarchived"}

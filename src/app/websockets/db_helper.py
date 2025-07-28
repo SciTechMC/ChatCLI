@@ -1,8 +1,12 @@
 import aiomysql
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Configure module logger
+logger = logging.getLogger(__name__)
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
@@ -14,9 +18,29 @@ DB_CONFIG = {
 }
 
 async def get_conn():
-    return await aiomysql.connect(**DB_CONFIG)
+    """
+    Acquire an aiomysql connection using environment configuration.
+    Raises an exception if connection fails.
+    """
+    try:
+        conn = await aiomysql.connect(**DB_CONFIG)
+        return conn
+    except Exception as e:
+        logger.error("Failed to connect to database: %s", e, exc_info=e)
+        raise
 
-async def fetch_records(table, where_clause=None, params=(), order_by=None, limit=None, fetch_all=True):
+async def fetch_records(
+    table: str,
+    where_clause: str = None,
+    params: tuple = (),
+    order_by: str = None,
+    limit: int = None,
+    fetch_all: bool = True
+) -> list[dict]:
+    """
+    Run a SELECT query and return rows as dicts.
+    Raises on errors after logging.
+    """
     sql = f"SELECT * FROM `{table}`"
     if where_clause:
         sql += " WHERE " + where_clause
@@ -25,27 +49,69 @@ async def fetch_records(table, where_clause=None, params=(), order_by=None, limi
     if limit is not None:
         sql += " LIMIT %s"
         params = (*params, limit)
-    async with await get_conn() as conn:
+
+    conn = None
+    try:
+        conn = await get_conn()
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(sql, params)
-            return await cur.fetchall() if fetch_all else cur
+            if fetch_all:
+                rows = await cur.fetchall()
+            else:
+                rows = await cur.fetchone()
+            return rows
+    except Exception as e:
+        logger.error("Error fetching records from %s: %s", table, e, exc_info=e)
+        raise
+    finally:
+        if conn:
+            conn.close()
 
-async def insert_record(table, data: dict):
+async def insert_record(table: str, data: dict) -> int:
+    """
+    Insert a row into the specified table.
+    Returns the lastrowid. Raises on error.
+    """
     cols = ", ".join(f"`{col}`" for col in data.keys())
-    vals_placeholders = ", ".join(["%s"] * len(data))
-    sql = f"INSERT INTO `{table}` ({cols}) VALUES ({vals_placeholders})"
-    async with await get_conn() as conn:
+    placeholders = ", ".join(["%s"] * len(data))
+    sql = f"INSERT INTO `{table}` ({cols}) VALUES ({placeholders})"
+    conn = None
+    try:
+        conn = await get_conn()
         async with conn.cursor() as cur:
             await cur.execute(sql, tuple(data.values()))
             await conn.commit()
             return cur.lastrowid
+    except Exception as e:
+        logger.error("Error inserting record into %s: %s", table, e, exc_info=e)
+        raise
+    finally:
+        if conn:
+            conn.close()
 
-async def update_records(table, data: dict, where_clause: str, where_params: tuple = ()):
+async def update_records(
+    table: str,
+    data: dict,
+    where_clause: str,
+    where_params: tuple = ()
+) -> int:
+    """
+    Update rows in the specified table.
+    Returns number of rows affected. Raises on error.
+    """
     set_clause = ", ".join(f"`{col}` = %s" for col in data.keys())
     sql = f"UPDATE `{table}` SET {set_clause} WHERE {where_clause}"
     params = tuple(data.values()) + where_params
-    async with await get_conn() as conn:
+    conn = None
+    try:
+        conn = await get_conn()
         async with conn.cursor() as cur:
             await cur.execute(sql, params)
             await conn.commit()
             return cur.rowcount
+    except Exception as e:
+        logger.error("Error updating records in %s: %s", table, e, exc_info=e)
+        raise
+    finally:
+        if conn:
+            conn.close()

@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from services import (
     authenticate,
@@ -12,69 +13,94 @@ from services import (
 )
 import uvicorn
 
+# Configure module logger
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    # Accept connection
     await ws.accept()
-    print("WebSocket connection accepted.")
+    logger.info("WebSocket connection accepted.")
 
-    # 1) Auth handshake
-    init = await ws.receive_json()
-    print(f"Received auth payload: {init}")
-    username = await authenticate(ws, init)
-    print(f"Authentication result: {username}")
-    if not username:
-        print("Authentication failed.")
+    # Authentication handshake
+    try:
+        init = await ws.receive_json()
+        logger.debug("Received auth payload: %s", init)
+    except Exception as e:
+        logger.error("Failed to receive auth payload", exc_info=e)
+        await ws.close(code=1003)
         return
-    await ws.send_json({"type": "auth_ack", "status": "ok"})
-    print("Authentication acknowledged.")
 
-    # 2) Main loop
+    try:
+        username = await authenticate(ws, init)
+        logger.info("Authentication result for %s: %s", init, username)
+    except Exception as e:
+        logger.error("Error during authentication", exc_info=e)
+        await ws.send_json({"type": "error", "message": "Authentication error"})
+        await ws.close(code=1008)
+        return
+
+    if not username:
+        logger.warning("Invalid credentials: %s", init)
+        await ws.send_json({"type": "error", "message": "Invalid credentials"})
+        await ws.close(code=1008)
+        return
+
+    # Acknowledge successful auth
+    await ws.send_json({"type": "auth_ack", "status": "ok"})
+    logger.info("Authentication acknowledged for user: %s", username)
+    active_connections[username] = ws
+
+    # Main message loop
     try:
         while True:
-            msg = await ws.receive_json()
-            t   = msg.get("type")
-            print(f"Received message: {msg}")
+            try:
+                msg = await ws.receive_json()
+                msg_type = msg.get("type")
+                logger.debug("Received message for %s: %s", username, msg)
 
-            if t == "join_chat":
-                print(f"{username} joining chat {msg.get('chatID')}")
-                await join_chat(username, msg.get("chatID"), ws)
-
-            elif t == "leave_chat":
-                print(f"{username} leaving chat {msg.get('chatID')}")
-                await leave_chat(username, msg.get("chatID"), ws)
-
-            elif t == "post_msg":
-                print(f"{username} posting message to chat {msg.get('chatID')}: {msg.get('text')}")
-                await post_msg({
-                    "username": username,
-                    "chatID":   msg.get("chatID"),
-                    "text":     msg.get("text")
-                })
-            elif t == "typing":
-                await broadcast_typing(username, msg.get("chatID"))
-            elif t == "join_idle":
-                idle_subscriptions.add(ws)
-            else:
-                print(f"Unknown action: {t}")
-                await ws.send_json({
-                    "type":    "error",
-                    "message": f"Unknown action: {t}"
-                })
-
+                if msg_type == "join_chat":
+                    await join_chat(username, msg.get("chatID"), ws)
+                elif msg_type == "leave_chat":
+                    await leave_chat(username, msg.get("chatID"), ws)
+                elif msg_type == "post_msg":
+                    await post_msg({
+                        "username": username,
+                        "chatID": msg.get("chatID"),
+                        "text": msg.get("text")
+                    })
+                elif msg_type == "typing":
+                    await broadcast_typing(username, msg.get("chatID"))
+                elif msg_type == "join_idle":
+                    idle_subscriptions.add(ws)
+                else:
+                    raise ValueError(f"Unknown action: {msg_type}")
+            except ValueError as ve:
+                logger.warning("Value error for user %s: %s", username, ve)
+                await ws.send_json({"type": "error", "message": str(ve)})
+            except Exception as e:
+                logger.error("Error handling message for %s: %s", username, e, exc_info=e)
+                await ws.send_json({"type": "error", "message": "Internal server error"})
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected for user: {username}")
-        
-        # Clean up any subscriptions
+        logger.info("WebSocket disconnected for user: %s", username)
+    except Exception as e:
+        logger.error("Unexpected error in connection loop for %s", username, exc_info=e)
+    finally:
+        # Clean up subscriptions
         for subs in chat_subscriptions.values():
             subs.discard(ws)
 
         # Remove from active connections
         active_connections.pop(username, None)
         idle_subscriptions.discard(ws)
+
         # Notify others the user is offline
-        await notify_status(username, is_online=False)
+        try:
+            await notify_status(username, is_online=False)
+        except Exception as e:
+            logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
