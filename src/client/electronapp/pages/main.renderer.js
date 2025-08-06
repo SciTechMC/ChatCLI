@@ -4,14 +4,12 @@
 let toastContainer;
 // Modal closing functionality
 function setupModalClosing() {
-  // Set up close buttons for all modals
   document.querySelectorAll('.modal-close').forEach(button => {
     button.addEventListener('click', () => {
       const modal = button.closest('.modal');
       if (modal) hideModal(modal);
     });
   });
-  // Set up cancel buttons for all modals
   document.querySelectorAll('.modal-button.secondary').forEach(button => {
     if (button.id.includes('cancel') || button.textContent.includes('Cancel')) {
       button.addEventListener('click', () => {
@@ -20,55 +18,42 @@ function setupModalClosing() {
       });
     }
   });
-  // Add Escape key support for closing modals
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       const activeModal = document.querySelector('.modal.active');
       if (activeModal) hideModal(activeModal);
     }
   });
 }
-// Updated showModal function
+
 function showModal(modal) {
-  // Function to close the modal when clicking outside
-  const closeOnBackdropClick = (event) => {
-    if (event.target === modal) {
-      hideModal(modal);
-    }
+  const closeOnBackdropClick = event => {
+    if (event.target === modal) hideModal(modal);
   };
-  // Remove any existing backdrop click handler
-  if (modal._closeOnBackdropClick) {
-    modal.removeEventListener('click', modal._closeOnBackdropClick);
-  }
-  // Store and add the event listener
+  if (modal._closeOnBackdropClick) modal.removeEventListener('click', modal._closeOnBackdropClick);
   modal._closeOnBackdropClick = closeOnBackdropClick;
   modal.addEventListener('click', closeOnBackdropClick);
-  // Show the modal
   modal.classList.add('active');
   modal.style.pointerEvents = 'all';
   modal.querySelector('.modal-content').style.transform = 'translateY(0)';
 }
-// Updated hideModal function
+
 function hideModal(modal) {
-  // Clean up the backdrop click handler
   if (modal._closeOnBackdropClick) {
     modal.removeEventListener('click', modal._closeOnBackdropClick);
     delete modal._closeOnBackdropClick;
   }
-  // Hide the modal
   modal.classList.remove('active');
   modal.style.pointerEvents = 'none';
   modal.querySelector('.modal-content').style.transform = 'translateY(20px)';
 }
-// Show toast notification
+
 function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.classList.add('toast', type);
   toast.textContent = message;
   toast.style.padding = '12px 16px';
-  toast.style.backgroundColor = type === 'error' ? 'var(--danger-color)' :
-                              type === 'warning' ? '#f0ad4e' :
-                              'var(--accent-color)';
+  toast.style.backgroundColor = type === 'error' ? 'var(--danger-color)' : type === 'warning' ? '#f0ad4e' : 'var(--accent-color)';
   toast.style.color = 'white';
   toast.style.borderRadius = '4px';
   toast.style.marginBottom = '10px';
@@ -79,22 +64,37 @@ function showToast(message, type = 'info') {
     setTimeout(() => toast.remove(), 500);
   }, 3000);
 }
-// API request wrapper
+// =============================================
+// CONFIGURATION
+// =============================================
+const API_BASE = 'http://localhost:5123';
+const WS_URL = 'ws://127.0.0.1:8765/ws';
+
+// =============================================
+// API REQUEST WRAPPER
+// =============================================
 async function apiRequest(endpoint, options = {}) {
   try {
-    const response = await window.api.request(endpoint, options);
-    if (!response || typeof response.status === 'undefined') {
-      throw new Error(`Invalid response structure for ${endpoint}`);
+    // window.api.request already adds BASE_URL; just forward the path as-is
+    const raw = await window.api.request(endpoint, options);
+    let env = raw;
+    if (Array.isArray(raw)) {
+      env = { status: 'ok', response: raw };
+    } else if (raw && typeof raw.status === 'undefined') {
+      env = raw.response !== undefined
+        ? { status: 'ok', response: raw.response, message: raw.message || '' }
+        : { status: 'ok', response: raw, message: '' };
     }
-    return response;
+    if (env.status !== 'ok') throw new Error(env.message || 'Unknown error');
+    return env.response;
   } catch (err) {
     throw new Error(`Request failed: ${err.message}`);
   }
 }
+
 // =============================================
 // WEBSOCKET FUNCTIONS
 // =============================================
-const ip = "ws://192.168.133.58:8765/ws";
 let ws;
 let token;
 let username;
@@ -139,19 +139,17 @@ let closeResetPasswordModalBtn;
 let cancelResetPasswordBtn;
 let submitResetPasswordBtn;
 
-// Typing indicator management
 const typingUsers = new Set();
 const typingTimeouts = new Map();
+const seenMessageIDs = new Set();
 
 function updateTypingIndicator() {
   if (typingUsers.size === 0) {
     typingIndicator.style.display = 'none';
     return;
   }
-
   const users = Array.from(typingUsers);
   let text;
-
   if (users.length === 1) {
     text = `${users[0]} is typing...`;
   } else if (users.length === 2) {
@@ -160,7 +158,6 @@ function updateTypingIndicator() {
     const last = users.pop();
     text = `${users.join(', ')}, and ${last} are typing...`;
   }
-
   typingIndicator.textContent = text;
   typingIndicator.style.display = 'block';
 }
@@ -168,12 +165,12 @@ function updateTypingIndicator() {
 // =============================================
 // CHAT MANAGEMENT FUNCTIONS
 // =============================================
+
 let currentChatID = null;
 let archivedVisible = false;
 let archivedChatsData = [];
-let groupMembers = [];
 let currentMembers = [];
-// Update send button state
+
 function updateSendButtonState() {
   const hasContent = messageInput.value.trim().length > 0;
   sendBtn.classList.toggle('disabled', !hasContent);
@@ -218,25 +215,16 @@ function renderArchivedChats() {
     unarchiveBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       try {
-        const res = await apiRequest('/chat/unarchive-chat', {
+        await apiRequest('/chat/unarchive-chat', {
           body: JSON.stringify({ session_token: token, chatID })
         });
-        // check the same property your archive code does:
-        if (res.status !== 'ok') {
-          throw new Error(res.message || 'Failed to unarchive chat');
-        }
-
-        showToast('Chat unarchived!', 'info');
-
+        showToast('Chat unarchived successfully!', 'info');
         // ensure we switch back to the "Recent Chats" view:
         archivedVisible = false;
-
         // now reload the full list from scratch:
         await loadChats();
-
         // if the user was looking at that chat, deselect it
         if (currentChatID === chatID) selectChat(null);
-
       } catch (err) {
         console.error('Unarchive error:', err);
         showToast(err.message || 'Could not unarchive chat', 'error');
@@ -250,13 +238,9 @@ function renderArchivedChats() {
 // Load and render the user's chat list
 async function loadChats() {
   try {
-    const res = await apiRequest('/chat/fetch-chats', {
+    const chats = await apiRequest('/chat/fetch-chats', {
       body: JSON.stringify({ session_token: token })
     });
-    if (!res.response) {
-      throw new Error('No response data received');
-    }
-    const chats = Array.isArray(res.response) ? res.response : [];
     chatListEl.innerHTML = '';
     document.querySelector('.chat-input').classList.add('hidden');
     placeholder.style.display = 'flex';
@@ -305,10 +289,10 @@ async function loadChats() {
       chatListEl.append(chatItem);
     });
     // Fetch archived data
-    const archivedRes = await apiRequest('/chat/fetch-archived', {
+    const archivedChats = await apiRequest('/chat/fetch-archived', {
       body: JSON.stringify({ session_token: token })
     });
-    archivedChatsData = Array.isArray(archivedRes.response) ? archivedRes.response : [];
+    archivedChatsData = Array.isArray(archivedChats) ? archivedChats : [];
     // only show toggle if there are archived chats
     if (archivedChatsData.length > 0) {
       const archiveToggleContainer = document.createElement('div');
@@ -355,6 +339,10 @@ async function selectChat(chatID) {
     editMembersBtn.style.display = 'none';
     return;
   }
+  
+  // Convert chatID to number
+  chatID = parseInt(chatID, 10);
+  
   const chatItem = chatListEl.querySelector(`[data-chat-id="${chatID}"]`);
   if (!chatItem) {
     console.error('Chat item not found');
@@ -375,7 +363,6 @@ async function selectChat(chatID) {
   typingUsers.clear();
   typingTimeouts.forEach(timeout => clearTimeout(timeout));
   typingTimeouts.clear();
-
   if (currentChatID != null && ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'leave_chat', chatID: currentChatID }));
   }
@@ -383,21 +370,31 @@ async function selectChat(chatID) {
   messagesEl.innerHTML = '';
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'join_chat', chatID }));
+    // if this is a group, fetch its members
+    if (document
+          .querySelector(`.chat-item[data-chat-id="${chatID}"]`)
+          .dataset.type === 'group') {
+      loadGroupMembers(chatID);
+      editMembersBtn.style.display = 'block';
+    } else {
+      editMembersBtn.style.display = 'none';
+    }
   }
   try {
-    const res = await apiRequest('/chat/messages', {
-      body: JSON.stringify({ username, session_token: token, chatID })
+    const history = await apiRequest('/chat/messages', {
+      body: JSON.stringify({ session_token: token, chatID })
     });
-    if (res && res.response) {
-      const history = Array.isArray(res.response) ? res.response : [];
-      history.forEach(appendMessage);
+
+    // backend returns { messages:[ … ] }
+    if (Array.isArray(history?.messages)) {
+      history.messages.forEach(appendMessage);
     }
   } catch (err) {
     console.error('history fetch error:', err);
     showToast('Failed to load message history: ' + (err.message || 'Unknown error'), 'error');
   }
   document.querySelectorAll('.chat-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.chatId == chatID);
+    el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === chatID);
   });
 }
 // Render a single message
@@ -488,12 +485,9 @@ async function sendMessage() {
 // Archive a chat
 async function archiveChat(chatID) {
   try {
-    const res = await apiRequest('/chat/archive-chat', {
+    await apiRequest('/chat/archive-chat', {
       body: JSON.stringify({ session_token: token, chatID })
     });
-    if (!res || res.status !== 'ok') {
-      throw new Error('Failed to archive chat');
-    }
     showToast('Chat archived successfully!', 'info');
     await loadChats();
     if (currentChatID === chatID) selectChat(null);
@@ -560,15 +554,67 @@ function showConfirmationModal(message, title = 'Confirm Action', onConfirm) {
 // =============================================
 // WEBSOCKET FUNCTIONS
 // =============================================
+let isConnecting = false;
+let reconnectAttempts = 0;
+const maxRetries = 5;
+
 function connectWS() {
-  ws = new WebSocket(ip);
+  if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
+
+  isConnecting = true;
+  ws = new WebSocket(WS_URL);
+
   ws.addEventListener('open', () => {
+    console.log('WebSocket connected');
+    reconnectAttempts = 0;
+    isConnecting = false;
     ws.send(JSON.stringify({ type: 'auth', token }));
   });
-  ws.addEventListener('message', ({ data }) => {
-    const msg = JSON.parse(data);
-    if (msg.type === 'new_message' && msg.chatID === currentChatID) {
-      appendMessage(msg);
+
+  ws.addEventListener('close', () => {
+    console.warn('WebSocket closed');
+    isConnecting = false;
+    if (reconnectAttempts < maxRetries) {
+      const delay = Math.pow(2, reconnectAttempts) * 1000;
+      console.log(`Reconnecting in ${delay / 1000}s...`);
+      setTimeout(connectWS, delay);
+      reconnectAttempts++;
+    } else {
+      console.error('Max retries reached, not reconnecting');
+    }
+  });
+
+  ws.addEventListener('message', (event) => {
+    const msg = JSON.parse(event.data);
+
+    if (msg.type === 'auth_ack') {
+      ws.send(JSON.stringify({ type: 'join_idle' }));
+      return;                            // nothing else to do for this frame
+    }
+
+    // 2) a chat message broadcast from the backend
+    if (msg.type === 'new_message') {
+      if (seenMessageIDs.has(msg.messageID)) return;
+      seenMessageIDs.add(msg.messageID);
+    
+      if (msg.chatID === currentChatID) {
+        appendMessage({
+          username:  msg.username,
+          message:   msg.message,
+          timestamp: msg.timestamp
+        });
+      } else {
+        // update the preview line in the sidebar
+        const preview = chatListEl
+          .querySelector(`.chat-item[data-chat-id="${msg.chatID}"] .chat-preview`);
+        if (preview) preview.textContent = msg.message.slice(0, 50);
+      }
+      return;
+    }
+
+    if (msg.type === 'error' && msg.message.includes('Invalid credentials')) {
+      console.error('Fatal auth failure. Closing WebSocket.');
+      ws.close(); // Prevent retry loop
     }
     if (msg.type === "user_typing" && msg.chatID === currentChatID && msg.username.toLowerCase() !== username.toLowerCase()) {
       const user = msg.username;
@@ -592,12 +638,30 @@ function connectWS() {
       });
     }
   });
-  ws.addEventListener('close', () => {
-    setTimeout(connectWS, 2000);
-  });
+
   ws.addEventListener('error', (error) => {
     console.error('WebSocket error:', error);
+    isConnecting = false;
+    showToast('Connection error. Reconnecting...', 'error');
   });
+}
+
+async function loadGroupMembers(chatID) {
+  try {
+    const { members } = await apiRequest('/chat/get-members',
+      { body: JSON.stringify({ session_token: token, chatID }) });
+    // assume you have an element #groupMemberList in your modal
+    const list = groupMemberList || document.querySelector('#groupEditorModal .user-list');
+    list.innerHTML = '';
+    members.forEach(name => {
+      const el = document.createElement('div');
+      el.className = 'user-item';
+      el.textContent = name;
+      list.appendChild(el);
+    });
+  } catch (err) {
+    showToast('Failed loading members: ' + err.message, 'error');
+  }
 }
 // =============================================
 // MAIN APPLICATION LOGIC
@@ -698,33 +762,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     groupChatSection.classList.add('hidden');
     closeProfileBtn.addEventListener('click',  () => hideModal(profileModal));
     cancelProfileBtn.addEventListener('click', () => hideModal(profileModal));
-
     profileForm.addEventListener('submit', async e => {
       e.preventDefault();
       const newUsername = profileForm.querySelector('input[name="username"]').value.trim();
       const newEmail    = profileForm.querySelector('input[name="email"]').value.trim();
       try {
-        const res = await apiRequest('/user/submit-profile', {
+        const result = await apiRequest('/user/submit-profile', {
           body: JSON.stringify({
             session_token: token,
-            action: 'update',
             username: newUsername,
             email: newEmail
           })
         });
         hideModal(profileModal);
-        if (res.response?.verificationSent) {
+        if (result.verificationSent) {
           showToast('Email changed—please verify.', 'info');
           window.location.href = `verify.html?username=${encodeURIComponent(newUsername)}`;
         } else {
           showToast('Profile updated!', 'info');
-          document.querySelector('.username').textContent = newUsername;
+          document.querySelector('.username').textContent = result.username || newUsername;
         }
       } catch (err) {
         showToast('Failed to update profile: ' + err.message, 'error');
       }
     });
-
     // Set up radio button event listeners for create chat modal
     document.querySelectorAll('input[name="chatType"]').forEach(radio => {
       radio.addEventListener('change', function() {
@@ -762,10 +823,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // =============================================
     document.getElementById('viewArchivedBtn')?.addEventListener('click', async () => {
       try {
-        const res = await apiRequest('/chat/fetch-archived', {
+        const archivedChats = await apiRequest('/chat/fetch-archived', {
           body: JSON.stringify({ session_token: token })
         });
-        if (!res || !Array.isArray(res.response)) {
+        if (!Array.isArray(archivedChats)) {
           throw new Error('Failed to fetch archived chats');
         }
         chatListEl.innerHTML = '';
@@ -773,7 +834,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         title.classList.add('chat-list-title');
         title.textContent = 'Archived Chats';
         chatListEl.appendChild(title);
-        res.response.forEach(({ chatID, name, type }) => {
+        archivedChats.forEach(({ chatID, name, type }) => {
           const chatItem = document.createElement('div');
           chatItem.classList.add('chat-item');
           chatItem.dataset.chatId = chatID;
@@ -797,10 +858,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           archivedBtn.innerText = '📁 View Archived Chats';
           archivedBtn.addEventListener('click', async () => {
             try {
-              const res = await apiRequest('/chat/fetch-archived', {
+              const archivedChats = await apiRequest('/chat/fetch-archived', {
                 body: JSON.stringify({ session_token: token })
               });
-              if (!res || !Array.isArray(res.response)) {
+              if (!Array.isArray(archivedChats)) {
                 throw new Error('Failed to fetch archived chats');
               }
               chatListEl.innerHTML = '';
@@ -808,7 +869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               title.classList.add('chat-list-title');
               title.textContent = 'Archived Chats';
               chatListEl.appendChild(title);
-              res.response.forEach(({ chatID, name, type }) => {
+              archivedChats.forEach(({ chatID, name, type }) => {
                 const chatItem = document.createElement('div');
                 chatItem.classList.add('chat-item');
                 chatItem.dataset.chatId = chatID;
@@ -840,16 +901,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Profile modal logic
     document.getElementById('profileBtn').addEventListener('click', async () => {
       try {
-        const res = await apiRequest('/user/profile', {
+        const profile = await apiRequest('/user/profile', {
           body: JSON.stringify({ session_token: token })
         });
-        if (res && res.response) {
-          document.querySelector('#profileModal input[name="username"]').value = res.response.username || '';
-          document.querySelector('#profileModal input[name="email"]').value = res.response.email || '';
-          showModal(profileModal);
-        } else {
-          throw new Error('Invalid profile data received');
-        }
+        document.querySelector('#profileModal input[name="username"]').value = profile.username || '';
+        document.querySelector('#profileModal input[name="email"]').value = profile.email || '';
+        showModal(profileModal);
       } catch (err) {
         showToast('Failed to load profile: ' + (err.message || 'Unknown error'), 'error');
       }
@@ -866,16 +923,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           'Disable Account',
           async () => {
             try {
-              const res = await apiRequest('/user/submit-profile', {
+              await apiRequest('/user/submit-profile', {
                 body: JSON.stringify({
                   session_token: token,
                   disable: 1,
                   delete: 0
                 })
               });
-              if (!res || res.status !== 'ok') {
-                throw new Error('Failed to disable account');
-              }
               showToast('Account disabled.', 'warning');
               await window.secureStore.delete('session_token');
               await window.secureStore.delete('refresh_token');
@@ -898,16 +952,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           'Delete Account',
           async () => {
             try {
-              const res = await apiRequest('/user/submit-profile', {
+              await apiRequest('/user/submit-profile', {
                 body: JSON.stringify({
                   session_token: token,
                   disable: 0,
                   delete: 1
                 })
               });
-              if (!res || res.status !== 'ok') {
-                throw new Error('Failed to delete account');
-              }
               showToast('Account deleted.', 'error');
               await window.secureStore.delete('session_token');
               await window.secureStore.delete('refresh_token');
@@ -944,16 +995,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         return showToast('Password must be at least 8 characters and include letters and numbers', 'error');
       }
       try {
-        const res = await apiRequest('/user/change-password', {
+        await apiRequest('/user/change-password', {
           body: JSON.stringify({
             session_token: token,
             current_password: current,
             new_password: newPw
           })
         });
-        if (!res || res.status !== 'ok') {
-          throw new Error(res?.message || 'Password update failed');
-        }
         showToast('Password updated. Please log in again.', 'info');
         hideModal(resetPasswordModal);
         // Strip all PII
@@ -989,15 +1037,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return showToast('Please enter a username', 'error');
           }
           try {
-            const res = await apiRequest('/chat/create-chat', {
+            await apiRequest('/chat/create-chat', {
               body: JSON.stringify({
                 receiver,
                 session_token: token
               })
             });
-            if (!res || res.status !== "ok") {
-              throw new Error(res?.message || 'Failed to create chat');
-            }
             showToast('Private chat created!', 'info');
             hideModal(createChatModal);
             newChatInput.value = '';
@@ -1014,17 +1059,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             .map(m => m.trim())
             .filter(Boolean);
           try {
-            const res = await apiRequest('/chat/create-group', {
+            const result = await apiRequest('/chat/create-group', {
               body: JSON.stringify({
                 session_token: token,
                 name: groupName,
                 members: members
               })
             });
-            if (!res || !res.response?.chatID) {
-              throw new Error(res?.message || 'Failed to create group');
+            if (!result.chatID) {
+              throw new Error('Failed to create group');
             }
-            const newChatID = res.response.chatID;
+            const newChatID = result.chatID;
             showToast('Group created!', 'info');
             hideModal(createChatModal);
             newGroupNameInput.value = '';
@@ -1041,59 +1086,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (editMembersBtn) {
       editMembersBtn.addEventListener('click', async () => {
         if (!currentChatID) return;
-
         // 1) Fetch current members
-        let res;
+        let members;
         try {
-          res = await apiRequest('/chat/get-members', {
+          const res = await apiRequest('/chat/get-members', {
             body: JSON.stringify({ session_token: token, chatID: currentChatID })
           });
+          members = res.members;
         } catch (err) {
           return showToast('Failed to load group members: ' + err.message, 'error');
         }
-        if (!res || !Array.isArray(res.response)) {
+        if (!Array.isArray(members)) {
           return showToast('Failed to load group members', 'error');
         }
-        currentMembers = res.response;
-
+        currentMembers = members;
         // 2) Render each member with the new click logic
         groupMemberList.innerHTML = '';
         const me = username.toLowerCase();
-
         currentMembers.forEach(member => {
           const userItem = document.createElement('div');
           userItem.classList.add('user-item');
-
           const userName = document.createElement('span');
           userName.textContent = member;
-
           const removeBtn = document.createElement('span');
           removeBtn.classList.add('user-remove');
           removeBtn.textContent = '×';
-
           removeBtn.addEventListener('click', e => {
             e.stopPropagation();
-
             // actual API call & UI removal
             const performRemoval = async () => {
               try {
-                const removeRes = await apiRequest('/chat/remove-members', {
+                await apiRequest('/chat/remove-members', {
                   body: JSON.stringify({
                     session_token: token,
                     chatID: currentChatID,
                     members: [member]
                   })
                 });
-                if (!removeRes || removeRes.status !== 'ok') {
-                  throw new Error(removeRes?.message || 'Failed to remove member');
-                }
                 userItem.remove();
                 currentMembers = currentMembers.filter(u => u !== member);
               } catch (err) {
                 showToast('Failed to remove member: ' + err.message, 'error');
               }
             };
-
             // If I'm removing *myself*, confirm first
             if (member.toLowerCase() === me) {
               showConfirmationModal(
@@ -1112,15 +1147,12 @@ document.addEventListener('DOMContentLoaded', async () => {
               performRemoval();
             }
           });
-
           userItem.append(userName, removeBtn);
           groupMemberList.appendChild(userItem);
         });
-
         showModal(groupEditorModal);
       });
     }
-
     if (closeGroupEditorBtn) {
       closeGroupEditorBtn.addEventListener('click', () => hideModal(groupEditorModal));
     }
@@ -1136,16 +1168,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           return showToast(`${username} is already in the group`, 'warning');
         }
         try {
-          const res = await apiRequest('/chat/add-members', {
+          await apiRequest('/chat/add-members', {
             body: JSON.stringify({
               session_token: token,
               chatID: currentChatID,
               members: [username]
             })
           });
-          if (!res || res.status !== 'ok') {
-            throw new Error('Failed to add member');
-          }
           const userItem = document.createElement('div');
           userItem.classList.add('user-item');
           const userName = document.createElement('span');
@@ -1155,30 +1184,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           removeBtn.textContent = '×';
           removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-
             // 1) wrap the actual delete logic in its own function
             const doRemove = async () => {
               try {
-                const res = await apiRequest('/chat/remove-members', {
+                await apiRequest('/chat/remove-members', {
                   body: JSON.stringify({
                     session_token: token,
                     chatID: currentChatID,
-                    members: [member]
+                    members: [username]
                   })
                 });
-                if (!res || res.status !== 'ok') {
-                  throw new Error(res?.message || 'Failed to remove member');
-                }
                 // remove from UI
                 userItem.remove();
-                currentMembers = currentMembers.filter(u => u !== member);
+                currentMembers = currentMembers.filter(u => u !== username);
               } catch (err) {
                 showToast('Failed to remove member: ' + err.message, 'error');
               }
             };
-
             // 2) if they're removing *themselves*, show confirmation first
-            if (memberName === me) {
+            if (username.toLowerCase() === me.toLowerCase()) {
               showConfirmationModal(
                 'Are you sure you want to leave this group? This cannot be undone unless someone else adds you back.',
                 'Leave Group',
@@ -1248,9 +1272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           messageInput.style.height = `${maxH}px`;
           messageInput.style.overflowY = 'auto';
         }
-
         updateSendButtonState();
-
         // live char counter
         const len = messageInput.value.length;
         if (len >= 1950) {
@@ -1261,15 +1283,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
           charCounter.style.display = 'none';
         }
-
         // highlight over‐limit
         messageInput.classList.toggle('error', len > 2048);
         charCounter.classList.toggle('error', len > 2048);
-
         if (!currentChatID || !ws || ws.readyState !== WebSocket.OPEN) return;
         ws.send(JSON.stringify({ type: "typing", chatID: currentChatID }));
       });
-
     }
     // Initialize the application
     connectWS();

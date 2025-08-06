@@ -1,6 +1,5 @@
-// api.js
-const fetch = require('node-fetch');      // ← use v2 CJS
-const BASE_URL = 'http://192.168.133.58:5123';
+const fetch = require('node-fetch');
+const BASE_URL = 'http://127.0.0.1:5123';
 
 let sessionToken      = null;
 let refreshTokenValue = null;
@@ -38,6 +37,7 @@ async function request(path, options = {}) {
 
   const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', ...options, headers });
 
+  // Handle expired session
   if (res.status === 401 && refreshTokenValue) {
     const refreshed = await refreshToken();
     if (refreshed) {
@@ -47,12 +47,30 @@ async function request(path, options = {}) {
     }
   }
 
-  if (!res.ok) {
-    let data = {};
-    try { data = await res.json(); } catch (_) {}
-    throw new Error(data.message || res.statusText);
+  // Parse JSON payload
+  let payload;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = {};
   }
-  return res.json();
+
+  // Handle errors
+  if (!res.ok) {
+    const errMsg = payload.message || payload.error || res.statusText;
+    throw new Error(errMsg);
+  }
+
+  // Normalize response shape:
+  // - Envelope: { status, message, response }
+  // - Bare: { message } or custom
+  if (payload.hasOwnProperty('response')) {
+    return payload.response;
+  }
+  if (payload.hasOwnProperty('message') && Object.keys(payload).length === 1) {
+    return payload.message;
+  }
+  return payload;
 }
 
 /* Convenience wrappers */
@@ -61,7 +79,7 @@ const login            = ({ username, password })   => request('/user/login',   
 const register         = ({ username, email, password }) => request('/user/register', { body: JSON.stringify({ username, email, password }) });
 const verifyEmail      = ({ username, email_token }) =>
   request('/user/verify-email', { body: JSON.stringify({ username, email_token }) });
-const fetchChats       = (username)          => request('/chat/fetch-chats',  { body: JSON.stringify({ username }) });
+const fetchChats       = ()          => request('/chat/fetch-chats',  {});
 const fetchMessages    = (chatID, limit=100, order='ASC') => request('/chat/messages', { body: JSON.stringify({ chatID, limit, order }) });
 const createChat       = (receiver)          => request('/chat/create-chat',  { body: JSON.stringify({ receiver }) });
 
@@ -78,14 +96,14 @@ async function refreshToken() {
   const data = await res.json();
   sessionToken = data.access_token;
   refreshTokenValue = data.refresh_token;
-  return data; // Return full response data
+  return data;
 }
 
-// Add token initialization function
+// Add token initialization & getters
 async function initializeTokens() {
-  const refreshToken = await secureStore.get('refresh_token');
-  if (refreshToken) {
-    refreshTokenValue = refreshToken;
+  const refreshTok = await secureStore.get('refresh_token');
+  if (refreshTok) {
+    refreshTokenValue = refreshTok;
     return true;
   }
   return false;

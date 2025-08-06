@@ -121,6 +121,7 @@ def create_database_and_tables():
                     CREATE TABLE IF NOT EXISTS participants (
                       chatID INT NOT NULL,
                       userID INT NOT NULL,
+                      archived BOOLEAN DEFAULT FALSE,
                       PRIMARY KEY (chatID, userID),
                       INDEX idx_part_user (userID, chatID),
                       CONSTRAINT fk_participants_chats

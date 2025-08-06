@@ -32,13 +32,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function checkServer() {
     setServerStatus(false, 'Checking server…');
     try {
-      const res = await window.api.verifyConnection({ version: 'electron_app' });
-      const ok = (res.status === 'ok') || Boolean(res.response);
+      const data = await window.api.verifyConnection({ version: 'electron_app' });
+      // data might be a bare string (e.g. "Server is reachable!")
+      // or an object with .response or .message
+      const ok = (typeof data === 'string') || (data && (data.response || data.message));
       if (ok) {
         online = true;
         setServerStatus(true, 'Server is online');
         enableButtons();
-      } else throw new Error(res.message || res.error || 'Unknown error');
+      } else {
+        // pick whichever error field exists
+        const errMsg = data && (data.message || data.error) || 'Unknown error';
+        throw new Error(errMsg);
+      }
     } catch (err) {
       online = false;
       setServerStatus(false, `Offline: ${err.message}`);

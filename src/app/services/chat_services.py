@@ -108,8 +108,8 @@ def get_messages(data: dict) -> dict:
     limit = data.get("limit", 50)
 
     # validate inputs
-    if not username or not session_token or chat_id is None:
-        raise BadRequest("username, session_token and chatID are required.")
+    if not session_token or chat_id is None:
+        raise BadRequest("session_token and chatID are required.")
     try:
         limit = int(limit)
     except (ValueError, TypeError):
@@ -117,16 +117,20 @@ def get_messages(data: dict) -> dict:
     if limit < 1 or limit > 200:
         raise BadRequest("limit must be between 1 and 200.")
 
-    username = authenticate_token(session_token)
+    username = authenticate_token(session_token)      # guaranteed real user
+    if not username:
+        raise Unauthorized("Unable to verify user!")
+    username = authenticate_token(session_token)         # real user
     if not username:
         raise Unauthorized("Unable to verify user!")
 
+    user_lower = username.lower()
     # check participation
     try:
         parts = fetch_records(
             table="participants",
             where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
-            params=(chat_id, username),
+            params=(chat_id, user_lower),
             fetch_all=True
         )
     except mysql.connector.Error as e:

@@ -114,9 +114,7 @@ def register(data: dict) -> dict:
         raise APIError()
 
     # send verification email
-    if not send_verification_email(username, email_token, email):
-        raise APIError("Failed to send verification email.")
-
+    send_verification_email(username, email_token, email)
     return {"message": "Verification email sent!"}
 
 

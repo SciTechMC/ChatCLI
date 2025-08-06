@@ -38,39 +38,55 @@ async def websocket_endpoint(ws: WebSocket):
         logger.info("Authentication result for %s: %s", init, username)
     except Exception as e:
         logger.error("Error during authentication", exc_info=e)
-        await ws.send_json({"type": "error", "message": "Authentication error"})
+        try:
+            await ws.send_json({"type": "error", "message": "Authentication error"})
+        except RuntimeError:
+            # Connection already closed, ignore send error
+            pass
         await ws.close(code=1008)
         return
 
     if not username:
         logger.warning("Invalid credentials: %s", init)
-        await ws.send_json({"type": "error", "message": "Invalid credentials"})
-        await ws.close(code=1008)
         return
 
     # Acknowledge successful auth
-    await ws.send_json({"type": "auth_ack", "status": "ok"})
-    logger.info("Authentication acknowledged for user: %s", username)
-    active_connections[username] = ws
+    try:
+        await ws.send_json({"type": "auth_ack", "status": "ok"})
+        logger.info("Authentication acknowledged for user: %s", username)
+        active_connections[username] = ws
+    except RuntimeError:
+        await ws.close(code=1008)
+        return
 
     # Main message loop
     try:
         while True:
             try:
                 msg = await ws.receive_json()
-                msg_type = msg.get("type")
-                logger.debug("Received message for %s: %s", username, msg)
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected for user: %s", username)
+                break  # Exit the loop cleanly
 
+            msg_type = msg.get("type")
+            logger.debug("Received message for %s: %s", username, msg)
+
+            try:
                 if msg_type == "join_chat":
                     await join_chat(username, msg.get("chatID"), ws)
                 elif msg_type == "leave_chat":
                     await leave_chat(username, msg.get("chatID"), ws)
                 elif msg_type == "post_msg":
-                    await post_msg({
+                    result = await post_msg({
                         "username": username,
                         "chatID": msg.get("chatID"),
                         "text": msg.get("text")
                     })
+                    await ws.send_json({
+                        "type":        "post_msg_ack",
+                        "status":      "ok",
+                        "messageID":   result.get("messageID") if result else None
+                    }) 
                 elif msg_type == "typing":
                     await broadcast_typing(username, msg.get("chatID"))
                 elif msg_type == "join_idle":
@@ -79,12 +95,16 @@ async def websocket_endpoint(ws: WebSocket):
                     raise ValueError(f"Unknown action: {msg_type}")
             except ValueError as ve:
                 logger.warning("Value error for user %s: %s", username, ve)
-                await ws.send_json({"type": "error", "message": str(ve)})
+                try:
+                    await ws.send_json({"type": "error", "message": str(ve)})
+                except RuntimeError:
+                    break
             except Exception as e:
                 logger.error("Error handling message for %s: %s", username, e, exc_info=e)
-                await ws.send_json({"type": "error", "message": "Internal server error"})
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected for user: %s", username)
+                try:
+                    await ws.send_json({"type": "error", "message": "Internal server error"})
+                except RuntimeError:
+                    break
     except Exception as e:
         logger.error("Unexpected error in connection loop for %s", username, exc_info=e)
     finally:
