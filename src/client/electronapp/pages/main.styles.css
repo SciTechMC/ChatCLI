@@ -1013,3 +1013,16 @@ textarea.message-input.error:focus {
 #typing-indicator:not(:empty) {
   display: block;
 }
+.call-button {
+  background-color: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.call-button:hover {
+  background-color: var(--accent-hover);
+}

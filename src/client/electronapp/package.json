@@ -4,28 +4,27 @@
   "description": "ChatCLI – Windows Electron chat client",
   "author": "SciTechMC <jan.vdcg@gmail.com>",
   "main": "main.js",
-
   "scripts": {
     "start": "electron .",
-    "dist":  "electron-builder"
+    "dist": "electron-builder"
   },
-
   "dependencies": {
-    "express":    "^5.1.0",
-    "keytar":     "^7.9.0",
+    "express": "^5.1.0",
+    "keytar": "^7.9.0",
     "node-fetch": "^2.7.0",
-    "ws":         "^8.18.3"
+    "simple-peer": "^9.11.1",
+    "ws": "^8.18.3"
   },
-
   "devDependencies": {
-    "electron":         "^37.2.1",
+    "electron": "^37.2.1",
     "electron-builder": "^24.0.0"
   },
-
   "build": {
-    "appId":       "com.scitechmc.chatcli",
+    "appId": "com.scitechmc.chatcli",
     "productName": "ChatCLI",
-    "files":       ["**/*"],
+    "files": [
+      "**/*"
+    ],
     "directories": {
       "output": "dist"
     },

@@ -122,5 +122,32 @@ async def websocket_endpoint(ws: WebSocket):
         except Exception as e:
             logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
 
+from fastapi.middleware.cors import CORSMiddleware
+connections = {}  # username -> WebSocket
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.websocket("/call/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    await websocket.accept()
+    connections[username] = websocket
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            target = data.get("to")
+            if target in connections:
+                await connections[target].send_json({
+                    "from": username,
+                    "type": data["type"],
+                    "data": data.get("data")
+                })
+    except WebSocketDisconnect:
+        del connections[username]
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
