@@ -1,12 +1,4 @@
 // =============================================
-// VOIP FUNCTIONALITY
-// =============================================
-
-import React from 'react'
-import ReactDOM from 'react-dom'
-import CallComponent from './callcomponent.js'
-
-// =============================================
 // UTILITY FUNCTIONS
 // =============================================
 let toastContainer;
@@ -675,12 +667,6 @@ async function loadGroupMembers(chatID) {
 // MAIN APPLICATION LOGIC
 // =============================================
 document.addEventListener('DOMContentLoaded', async () => {
-  const target = document.getElementById('callButtons')
-  if (target) {
-    ReactDOM.render(React.createElement(CallComponent), target)
-  } else {
-    console.warn('callButtons element not found.')
-  }
   // Create toast container
   toastContainer = document.createElement('div');
   toastContainer.id = 'toast-container';

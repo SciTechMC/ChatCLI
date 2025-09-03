@@ -6,6 +6,7 @@ import secrets
 import hashlib
 import random
 from flask import current_app
+import os
 
 from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
 from app.database.db_helper import fetch_records, insert_record, update_records
@@ -108,14 +109,19 @@ def register(data: dict) -> dict:
                 "revoked":     False
             }
         )
-
+    except Conflict:
+        raise
     except Exception as e:
         current_app.logger.error("Error during user registration", exc_info=e)
         raise APIError()
 
     # send verification email
-    send_verification_email(username, email_token, email)
-    return {"message": "Verification email sent!"}
+    if os.getenv("FLASK_ENV") == "dev" and os.getenv("IGNORE_EMAIL_VERIF") == "true":
+        verify_email(data={"username":username,"email_token":email_token})
+        return {"message": "Email Verification skipped!"}
+    else:
+        send_verification_email(username, email_token, email)
+        return {"message": "Verification email sent!"}
 
 
 def verify_email(data: dict) -> dict:
