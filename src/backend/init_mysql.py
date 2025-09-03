@@ -1,9 +1,49 @@
 import os
 import logging
 import subprocess
-import threading
 from mysql.connector import connect, Error
 from dotenv import load_dotenv
+
+#Make sure a .env file exists
+from pathlib import Path, shutil
+
+DEFAULT_ENV = """FLASK_ENV=dev
+THREADS=2
+IGNORE_EMAIL_VERIF=true
+
+# Database credentials
+DB_USER=chatcli_access
+DB_PASSWORD=1234
+DB_ROOT_USER=root
+DB_ROOT_PASSWORD=1234
+
+# Database
+DB_NAME=chatcli
+
+# Database Connection
+DB_HOST=localhost
+DB_PORT=3306
+
+# Email credentials
+EMAIL_USER=placeholder
+EMAIL_PASSWORD=xx
+
+# Flask secret key
+FLASK_SECRET_KEY=xx
+"""
+
+def ensure_env(template="template.env", env=".env"):
+    d = Path(__file__).resolve().parent
+    envp, tmpp = d/env, d/template
+    if not envp.exists():
+        if tmpp.exists():
+            shutil.copyfile(tmpp, envp)
+        else:
+            envp.write_text(DEFAULT_ENV)
+    return envp
+
+ensure_env()
+
 load_dotenv()
 
 # Configure logging
@@ -28,7 +68,7 @@ def create_database_and_tables():
                 cursor.execute(f"USE `{DB_NAME}`;")
 
                 table_statements = [
-                    # email_subscribers (email not unique)
+                    # email_subscribers
                     """
                     CREATE TABLE IF NOT EXISTS email_subscribers (
                       id             INT AUTO_INCREMENT PRIMARY KEY,
