@@ -342,6 +342,10 @@ async function selectChat(chatID) {
   // Convert chatID to number
   chatID = parseInt(chatID, 10);
   
+  if (btnStartCall) btnStartCall.disabled = !chatID;
+  if (btnLeave)     btnLeave.disabled     = true;
+  if (btnMute)      btnMute.disabled      = true;
+
   const chatItem = chatListEl.querySelector(`[data-chat-id="${chatID}"]`);
   if (!chatItem) {
     console.error('Chat item not found');
@@ -677,6 +681,10 @@ async function loadGroupMembers(chatID) {
 // =============================================
 document.addEventListener('DOMContentLoaded', async () => {
   // Create toast container
+  if (btnStartCall) btnStartCall.disabled = true;
+  if (btnJoinCall)  btnJoinCall.disabled  = true;
+  if (btnLeave)     btnLeave.disabled     = true;
+  if (btnMute)      btnMute.disabled      = true;
   toastContainer = document.createElement('div');
   toastContainer.id = 'toast-container';
   toastContainer.style.position = 'fixed';
