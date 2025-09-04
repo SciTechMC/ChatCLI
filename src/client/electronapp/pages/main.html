@@ -52,6 +52,12 @@
       <div id="callButtons" style="margin-right: 12px;"></div>
       <div class="chat-title"></div>
       <div class="chat-actions">
+        <button id="btnStartCall">Start Call</button>
+        <button id="btnJoinCall" disabled>Join Call</button>
+        <button id="btnLeave" disabled>Leave</button>
+        <button id="btnMute" disabled>Mute</button>
+        <span id="status" class="status">Idle</span>
+        <audio id="remoteAudio" autoplay playsinline></audio>
         <button class="header-button" id="manageUsersBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>

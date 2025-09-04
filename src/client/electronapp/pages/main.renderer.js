@@ -67,8 +67,7 @@ function showToast(message, type = 'info') {
 // =============================================
 // CONFIGURATION
 // =============================================
-const API_BASE = 'http://localhost:5123';
-const WS_URL = 'ws://127.0.0.1:8765/ws';
+const WS_URL = 'ws://172.27.27.179:8765/ws';
 
 // =============================================
 // API REQUEST WRAPPER
@@ -396,6 +395,9 @@ async function selectChat(chatID) {
   document.querySelectorAll('.chat-item').forEach(el => {
     el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === chatID);
   });
+    if (currentChatID && username) {
+    connectCallWS();
+  }
 }
 // Render a single message
 function appendMessage({ username: msgUser, message, timestamp }) {
@@ -557,6 +559,7 @@ function showConfirmationModal(message, title = 'Confirm Action', onConfirm) {
 let isConnecting = false;
 let reconnectAttempts = 0;
 const maxRetries = 5;
+let iceCandidateBuffer = [];
 
 function connectWS() {
   if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
@@ -569,6 +572,12 @@ function connectWS() {
     reconnectAttempts = 0;
     isConnecting = false;
     ws.send(JSON.stringify({ type: 'auth', token }));
+    // Send any buffered ICE candidates
+    iceCandidateBuffer.forEach(obj => {
+      console.log('[CALL] Sending buffered ICE candidate:', obj);
+      ws.send(JSON.stringify(obj));
+    });
+    iceCandidateBuffer = [];
   });
 
   ws.addEventListener('close', () => {
@@ -1301,4 +1310,230 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'login.html';
     }, 2000);
   }
+});
+
+// =============================================
+// Call Functions
+// =============================================
+
+// --- config ---
+const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+
+// --- dom ---
+const statusEl     = document.getElementById('status');
+const btnStartCall = document.getElementById('btnStartCall');
+const btnJoinCall  = document.getElementById('btnJoinCall');
+const btnLeave     = document.getElementById('btnLeave');
+const btnMute      = document.getElementById('btnMute');
+const remoteAudio  = document.getElementById('remoteAudio');
+const setStatus = (t, cls='') => { 
+  if (statusEl) { 
+    statusEl.textContent = t; 
+    statusEl.className = 'status '+cls; 
+  }
+  console.log(`[CALL] Status: ${t} (${cls})`);
+};
+
+// --- state ---
+let callWS, pc, localStream;
+let inCall = false;
+let joiningArmed = false;
+let pendingOffer = null;
+let isMuted = false;
+
+// --- media ---
+async function getMic() {
+  console.log('[CALL] getMic called');
+  if (localStream) {
+    console.log('[CALL] Returning cached localStream');
+    return localStream;
+  }
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false
+    });
+    console.log('[CALL] Got localStream:', localStream);
+    localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+    return localStream;
+  } catch (err) {
+    console.error('[CALL] getMic error:', err);
+    setStatus('Microphone error', 'warn');
+    throw err;
+  }
+}
+
+// --- peer connection ---
+function createPC() {
+  console.log('[CALL] createPC called');
+  pc = new RTCPeerConnection({ iceServers });
+  localStream.getAudioTracks().forEach(track => {
+    pc.addTrack(track, localStream);
+    console.log('[CALL] Added local audio track:', track);
+  });
+  pc.ontrack = (e) => { 
+    console.log('[CALL] ontrack event:', e);
+    remoteAudio.srcObject = e.streams[0]; 
+  };
+  pc.onicecandidate = (e) => { 
+    console.log('[CALL] ICE candidate:', e.candidate);
+    if (e.candidate) callSend({ type: 'ice-candidate', chatID: currentChatID, candidate: e.candidate }); 
+  };
+  pc.onconnectionstatechange = () => {
+    console.log('[CALL] pc connectionState:', pc.connectionState);
+    if (pc.connectionState === 'connected') setStatus('Connected ✅','ok');
+    if (['failed','disconnected','closed'].includes(pc.connectionState)) setStatus('Call ended / issue','warn');
+  };
+}
+
+// --- signaling ---
+function connectCallWS() {
+  if (!currentChatID || !username) {
+    console.warn('[CALL] connectCallWS: Missing currentChatID or username');
+    return;
+  }
+  const callUrl = WS_URL.replace(/\/ws$/, `/ws/${currentChatID}/${username}`);
+  console.log('[CALL] Connecting to signaling WS:', callUrl);
+  callWS = new WebSocket(callUrl);
+  callWS.onopen    = () => { 
+    console.log('[CALL] Call WS connected');
+    setStatus('Call WS connected ✅');
+    // Send any buffered ICE candidates
+    iceCandidateBuffer.forEach(obj => {
+      console.log('[CALL] Sending buffered ICE candidate:', obj);
+      callWS.send(JSON.stringify(obj));
+    });
+    iceCandidateBuffer = [];
+  };
+  callWS.onclose   = () => { 
+    console.log('[CALL] Call WS closed');
+    setStatus('Call WS closed ❌','warn');
+  };
+  callWS.onmessage = async (ev) => {
+    const msg = JSON.parse(ev.data);
+    console.log('[CALL] WS message:', msg);
+    if (msg.type === 'call-started' && !inCall) {
+      btnJoinCall.disabled = false;
+      setStatus(`${msg.from} started a call — click Join`, 'ok');
+    }
+    if (msg.type === 'offer') {
+      console.log('[CALL] Received offer:', msg.sdp);
+      if (!joiningArmed) { 
+        pendingOffer = msg.sdp; 
+        btnJoinCall.disabled = false; 
+        setStatus('Incoming call — click Join','ok'); 
+        return; 
+      }
+      if (!pc) { 
+        await getMic(); 
+        createPC(); 
+      }
+      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      console.log('[CALL] Set remote description (offer)');
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      console.log('[CALL] Created and set local answer');
+      callSend({ type: 'answer', chatID: currentChatID, sdp: answer });
+      inCall = true; btnLeave.disabled = false; btnMute.disabled = false;
+    }
+    if (msg.type === 'answer' && pc && pc.signalingState === 'have-local-offer') {
+      console.log('[CALL] Received answer:', msg.sdp);
+      await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      btnMute.disabled = false;
+    }
+    if (msg.type === 'ice-candidate' && pc && msg.candidate) {
+      console.log('[CALL] Received ICE candidate:', msg.candidate);
+      try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (e) { 
+        console.error('[CALL] ICE add error', e); 
+      }
+    }
+    if (msg.type === 'leave') {
+      console.log('[CALL] Peer left');
+      endCall('Peer left');
+    }
+  };
+}
+function callSend(obj) { 
+  if (callWS && callWS.readyState === WebSocket.OPEN) {
+    console.log('[CALL] Sending signaling message:', obj);
+    callWS.send(JSON.stringify(obj)); 
+  } else {
+    console.warn('[CALL] callSend: WebSocket not open', obj);
+    // Buffer ICE candidates until WS is open
+    if (obj.type === 'ice-candidate') {
+      iceCandidateBuffer.push(obj);
+      console.log('[CALL] ICE candidate buffered');
+    }
+  }
+}
+
+
+// --- flows ---
+async function startCall() {
+  console.log('[CALL] startCall called');
+  callSend({ type: 'call-started', chatID: currentChatID });
+  await getMic(); 
+  createPC();
+  const offer = await pc.createOffer({ offerToReceiveAudio: true });
+  await pc.setLocalDescription(offer);
+  console.log('[CALL] Created and set local offer:', offer);
+  callSend({ type: 'offer', chatID: currentChatID, sdp: offer });
+  inCall = true;
+  btnJoinCall.disabled = true;
+  btnLeave.disabled = false;
+  btnMute.disabled = false;
+  setStatus('Calling…');
+}
+
+async function joinCall() {
+  console.log('[CALL] joinCall called');
+  joiningArmed = true;
+  await getMic(); 
+  createPC();
+  if (pendingOffer) {
+    console.log('[CALL] Using pending offer');
+    await pc.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    console.log('[CALL] Created and set local answer:', answer);
+    callSend({ type: 'answer', chatID: currentChatID, sdp: answer });
+    pendingOffer = null;
+    inCall = true; btnLeave.disabled = false; btnMute.disabled = false; setStatus('Joining…');
+  } else {
+    setStatus('Joining… (waiting for offer)');
+    console.log('[CALL] No pending offer, waiting...');
+  }
+  btnJoinCall.disabled = true;
+}
+
+function endCall(reason = 'Ended') {
+  console.log('[CALL] endCall called:', reason);
+  if (pc) { try { pc.close(); } catch (e) { console.error('[CALL] Error closing pc:', e); } pc = null; }
+  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+  if (inCall) callSend({ type: 'leave', chatID: currentChatID, reason });
+  inCall = false; joiningArmed = false; pendingOffer = null; isMuted = false;
+  btnLeave.disabled = true; btnJoinCall.disabled = true; btnMute.disabled = true;
+  setStatus(reason);
+}
+
+// --- mute ---
+function toggleMute() {
+  console.log('[CALL] toggleMute called');
+  if (!localStream) {
+    console.warn('[CALL] toggleMute: No localStream');
+    return;
+  }
+  isMuted = !isMuted;
+  localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+  btnMute.textContent = isMuted ? 'Unmute' : 'Mute';
+  setStatus(isMuted ? 'Muted' : 'Unmuted');
+}
+
+// --- wire UI + connect WS ---
+if (btnStartCall) btnStartCall.onclick = startCall;
+if (btnJoinCall)  btnJoinCall.onclick  = joinCall;
+if (btnLeave)     btnLeave.onclick     = () => endCall('You left');
+if (btnMute)      btnMute.onclick      = toggleMute;
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[CALL] DOMContentLoaded: connecting call WS');
 });

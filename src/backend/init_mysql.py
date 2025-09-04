@@ -5,7 +5,8 @@ from mysql.connector import connect, Error
 from dotenv import load_dotenv
 
 #Make sure a .env file exists
-from pathlib import Path, shutil
+from pathlib import Path
+import shutil
 
 DEFAULT_ENV = """FLASK_ENV=dev
 THREADS=2

@@ -131,23 +131,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.websocket("/call/{username}")
-async def websocket_endpoint(websocket: WebSocket, username: str):
-    await websocket.accept()
-    connections[username] = websocket
+rooms = {}
 
+async def broadcast(room, msg, sender):
+    for ws in rooms.get(room, []):
+        if ws is not sender:
+            await ws.send_json(msg)
+
+@app.websocket("/ws/{room}/{user}")
+async def ws_endpoint(ws: WebSocket, room: str, user: str):
+    await ws.accept()
+    rooms.setdefault(room, []).append(ws)
     try:
         while True:
-            data = await websocket.receive_json()
-            target = data.get("to")
-            if target in connections:
-                await connections[target].send_json({
-                    "from": username,
-                    "type": data["type"],
-                    "data": data.get("data")
-                })
+            data = await ws.receive_json()
+            data["from"] = user
+            await broadcast(room, data, ws)
     except WebSocketDisconnect:
-        del connections[username]
-
+        rooms[room].remove(ws)
+        if not rooms[room]:
+            del rooms[room]
+            
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")

@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const BASE_URL = 'http://127.0.0.1:5123';
+const BASE_URL = 'http://172.27.27.179:5123';
 
 let sessionToken      = null;
 let refreshTokenValue = null;
