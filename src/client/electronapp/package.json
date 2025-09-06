@@ -1,6 +1,6 @@
 {
   "name": "chatcli-electron",
-  "version": "0.1.0-beta",
+  "version": "0.1.0-beta+devbuild",
   "description": "ChatCLI – Windows Electron chat client",
   "author": "SciTechMC <jan.vdcg@gmail.com>",
   "main": "main.js",
