@@ -5,6 +5,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   let online = false;
   const CHECK_INTERVAL = 10_000;
 
+  // access token: memory only
+  let accessToken = null;
+  function setAccess(token) {
+    accessToken = token;
+    if (window.api && typeof window.api.setAccessToken === 'function') {
+      window.api.setAccessToken(token);
+    }
+  }
+  function clearAccess() {
+    setAccess(null);
+  }
+
   function disableButtons() {
     document.querySelectorAll('[data-requires-online]')
       .forEach(btn => btn.disabled = true);
@@ -29,19 +41,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     statusEl.querySelector('.status-text').textContent = msg;
   }
 
+  // run ONLY after server is online so we don't block UI
+  async function tryAutoLoginIfNeeded() {
+    if (accessToken) return;
+    if (!window.secureStore) return;
+    const accountId = await window.secureStore.get('username');
+    if (!accountId) return;
+    if (!window.auth || typeof window.auth.refresh !== 'function') return;
+
+    try {
+      const res = await window.auth.refresh(accountId); // expected { ok, access_token }
+      if (res && res.ok && res.access_token) {
+        setAccess(res.access_token);
+        setTimeout(() => { location.href = 'main.html'; }, 200);
+      }
+    } catch {
+      // ignore; user will see login UI as usual
+    }
+  }
+
   async function checkServer() {
     setServerStatus(false, 'Checking server…');
     try {
       const data = await window.api.verifyConnection({ version: 'electron_app' });
-      // data might be a bare string (e.g. "Server is reachable!")
-      // or an object with .response or .message
       const ok = (typeof data === 'string') || (data && (data.response || data.message));
       if (ok) {
         online = true;
         setServerStatus(true, 'Server is online');
         enableButtons();
+        // now that we're online, try silent refresh (non-blocking)
+        tryAutoLoginIfNeeded();
       } else {
-        // pick whichever error field exists
         const errMsg = data && (data.message || data.error) || 'Unknown error';
         throw new Error(errMsg);
       }
@@ -54,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   retryBtn?.addEventListener('click', checkServer);
   setInterval(() => { if (!online) checkServer(); }, CHECK_INTERVAL);
-  checkServer();
+  checkServer(); // unchanged: first check happens immediately
 
   const loginBtn    = document.getElementById('login-btn');
   const registerBtn = document.getElementById('register-btn');
@@ -77,10 +107,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const username = loginForm.username.value.trim();
         const password = loginForm.password.value;
         const res = await window.api.login({ username, password });
-        await window.secureStore.set('session_token', res.access_token);
-        await window.secureStore.set('refresh_token', res.refresh_token);
-        await window.secureStore.set('username', username);
-        window.api.setRefreshToken(res.refresh_token);
+
+        // keep access in memory only
+        setAccess(res.access_token);
+
+        // store refresh in OS keychain via main; persist only the username
+        if (window.auth && typeof window.auth.storeRefresh === 'function') {
+          await window.auth.storeRefresh(username, res.refresh_token);
+        }
+        if (window.secureStore && typeof window.secureStore.set === 'function') {
+          await window.secureStore.set('username', username);
+        }
+
         showToast('Login successful! Redirecting…', 'info');
         setTimeout(() => location.href = 'main.html', 1000);
       } catch (err) {

@@ -70,12 +70,31 @@ function showToast(message, type = 'info') {
 const WS_URL = 'ws://172.27.27.179:8765/ws';
 
 // =============================================
-// API REQUEST WRAPPER
+// ACCESS TOKEN (memory only) + setter for window.api
+// =============================================
+function setAccess(tokenVal) {
+  // keep in this module
+  token = tokenVal || null;
+  // tell your api layer so it can attach Authorization
+  if (window.api && typeof window.api.setAccessToken === 'function') {
+    window.api.setAccessToken(token);
+  }
+}
+
+// =============================================
+// API REQUEST WRAPPER (401 -> refresh -> single retry)
 // =============================================
 async function apiRequest(endpoint, options = {}) {
-  try {
+  // helper to actually call through to your preload API
+  async function doCall() {
     // window.api.request already adds BASE_URL; just forward the path as-is
-    const raw = await window.api.request(endpoint, options);
+    return await window.api.request(endpoint, options);
+  }
+
+  try {
+    const raw = await doCall();
+
+    // normalize shapes you already handled
     let env = raw;
     if (Array.isArray(raw)) {
       env = { status: 'ok', response: raw };
@@ -84,10 +103,39 @@ async function apiRequest(endpoint, options = {}) {
         ? { status: 'ok', response: raw.response, message: raw.message || '' }
         : { status: 'ok', response: raw, message: '' };
     }
-    if (env.status !== 'ok') throw new Error(env.message || 'Unknown error');
+
+    if (env.status !== 'ok') throw Object.assign(new Error(env.message || 'Unknown error'), { status: env.status || 500 });
     return env.response;
+
   } catch (err) {
-    throw new Error(`Request failed: ${err.message}`);
+    // If unauthorized, try to refresh once and retry
+    const is401 = err && (err.status === 401 || /401/.test(String(err.message)));
+    if (is401 && window.secureStore && window.auth && typeof window.auth.refresh === 'function') {
+      try {
+        const accountId = await window.secureStore.get('username');
+        if (accountId) {
+          const r = await window.auth.refresh(accountId); // expected { ok, access_token }
+          if (r && r.ok && r.access_token) {
+            setAccess(r.access_token); // updates `token` + window.api
+            // retry once
+            const raw2 = await doCall();
+            let env2 = raw2;
+            if (Array.isArray(raw2)) {
+              env2 = { status: 'ok', response: raw2 };
+            } else if (raw2 && typeof raw2.status === 'undefined') {
+              env2 = raw2.response !== undefined
+                ? { status: 'ok', response: raw2.response, message: raw2.message || '' }
+                : { status: 'ok', response: raw2, message: '' };
+            }
+            if (env2.status !== 'ok') throw Object.assign(new Error(env2.message || 'Unknown error'), { status: env2.status || 500 });
+            return env2.response;
+          }
+        }
+      } catch (_) {
+        // fall through to throw original error
+      }
+    }
+    throw new Error(`Request failed: ${err.message || 'Unknown error'}`);
   }
 }
 
@@ -704,11 +752,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Set up modal closing functionality
   setupModalClosing();
   try {
-    // Get stored credentials
-    token = await window.secureStore.get('session_token');
+    // Get stored account and obtain a fresh access token via refresh (auto-login)
     username = await window.secureStore.get('username');
-    if (!token || !username) {
+    if (!username) {
       window.location.href = 'login.html';
+      return;
+    }
+    try {
+      const r = await window.auth.refresh(username); // { ok, access_token }
+      if (!r || !r.ok || !r.access_token) throw new Error('Refresh failed');
+      setAccess(r.access_token);   // sets `token` + window.api Authorization
+    } catch (e) {
+      // no valid refresh => back to login
+      window.location.href = 'index.html';
       return;
     }
     // Set up username display
@@ -1251,21 +1307,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         hideModal(groupEditorModal);
       });
     }
-    // Logout
+    // Logout (server + local)
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         try {
-          await window.secureStore.delete('session_token');
-          await window.secureStore.delete('refresh_token');
-          await window.secureStore.delete('username');
-          await window.secureStore.delete('email');
-          window.location.href = 'login.html';
+          // Prefer global logout until per-device is wired
+          await apiRequest('/user/logout-all', {
+            method: 'POST',
+            body: JSON.stringify({ session_token: token })
+          });
         } catch (err) {
-          console.error('Logout error:', err);
-          showToast('Failed to logout: ' + (err.message || 'Unknown error'), 'error');
+          // Don’t block local cleanup if server call fails
+          console.warn('Logout-all server error:', err);
+        } finally {
+          try {
+            if (username && window.auth?.clear) {
+              await window.auth.clear(username); // delete refresh from keychain
+            }
+            await window.secureStore.delete('username');
+            await window.secureStore.delete('email');
+          } catch (e2) {
+            console.warn('Local logout cleanup error:', e2);
+          }
+          window.location.href = 'login.html';
         }
       });
     }
+    
     // Event listeners for message input
     if (sendBtn) {
       sendBtn.addEventListener('click', sendMessage);

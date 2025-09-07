@@ -201,7 +201,7 @@ def login(data: dict) -> dict:
         # generate access token
         access_plain  = secrets.token_urlsafe(48)
         access_hash   = hashlib.sha256(access_plain.encode()).hexdigest()
-        access_expiry = now + timedelta(days=7)
+        access_expiry = now + timedelta(days=1)
         insert_record(
             "session_tokens",
             {
@@ -215,7 +215,13 @@ def login(data: dict) -> dict:
         # generate refresh token
         refresh_plain  = secrets.token_urlsafe(64)
         refresh_hash   = hashlib.sha256(refresh_plain.encode()).hexdigest()
-        refresh_expiry = now + timedelta(days=30)
+        refresh_expiry = now + timedelta(days=60)
+        update_records(
+            table="session_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user["userID"],)
+        )
         insert_record(
             "refresh_tokens",
             {
@@ -238,6 +244,19 @@ def login(data: dict) -> dict:
         "refresh_token": refresh_plain
     }
 
+def _to_aware_utc(dt):
+    # Accept datetime or string from DB and return tz-aware UTC datetime
+    if isinstance(dt, str):
+        # Try ISO first; fall back to common format without tz
+        try:
+            parsed = datetime.fromisoformat(dt)
+        except ValueError:
+            parsed = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    elif isinstance(dt, datetime):
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    else:
+        return None
 
 def refresh_token(data: dict) -> dict:
     """
@@ -248,7 +267,7 @@ def refresh_token(data: dict) -> dict:
         raise BadRequest("Refresh token required.")
 
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc)  # aware
         refresh_hash = hashlib.sha256(refresh_plain.encode()).hexdigest()
         rows = fetch_records(
             table="refresh_tokens",
@@ -259,38 +278,47 @@ def refresh_token(data: dict) -> dict:
         if not rows:
             raise Unauthorized("Invalid refresh token.")
         row = rows[0]
-        if row["revoked"] or row["expires_at"] < now:
+
+        expires_at = _to_aware_utc(row["expires_at"])  # ← normalize
+        if expires_at is None:
+            current_app.logger.error("expires_at is None or invalid for row id=%s", row.get("id"))
+            raise Unauthorized("Refresh token expired or revoked.")
+
+        if row["revoked"] or expires_at < now:         # ← safe compare
             raise Unauthorized("Refresh token expired or revoked.")
 
         user_id = row["user_id"]
-        # revoke old refresh token
+
+        # Revoke old refresh token
         update_records(
             table="refresh_tokens",
             data={"revoked": True},
             where_clause="id = %s",
             where_params=(row["id"],)
         )
-        # new refresh token
+
+        # Issue new refresh token (aware UTC expiry)
         new_refresh_plain = secrets.token_urlsafe(64)
         new_refresh_hash  = hashlib.sha256(new_refresh_plain.encode()).hexdigest()
         insert_record(
             "refresh_tokens",
             {
-                "user_id": user_id,
-                "token":   new_refresh_hash,
+                "user_id":    user_id,
+                "token":      new_refresh_hash,
                 "expires_at": now + timedelta(days=30),
-                "revoked": False
+                "revoked":    False
             }
         )
-        # new access token
+
+        # Issue new access token (aware UTC expiry)
         new_access_plain = secrets.token_urlsafe(48)
         new_access_hash  = hashlib.sha256(new_access_plain.encode()).hexdigest()
         insert_record(
             "session_tokens",
             {
-                "userID":        user_id,
+                "userID":        user_id,            # see note (2) below
                 "session_token": new_access_hash,
-                "expires_at":    now + timedelta(days=7),
+                "expires_at":    now + timedelta(days=1),
                 "revoked":       False,
                 "ip_address":    None
             }
@@ -303,11 +331,11 @@ def refresh_token(data: dict) -> dict:
         raise APIError()
 
     return {
+        "ok": True,                       # ← add this for the frontend
         "message": "Token refreshed",
         "access_token":  new_access_plain,
         "refresh_token": new_refresh_plain
     }
-
 
 def reset_password_request(data: dict) -> dict:
     """
@@ -582,6 +610,12 @@ def change_password(data: dict) -> dict:
             where_clause="userID = %s",
             where_params=(user["userID"],)
         )
+        update_records(
+            table="refresh_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user["userID"],)
+        )
 
     except APIError:
         raise
@@ -590,3 +624,94 @@ def change_password(data: dict) -> dict:
         raise APIError()
 
     return {"message": "Password changed successfully."}
+
+def logout(data: dict) -> dict:
+    """
+    Revokes all tokens for the user.
+    """
+    session_token = (data.get("session_token") or "").strip()
+    refresh_token = (data.get("refresh_token") or "").strip()
+    if not session_token: raise BadRequest("Session token is required.")
+    if not refresh_token: raise BadRequest("Refresh token is required.")
+    session_hash = hashlib.sha256(session_token.encode()).hexdigest()
+    refresh_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
+
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Invalid or expired session token.")
+
+    try:
+        user = fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(username,),
+            fetch_all=False
+        )
+        if not user:
+            raise NotFound("User not found.")
+        user_id = user["userID"]
+
+        update_records(
+            table="session_tokens",
+            data={"revoked": True},
+            where_clause="session_token = %s",
+            where_params=(session_hash,)
+        )
+        update_records(
+            table="refresh_tokens",
+            data={"revoked": True},
+            where_clause="token = %s AND user_id = %s",
+            where_params=(refresh_hash, user_id)
+        )
+
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during logout", exc_info=e)
+        raise APIError()
+
+    return {"message": "Logged out successfully."}
+
+def logout_all(data: dict) -> dict:
+    """
+    Revokes all tokens for the user across all sessions.
+    """
+    session_token = (data.get("session_token") or "").strip()
+    if not session_token:
+        raise BadRequest("Session token is required.")
+
+    username = authenticate_token(session_token)
+    if not username:
+        raise Unauthorized("Invalid or expired session token.")
+
+    try:
+        user = fetch_records(
+            table="users",
+            where_clause="username = %s",
+            params=(username,),
+            fetch_all=False
+        )
+        if not user:
+            raise NotFound("User not found.")
+        user_id = user["userID"]
+
+        update_records(
+            table="session_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user_id,)
+        )
+        update_records(
+            table="refresh_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user_id,)
+        )
+
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during logout-all", exc_info=e)
+        raise APIError()
+
+    return {"message": "Logged out from all sessions successfully."}

@@ -17,17 +17,17 @@ contextBridge.exposeInMainWorld('api', {
   createChat:       api.createChat,
   refreshToken:     api.refreshToken,
   getSessionToken:    () => sessionToken,
-  setSessionToken:    (tok) => { sessionToken = tok; },
+  setAccessToken:    (tok) => { sessionToken = tok; },
   setRefreshToken:    (tok) => { refreshTokenValue = tok; },
   initializeTokens:   api.initializeTokens, // Add this
 });
 
 /* -------- Expose secureStore via keytar -------- */
-contextBridge.exposeInMainWorld('secureStore', {
-  set:    (account, token) => ipcRenderer.invoke('secureStore:set', account, token),
-  get:    (account)        => ipcRenderer.invoke('secureStore:get', account),
-  delete: (account)        => ipcRenderer.invoke('secureStore:delete', account),
-});
+contextBridge.exposeInMainWorld('auth', {
+  storeRefresh: (accountId, token) => ipcRenderer.invoke('auth:storeRefresh', { accountId, refreshToken: token }),
+  refresh: (accountId) => ipcRenderer.invoke('auth:refresh', { accountId }),
+  clear: (accountId) => ipcRenderer.invoke('auth:clear', { accountId }),
+})
 
 const WebSocket = require('ws');
 
@@ -44,3 +44,9 @@ contextBridge.exposeInMainWorld('chatAPI', {
     return ws;
   }
 });
+
+contextBridge.exposeInMainWorld('secureStore', {
+  set:    (account, token) => ipcRenderer.invoke('secureStore:set', account, token),
+  get:    (account)        => ipcRenderer.invoke('secureStore:get', account),
+  delete: (account)        => ipcRenderer.invoke('secureStore:delete', account),
+})

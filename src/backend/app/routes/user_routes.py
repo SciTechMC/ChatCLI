@@ -1,15 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.services.user_services import (
-    register,
-    verify_email,
-    login,
-    reset_password_request,
-    reset_password,
-    refresh_token,
-    profile,
-    submit_profile,
-    change_password,
-)
+from app.services.user_services import *
 from app.extensions import limiter
 import app.errors as errors
 
@@ -112,4 +102,22 @@ def route_change_password():
     if not data:
         raise errors.BadRequest("Invalid JSON format.")
     result = change_password(data)
+    return jsonify(result)
+
+@user.route("/logout", methods=["POST"])
+@limiter.limit("5 per minute")
+def route_logout():
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = logout(data)
+    return jsonify(result)
+
+@user.route("/logout-all", methods=["POST"])
+@limiter.limit("5 per minute")
+def route_logout_all():
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = logout_all(data)
     return jsonify(result)
