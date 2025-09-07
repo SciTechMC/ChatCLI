@@ -20,7 +20,7 @@ ipcMain.handle('auth:storeRefresh', async (_e, { accountId, refreshToken }) => {
 ipcMain.handle('auth:refresh', async (_e, { accountId }) => {
   const rt = await getRefreshToken(accountId)
   if (!rt) return { ok: false, reason: 'no_refresh' }
-  const res = await fetch('http://172.27.27.179:5123/user/refresh-token', {
+  const res = await fetch('http://109.88.13.230:5123/user/refresh-token', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ refresh_token: rt }),

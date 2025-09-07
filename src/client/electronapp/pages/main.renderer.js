@@ -67,7 +67,7 @@ function showToast(message, type = 'info') {
 // =============================================
 // CONFIGURATION
 // =============================================
-const WS_URL = 'ws://172.27.27.179:8765/ws';
+const WS_URL = 'ws://109.88.13.230:8765/ws';
 
 // =============================================
 // ACCESS TOKEN (memory only) + setter for window.api
