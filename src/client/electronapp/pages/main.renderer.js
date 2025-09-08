@@ -153,6 +153,7 @@ let chatTitle;
 let editMembersBtn;
 let placeholder;
 let typingIndicator;
+let charCounter;
 let logoutBtn;
 let profileModal;
 let profileForm;
@@ -1389,102 +1390,179 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // =============================================
-// Call Functions
+// Call Functions - Enhanced Version
 // =============================================
 
 // --- config ---
 const iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+const ICE_BUFFER_MAX_SIZE = 50;           // Maximum buffered candidates
+const ICE_BUFFER_MAX_AGE = 30000;         // Maximum age in ms (30 seconds)
+const WS_RECONNECT_MAX_DELAY = 30000;     // Maximum reconnect delay (30 seconds)
 
-// --- dom ---
-const statusEl     = document.getElementById('status');
-const btnStartCall = document.getElementById('btnStartCall');
-const btnJoinCall  = document.getElementById('btnJoinCall');
-const btnLeave     = document.getElementById('btnLeave');
-const btnMute      = document.getElementById('btnMute');
-const remoteAudio  = document.getElementById('remoteAudio');
-const setStatus = (t, cls='') => { 
-  if (statusEl) { 
-    statusEl.textContent = t; 
-    statusEl.className = 'status '+cls; 
-  }
-  console.log(`[CALL] Status: ${t} (${cls})`);
+// --- state management ---
+const CallState = {
+  IDLE: 'idle',
+  CONNECTING: 'connecting',
+  CONNECTED: 'connected',
+  DISCONNECTED: 'disconnected',
+  ERROR: 'error'
 };
 
-// --- state ---
-let callWS, pc, localStream;
-let inCall = false;
-let joiningArmed = false;
-let pendingOffer = null;
-let isMuted = false;
-
-// --- media ---
-async function getMic() {
-  console.log('[CALL] getMic called');
-  if (localStream) {
-    console.log('[CALL] Returning cached localStream');
-    return localStream;
+class CallConnection {
+  constructor() {
+    this.state = CallState.IDLE;
+    this.wsState = WebSocket.CLOSED;
+    this.iceCandidateBuffer = [];
+    this.lastWSAttempt = 0;
+    this.wsRetryCount = 0;
+    this.currentError = null;
   }
-  try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      video: false
-    });
-    console.log('[CALL] Got localStream:', localStream);
-    localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
-    return localStream;
-  } catch (err) {
-    console.error('[CALL] getMic error:', err);
-    setStatus('Microphone error', 'warn');
-    throw err;
+
+  setState(newState, error = null) {
+    const oldState = this.state;
+    this.state = newState;
+    this.currentError = error;
+    
+    console.log(`[CALL] State transition: ${oldState} -> ${newState}${error ? ` (${error.message})` : ''}`);
+    
+    // Update UI based on state
+    this.updateUI();
+  }
+
+  setWSState(state) {
+    this.wsState = state;
+    this.updateUI();
+  }
+
+  updateUI() {
+    // Update buttons based on combined state
+    if (btnStartCall) btnStartCall.disabled = !currentChatID || this.state !== CallState.IDLE;
+    if (btnJoinCall) btnJoinCall.disabled = this.state !== CallState.IDLE;
+    if (btnLeave) btnLeave.disabled = this.state === CallState.IDLE;
+    if (btnMute) btnMute.disabled = this.state !== CallState.CONNECTED;
+
+    // Update status display
+    let statusText = '';
+    let statusClass = '';
+
+    switch (this.state) {
+      case CallState.IDLE:
+        statusText = this.currentError ? `Call ended: ${this.currentError.message}` : 'Ready';
+        statusClass = this.currentError ? 'warn' : '';
+        break;
+      case CallState.CONNECTING:
+        statusText = 'Connecting...';
+        break;
+      case CallState.CONNECTED:
+        statusText = 'Connected ✅';
+        statusClass = 'ok';
+        break;
+      case CallState.DISCONNECTED:
+        statusText = 'Disconnected';
+        statusClass = 'warn';
+        break;
+      case CallState.ERROR:
+        statusText = `Error: ${this.currentError?.message || 'Unknown error'}`;
+        statusClass = 'error';
+        break;
+    }
+
+    // Append WebSocket state if not normal
+    if (this.wsState !== WebSocket.OPEN && this.state !== CallState.IDLE) {
+      statusText += ` (WS: ${this.wsState === WebSocket.CONNECTING ? 'connecting' : 'closed'})`;
+    }
+
+    setStatus(statusText, statusClass);
+  }
+
+  addIceCandidate(candidate) {
+    const now = Date.now();
+    
+    // Clean expired candidates first
+    this.iceCandidateBuffer = this.iceCandidateBuffer.filter(item => 
+      now - item.timestamp <= ICE_BUFFER_MAX_AGE
+    );
+
+    // Add new candidate with timestamp if buffer not full
+    if (this.iceCandidateBuffer.length < ICE_BUFFER_MAX_SIZE) {
+      this.iceCandidateBuffer.push({
+        candidate,
+        timestamp: now
+      });
+      return true;
+    }
+    
+    console.warn('[CALL] ICE candidate buffer full, dropping candidate');
+    return false;
+  }
+
+  flushIceCandidates() {
+    const now = Date.now();
+    const validCandidates = this.iceCandidateBuffer.filter(item => 
+      now - item.timestamp <= ICE_BUFFER_MAX_AGE
+    );
+
+    if (validCandidates.length > 0) {
+      console.log(`[CALL] Flushing ${validCandidates.length} ICE candidates`);
+      validCandidates.forEach(item => {
+        callSend({ 
+          type: 'ice-candidate',
+          chatID: currentChatID,
+          candidate: item.candidate
+        });
+      });
+    }
+
+    this.iceCandidateBuffer = [];
   }
 }
 
-// --- peer connection ---
-function createPC() {
-  console.log('[CALL] createPC called');
-  pc = new RTCPeerConnection({ iceServers });
-  localStream.getAudioTracks().forEach(track => {
-    pc.addTrack(track, localStream);
-    console.log('[CALL] Added local audio track:', track);
-  });
-  pc.ontrack = (e) => { 
-    console.log('[CALL] ontrack event:', e);
-    remoteAudio.srcObject = e.streams[0]; 
-  };
-  pc.onicecandidate = (e) => { 
-    console.log('[CALL] ICE candidate:', e.candidate);
-    if (e.candidate) callSend({ type: 'ice-candidate', chatID: currentChatID, candidate: e.candidate }); 
-  };
-  pc.onconnectionstatechange = () => {
-    console.log('[CALL] pc connectionState:', pc.connectionState);
-    if (pc.connectionState === 'connected') setStatus('Connected ✅','ok');
-    if (['failed','disconnected','closed'].includes(pc.connectionState)) setStatus('Call ended / issue','warn');
-  };
-}
+// Initialize call state manager
+const callManager = new CallConnection();
 
-// --- signaling ---
+// --- signaling with improved connection management ---
 function connectCallWS() {
   if (!currentChatID || !username) {
     console.warn('[CALL] connectCallWS: Missing currentChatID or username');
     return;
   }
+
+  const now = Date.now();
+  if (now - callManager.lastWSAttempt < Math.min(1000 * Math.pow(2, callManager.wsRetryCount), WS_RECONNECT_MAX_DELAY)) {
+    console.log('[CALL] Backing off reconnect attempt');
+    return;
+  }
+
+  callManager.lastWSAttempt = now;
+  callManager.wsRetryCount++;
+
+  if (callWS && callWS.readyState === WebSocket.OPEN) {
+    callWS.close();
+  }
+
   const callUrl = WS_URL.replace(/\/ws$/, `/ws/${currentChatID}/${username}`);
   console.log('[CALL] Connecting to signaling WS:', callUrl);
+  
   callWS = new WebSocket(callUrl);
-  callWS.onopen    = () => { 
+  callManager.setWSState(WebSocket.CONNECTING);
+
+  callWS.onopen = () => {
     console.log('[CALL] Call WS connected');
-    setStatus('Call WS connected ✅');
-    // Send any buffered ICE candidates
-    iceCandidateBuffer.forEach(obj => {
-      console.log('[CALL] Sending buffered ICE candidate:', obj);
-      callWS.send(JSON.stringify(obj));
-    });
-    iceCandidateBuffer = [];
+    callManager.setWSState(WebSocket.OPEN);
+    callManager.wsRetryCount = 0;
+    callManager.flushIceCandidates();
   };
-  callWS.onclose   = () => { 
+
+  callWS.onclose = () => {
     console.log('[CALL] Call WS closed');
-    setStatus('Call WS closed ❌','warn');
+    callManager.setWSState(WebSocket.CLOSED);
+    
+    // Only attempt reconnect if in active call
+    if (callManager.state === CallState.CONNECTED || callManager.state === CallState.CONNECTING) {
+      setTimeout(() => connectCallWS(), 1000);
+    }
   };
+
   callWS.onmessage = async (ev) => {
     const msg = JSON.parse(ev.data);
     console.log('[CALL] WS message:', msg);
@@ -1530,35 +1608,49 @@ function connectCallWS() {
   };
 }
 function callSend(obj) { 
-  if (callWS && callWS.readyState === WebSocket.OPEN) {
+  if (callWS?.readyState === WebSocket.OPEN) {
     console.log('[CALL] Sending signaling message:', obj);
-    callWS.send(JSON.stringify(obj)); 
-  } else {
-    console.warn('[CALL] callSend: WebSocket not open', obj);
-    // Buffer ICE candidates until WS is open
-    if (obj.type === 'ice-candidate') {
-      iceCandidateBuffer.push(obj);
-      console.log('[CALL] ICE candidate buffered');
-    }
+    callWS.send(JSON.stringify(obj));
+    return true;
   }
+
+  if (obj.type === 'ice-candidate') {
+    const buffered = callManager.addIceCandidate(obj.candidate);
+    if (buffered) {
+      console.log('[CALL] Buffered ICE candidate');
+    }
+    return buffered;
+  }
+
+  console.warn('[CALL] Failed to send message, WS not ready:', obj);
+  return false;
 }
 
-
-// --- flows ---
+// --- enhanced flows with state management ---
 async function startCall() {
   console.log('[CALL] startCall called');
-  callSend({ type: 'call-started', chatID: currentChatID });
-  await getMic(); 
-  createPC();
-  const offer = await pc.createOffer({ offerToReceiveAudio: true });
-  await pc.setLocalDescription(offer);
-  console.log('[CALL] Created and set local offer:', offer);
-  callSend({ type: 'offer', chatID: currentChatID, sdp: offer });
-  inCall = true;
-  btnJoinCall.disabled = true;
-  btnLeave.disabled = false;
-  btnMute.disabled = false;
-  setStatus('Calling…');
+  
+  try {
+    callManager.setState(CallState.CONNECTING);
+    callSend({ type: 'call-started', chatID: currentChatID });
+    
+    await getMic();
+    createPC();
+    
+    const offer = await pc.createOffer({ offerToReceiveAudio: true });
+    await pc.setLocalDescription(offer);
+    
+    console.log('[CALL] Created and set local offer:', offer);
+    if (!callSend({ type: 'offer', chatID: currentChatID, sdp: offer })) {
+      throw new Error('Failed to send offer');
+    }
+
+    inCall = true;
+  } catch (err) {
+    console.error('[CALL] startCall error:', err);
+    callManager.setState(CallState.ERROR, err);
+    endCall(`Failed to start call: ${err.message}`);
+  }
 }
 
 async function joinCall() {
@@ -1584,12 +1676,27 @@ async function joinCall() {
 
 function endCall(reason = 'Ended') {
   console.log('[CALL] endCall called:', reason);
-  if (pc) { try { pc.close(); } catch (e) { console.error('[CALL] Error closing pc:', e); } pc = null; }
-  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  if (inCall) callSend({ type: 'leave', chatID: currentChatID, reason });
-  inCall = false; joiningArmed = false; pendingOffer = null; isMuted = false;
-  btnLeave.disabled = true; btnJoinCall.disabled = true; btnMute.disabled = true;
-  setStatus(reason);
+  
+  if (pc) {
+    try { pc.close(); } catch (e) { console.error('[CALL] Error closing pc:', e); }
+    pc = null;
+  }
+  
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+  }
+  
+  if (inCall) {
+    callSend({ type: 'leave', chatID: currentChatID, reason });
+  }
+  
+  inCall = false;
+  joiningArmed = false;
+  pendingOffer = null;
+  isMuted = false;
+  
+  callManager.setState(CallState.IDLE, reason ? new Error(reason) : null);
 }
 
 // --- mute ---
