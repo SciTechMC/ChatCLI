@@ -67,7 +67,7 @@ function showToast(message, type = 'info') {
 // =============================================
 // CONFIGURATION
 // =============================================
-const { WS_URL } = require('../config');
+const WS_URL = window.appConfig.WS_URL;
 
 // =============================================
 // ACCESS TOKEN (memory only) + setter for window.api

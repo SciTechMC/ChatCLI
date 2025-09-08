@@ -3,7 +3,8 @@
 // OPTIONAL: keep these two lines for sanity logs
 
 const { contextBridge, ipcRenderer } = require('electron');
-const api = require('./pages/api.js');               // stays CommonJS
+const api = require('./pages/api.js');
+const { WS_URL } = require('./config');
 
 /* -------- Expose REST API wrapper -------- */
 contextBridge.exposeInMainWorld('api', {
@@ -19,7 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   getSessionToken:    () => sessionToken,
   setAccessToken:    (tok) => { sessionToken = tok; },
   setRefreshToken:    (tok) => { refreshTokenValue = tok; },
-  initializeTokens:   api.initializeTokens, // Add this
+  initializeTokens:   api.initializeTokens,
+  WS_URL,
 });
 
 /* -------- Expose secureStore via keytar -------- */
