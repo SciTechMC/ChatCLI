@@ -3,8 +3,7 @@ const { app, ipcMain, BrowserWindow } = require('electron')
 const { saveRefreshToken, getRefreshToken, deleteRefreshToken } = require('./authVault')
 const path = require('path')
 const keytar = require('keytar')
-// If Node < 18, uncomment next line for fetch:
-// const fetch = (...a) => import('node-fetch').then(({default:f}) => f(...a))
+const { BASE_URL } = require('./config');
 
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('disable-gpu')
@@ -20,7 +19,7 @@ ipcMain.handle('auth:storeRefresh', async (_e, { accountId, refreshToken }) => {
 ipcMain.handle('auth:refresh', async (_e, { accountId }) => {
   const rt = await getRefreshToken(accountId)
   if (!rt) return { ok: false, reason: 'no_refresh' }
-  const res = await fetch('http://109.88.13.230:5123/user/refresh-token', {
+  const res = await fetch(`${BASE_URL}/user/refresh-token`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ refresh_token: rt }),

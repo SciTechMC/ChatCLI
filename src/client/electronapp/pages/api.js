@@ -1,5 +1,5 @@
 const fetch = require('node-fetch');
-const BASE_URL = 'http://109.88.13.230:5123'; // ipv4 or localhost
+const { BASE_URL } = require('../config');
 
 let sessionToken      = null;
 let refreshTokenValue = null;
