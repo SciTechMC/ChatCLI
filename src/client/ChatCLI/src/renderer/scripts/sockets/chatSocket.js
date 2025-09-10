@@ -10,7 +10,7 @@ export function connectWS() {
   if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
 
   isConnecting = true;
-  ws = new WebSocket('ws://127.0.0.1:8765/ws');
+  ws = new WebSocket(window.api.WS_URL);
 
   ws.addEventListener('open', () => {
     reconnectAttempts = 0;
