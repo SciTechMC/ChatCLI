@@ -6,6 +6,7 @@ call npm install
 
 rem Make the distributable
 call npm run dist
+call npm run dist:linux
 
 rem Wait for a keypress before closing
 pause
