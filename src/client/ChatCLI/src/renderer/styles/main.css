@@ -1026,3 +1026,7 @@ textarea.message-input.error:focus {
 .call-button:hover {
   background-color: var(--accent-hover);
 }
+#chatSearchInput { width: 100%; padding: .5rem .75rem; }
+mark { background: var(--accent, #ffe58f); padding: 0 .1em; }
+#chatSearchEmpty { padding: .75rem; color: var(--text-secondary); }
+#chatSearchInput:focus { outline: none; border: 1px solid var(--accent-color); }

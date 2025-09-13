@@ -1,3 +1,5 @@
+// src/renderer/scripts/chats/chatSession.js
+
 import { store } from '../core/store.js';
 import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
@@ -9,6 +11,40 @@ import { loadGroupMembers } from './groupService.js';
 import { connectCallWS } from '../calls/callSockets.js';
 
 const MAX_MESSAGE_LEN = 2048;
+const MAX_SPLIT_PARTS = 5;
+const HARD_MAX = MAX_MESSAGE_LEN * MAX_SPLIT_PARTS;
+
+function splitIntoChunks(text, size = MAX_MESSAGE_LEN, maxParts = MAX_SPLIT_PARTS) {
+  const chunks = [];
+  let i = 0;
+
+  while (i < text.length) {
+    const remaining = text.length - i;
+    const partsLeft = maxParts - chunks.length;
+
+    if (partsLeft === 1) {               // last part must take the rest
+      chunks.push(text.slice(i));
+      break;
+    }
+
+    const maxEnd = i + Math.min(size, remaining);
+    const minEnd = Math.max(i + 1, text.length - (partsLeft - 1) * size);
+
+    let end = maxEnd;
+
+    // soft break if it still leaves room for remaining parts
+    if (end < text.length) {
+      const soft = Math.max(text.lastIndexOf('\n', end), text.lastIndexOf(' ', end));
+      if (soft >= minEnd) end = soft;
+    }
+
+    if (end < minEnd) end = minEnd;      // ensure last parts won't overflow
+    chunks.push(text.slice(i, end));
+    i = end;
+  }
+
+  return chunks;
+}
 
 export function updateSendButtonState() {
   const { messageInput, sendBtn } = store.refs;
@@ -56,7 +92,7 @@ export async function selectChat(chatID) {
   const type = chatItem.dataset.type || 'private';
 
   document.querySelector('.chat-header').style.display = 'flex';
-  chatTitle.textContent = name;
+  store.refs.chatTitle.textContent = name;
   if (type === 'group' && store.refs.editMembersBtn) {
     store.refs.editMembersBtn.style.display = 'block';
   } else if (store.refs.editMembersBtn) {
@@ -142,47 +178,63 @@ export function appendMessage({ username: msgUser, message, timestamp }) {
 
 export async function sendMessage() {
   const { messageInput, charCounter } = store.refs;
-  if (!store.currentChatID) {
-    return showToast('Select a chat first.', 'error');
-  }
-  const text = messageInput.value.trim();
+  if (!store.currentChatID) return showToast('Select a chat first.', 'error');
+
+  const raw = messageInput.value;
+  const text = raw.trim();
   if (!text) return;
 
   const len = text.length;
-  if (len > MAX_MESSAGE_LEN) {
+
+  // Case 1: short — just send
+  if (len <= MAX_MESSAGE_LEN) {
+    chatSend({ type: 'post_msg', chatID: store.currentChatID, text });
+    messageInput.value = '';
+    messageInput.style.height = 'auto';
+    updateSendButtonState();
+    if (charCounter) charCounter.style.display = 'none';
+    return;
+  }
+
+  // Case 2: over hard cap — block and offer to auto-trim
+  if (len > HARD_MAX) {
+    const over = len - HARD_MAX;
     showConfirmationModal(
-      `Your message is ${len} characters long and will be split into ${Math.ceil(len / MAX_MESSAGE_LEN)} messages. Continue?`,
-      'Split Message?',
+      `Your message is ${len} characters, exceeding the limit of ${HARD_MAX}.\n\n` +
+      `Send the first ${HARD_MAX} characters, split into 5 messages?`,
+      'Message Too Long',
       async () => {
-        const chunks = [];
-        let start = 0;
-        while (start < text.length) {
-          let end = Math.min(text.length, start + MAX_MESSAGE_LEN);
-          if (end < text.length) {
-            const lastSpace = text.lastIndexOf(' ', end);
-            if (lastSpace > start) end = lastSpace;
-          }
-          chunks.push(text.slice(start, end));
-          start = end;
-        }
+        const trimmed = text.slice(0, HARD_MAX);
+        const chunks = splitIntoChunks(trimmed, MAX_MESSAGE_LEN, MAX_SPLIT_PARTS);
         for (const chunk of chunks) {
           chatSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
         }
         messageInput.value = '';
         messageInput.style.height = 'auto';
         updateSendButtonState();
-        charCounter.style.display = 'none';
+        if (charCounter) charCounter.style.display = 'none';
+        showToast(`Sent in ${chunks.length} parts (trimmed to the limit).`, 'info');
       }
     );
     return;
   }
 
-  chatSend({ type: 'post_msg', chatID: store.currentChatID, text });
-
-  messageInput.value = '';
-  messageInput.style.height = 'auto';
-  updateSendButtonState();
-  charCounter.style.display = 'none';
+  // Case 3: within hard cap — confirm and split
+  const chunks = splitIntoChunks(text, MAX_MESSAGE_LEN, MAX_SPLIT_PARTS);
+  showConfirmationModal(
+    `Your message is ${len} characters and will be split into ${chunks.length} message${chunks.length>1?'s':''}. Continue?`,
+    'Split Message?',
+    async () => {
+      for (const chunk of chunks) {
+        chatSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
+      }
+      messageInput.value = '';
+      messageInput.style.height = 'auto';
+      updateSendButtonState();
+      if (charCounter) charCounter.style.display = 'none';
+      showToast(`Sent in ${chunks.length} parts.`, 'info');
+    }
+  );
 }
 
 // WS event handlers (hooked by main.js)

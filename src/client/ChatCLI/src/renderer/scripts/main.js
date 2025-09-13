@@ -7,6 +7,8 @@ import { showToast } from './ui/toasts.js';
 
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
 
+import { initChatSearch, reapplyChatSearch } from './chats/search.js';
+
 import { loadChats } from './chats/chatList.js';
 import { renderArchivedChats, archiveChat, handleArchiveChat } from './chats/archive.js';
 import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus } from './chats/chatSession.js';
@@ -29,6 +31,7 @@ window.addEventListener('chat:reload', async () => { await loadChats(); });
 document.addEventListener('DOMContentLoaded', async () => {
   // Cache DOM refs
   store.refs = {
+    chatSearchInput: document.getElementById('chatSearchInput'),
     chatListEl: document.querySelector('.chat-list'),
     messagesEl: document.querySelector('.chat-messages'),
     messageInput: document.querySelector('.message-input'),
@@ -219,7 +222,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Connect chat WS + initial chats
   connectWS();
   await loadChats();
+  reapplyChatSearch();
   updateSendButtonState();
+  initChatSearch();
 
   // Message input events
   if (store.refs.sendBtn) store.refs.sendBtn.addEventListener('click', sendMessage);
