@@ -8,4 +8,6 @@ You must retain appropriate credit to the original author. Misrepresentation of 
 
 Original repository: https://github.com/SciTechMC/ChatCLI
 
+Roadmap: https://trello.com/b/UnBaDw8k/chatcli
+
 Author: SciTechMC Year: 2025
