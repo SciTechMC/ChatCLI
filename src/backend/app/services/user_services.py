@@ -66,7 +66,7 @@ def register(data: dict) -> dict:
             user = users[0]
             if user["email_verified"]:
                 raise Conflict(f"User '{username}' already exists.")
-            user_id = user["userID"]
+            userID = user["userID"]
             # update unverified user
             update_records(
                 table="users",
@@ -76,18 +76,18 @@ def register(data: dict) -> dict:
                     "created_at": datetime.now(timezone.utc)
                 },
                 where_clause="userID = %s",
-                where_params=(user_id,)
+                where_params=(userID,)
             )
             # revoke any recent tokens
             update_records(
                 table="email_tokens",
                 data={"revoked": True},
                 where_clause="userID = %s AND expires_at > %s",
-                where_params=(user_id, datetime.now(timezone.utc))
+                where_params=(userID, datetime.now(timezone.utc))
             )
         else:
             # insert new user
-            user_id = insert_record(
+            userID = insert_record(
                 "users",
                 {
                     "username": username,
@@ -103,7 +103,7 @@ def register(data: dict) -> dict:
         insert_record(
             "email_tokens",
             {
-                "userID":      user_id,
+                "userID":      userID,
                 "email_token": email_token,
                 "expires_at":  expiry,
                 "revoked":     False
@@ -225,7 +225,7 @@ def login(data: dict) -> dict:
         insert_record(
             "refresh_tokens",
             {
-                "user_id": user["userID"],
+                "userID": user["userID"],
                 "token":   refresh_hash,
                 "expires_at": refresh_expiry,
                 "revoked": False
@@ -287,7 +287,7 @@ def refresh_token(data: dict) -> dict:
         if row["revoked"] or expires_at < now:         # ← safe compare
             raise Unauthorized("Refresh token expired or revoked.")
 
-        user_id = row["user_id"]
+        userID = row["userID"]
 
         # Revoke old refresh token
         update_records(
@@ -303,7 +303,7 @@ def refresh_token(data: dict) -> dict:
         insert_record(
             "refresh_tokens",
             {
-                "user_id":    user_id,
+                "userID":    userID,
                 "token":      new_refresh_hash,
                 "expires_at": now + timedelta(days=30),
                 "revoked":    False
@@ -316,7 +316,7 @@ def refresh_token(data: dict) -> dict:
         insert_record(
             "session_tokens",
             {
-                "userID":        user_id,            # see note (2) below
+                "userID":        userID,            # see note (2) below
                 "session_token": new_access_hash,
                 "expires_at":    now + timedelta(days=1),
                 "revoked":       False,
@@ -355,14 +355,14 @@ def reset_password_request(data: dict) -> dict:
         if not users:
             raise NotFound("User not found.")
         user = users[0]
-        user_id = user["userID"]
+        userID = user["userID"]
         reset_plain = secrets.token_urlsafe(32)
         hashed_tok = hashlib.sha256(reset_plain.encode()).hexdigest()
         expiry     = datetime.now(timezone.utc) + timedelta(hours=1)
         insert_record(
             "pass_reset_tokens",
             {
-                "userID":      user_id,
+                "userID":      userID,
                 "reset_token": hashed_tok,
                 "expires_at":  expiry,
                 "revoked":     False
@@ -506,7 +506,7 @@ def submit_profile(data: dict) -> dict:
         )
         if not user:
             raise NotFound("User not found.")
-        user_id   = user["userID"]
+        userID   = user["userID"]
         old_email = user.get("email", "")
 
         # handle delete
@@ -532,14 +532,14 @@ def submit_profile(data: dict) -> dict:
                 table="users",
                 data=update_data,
                 where_clause="userID = %s",
-                where_params=(user_id,)
+                where_params=(userID,)
             )
             if "email" in update_data:
                 code = f"{random.randint(100000, 999999):06d}"
                 expiry = datetime.now(timezone.utc) + timedelta(minutes=5)
                 insert_record(
                     "email_tokens",
-                    {"userID": user_id, "email_token": code, "expires_at": expiry, "revoked": False}
+                    {"userID": userID, "email_token": code, "expires_at": expiry, "revoked": False}
                 )
                 send_email_change_verification(new_u or username, code, new_e)
             resp = {"username": update_data.get("username", username),
@@ -649,7 +649,7 @@ def logout(data: dict) -> dict:
         )
         if not user:
             raise NotFound("User not found.")
-        user_id = user["userID"]
+        userID = user["userID"]
 
         update_records(
             table="session_tokens",
@@ -660,8 +660,8 @@ def logout(data: dict) -> dict:
         update_records(
             table="refresh_tokens",
             data={"revoked": True},
-            where_clause="token = %s AND user_id = %s",
-            where_params=(refresh_hash, user_id)
+            where_clause="token = %s AND userID = %s",
+            where_params=(refresh_hash, userID)
         )
 
     except APIError:
@@ -693,19 +693,19 @@ def logout_all(data: dict) -> dict:
         )
         if not user:
             raise NotFound("User not found.")
-        user_id = user["userID"]
+        userID = user["userID"]
 
         update_records(
             table="session_tokens",
             data={"revoked": True},
             where_clause="userID = %s",
-            where_params=(user_id,)
+            where_params=(userID,)
         )
         update_records(
             table="refresh_tokens",
             data={"revoked": True},
             where_clause="userID = %s",
-            where_params=(user_id,)
+            where_params=(userID,)
         )
 
     except APIError:
