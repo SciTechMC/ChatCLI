@@ -1,4 +1,4 @@
-import { store } from './core/store.js';
+import { persistUsername ,store } from './core/store.js';
 
 import { connectWS, chatSend } from './sockets/chatSocket.js';
 import { setupModalClosing } from './ui/modals.js';
@@ -112,9 +112,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTypingIndicator();
   initGroupEditor();
 
+  window.addEventListener('auth:username-updated', async (ev) => {
+    const next = ev.detail?.username;
+    if (!next) return;
+    await persistUsername(next);
+    putUsernameInUI();
+  });
+
   // auto-login
   const ok = await autoLoginOrRedirect();
   if (!ok) return;
+
+  if (!store.username) {
+    try {
+      const persisted =
+        (await window.secureStore?.get?.('username')) ||
+        localStorage.getItem('username');
+      if (persisted) store.username = persisted;
+    } catch (_) { /* ignore */ }
+  }  
 
   putUsernameInUI();
 

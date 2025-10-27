@@ -13,6 +13,29 @@ import { connectCallWS } from '../calls/callSockets.js';
 const MAX_MESSAGE_LEN = 2048;
 const MAX_SPLIT_PARTS = 5;
 const HARD_MAX = MAX_MESSAGE_LEN * MAX_SPLIT_PARTS;
+const CLUSTER_WINDOW_MS = 5 * 60 * 1000;
+
+function isNewCluster(prevMsgEl, user, tsMs) {
+  if (!prevMsgEl) return true;
+  const prevUser = prevMsgEl.dataset.username || '';
+  const prevTs = Number(prevMsgEl.dataset.ts || 0);
+  const sameUser = prevUser.toLowerCase() === (user || '').toLowerCase();
+  const closeInTime = Math.abs(tsMs - prevTs) < CLUSTER_WINDOW_MS;
+  return !(sameUser && closeInTime);
+}
+
+// (Optional) Resolve an avatar URL for a username.
+// Replace this with your real avatar logic if you have one.
+function getAvatarFor(username) {
+  // Example options, uncomment the one you use:
+  // return `/api/avatar?u=${encodeURIComponent(username)}`;
+  // return `https://www.gravatar.com/avatar/${md5(username.trim().toLowerCase())}?d=identicon`;
+  return null; // fallback to initials chip if no image URL
+}
+
+function makeInitials(name = '') {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('') || '?';
+}
 
 function splitIntoChunks(text, size = MAX_MESSAGE_LEN, maxParts = MAX_SPLIT_PARTS) {
   const chunks = [];
@@ -160,33 +183,82 @@ export async function selectChat(chatID) {
 
 export function appendMessage({ username: msgUser, message, timestamp }) {
   const { messagesEl } = store.refs;
-  const messageDiv = document.createElement('div');
-  messageDiv.classList.add('message');
 
-  const header = document.createElement('div');
-  header.className = 'message-header';
+  const ts = new Date(timestamp);
+  const tsMs = ts.getTime();
+  const timeHHmm = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const formatted = `${ts.toLocaleDateString()}, ${timeHHmm}`;
 
-  const userEl = document.createElement('span');
-  userEl.classList.add('message-sender');
-  if (msgUser.toLowerCase() === (store.username || '').toLowerCase()) {
-    userEl.classList.add('message-sender-self');
+  const lastMsg = messagesEl.lastElementChild?.classList?.contains('message')
+    ? messagesEl.lastElementChild
+    : null;
+
+  const startNewCluster = isNewCluster(lastMsg, msgUser, tsMs);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'message ' + (startNewCluster ? 'message--cluster-start' : 'message--cluster-continue');
+  wrap.dataset.username = msgUser;
+  wrap.dataset.ts = String(tsMs);
+
+  // Left rail: avatar for cluster start; for continuations add a hover-time
+  const leftRail = document.createElement('div');
+  leftRail.className = 'message-rail' + (startNewCluster ? '' : ' spacer');
+
+  if (startNewCluster) {
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    const avatarUrl = getAvatarFor(msgUser);
+    if (avatarUrl) {
+      const img = document.createElement('img');
+      img.src = avatarUrl;
+      img.alt = `${msgUser} avatar`;
+      avatar.appendChild(img);
+    } else {
+      const chip = document.createElement('span');
+      chip.className = 'avatar-initials';
+      chip.textContent = makeInitials(msgUser);
+      avatar.appendChild(chip);
+    }
+    leftRail.appendChild(avatar);
+  } else {
+    // add hover time placeholder for continuations
+    const hoverTime = document.createElement('span');
+    hoverTime.className = 'hover-time';
+    hoverTime.textContent = timeHHmm; // e.g. "14:07"
+    leftRail.appendChild(hoverTime);
   }
-  userEl.textContent = msgUser;
 
-  const timeEl = document.createElement('span');
-  timeEl.className = 'message-time';
-  const date = new Date(timestamp);
-  const formatted = `${date.toLocaleDateString()}, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  timeEl.textContent = formatted;
+  // Right column
+  const right = document.createElement('div');
+  right.className = 'message-body';
 
-  header.append(userEl, timeEl);
+  if (startNewCluster) {
+    const header = document.createElement('div');
+    header.className = 'message-header';
 
-  const body = document.createElement('div');
-  body.className = 'message-text';
-  body.textContent = message;
+    const userEl = document.createElement('span');
+    userEl.className = 'message-sender';
+    if (msgUser.toLowerCase() === (store.username || '').toLowerCase()) {
+      userEl.classList.add('message-sender-self');
+    }
+    userEl.textContent = msgUser;
 
-  messageDiv.append(header, body);
-  messagesEl.appendChild(messageDiv);
+    const timeEl = document.createElement('span');
+    timeEl.className = 'message-time';
+    timeEl.textContent = formatted;
+
+    header.append(userEl, timeEl);
+    right.appendChild(header);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'message-bubble';
+  bubble.textContent = message;
+  right.appendChild(bubble);
+
+  wrap.append(leftRail, right);
+  messagesEl.appendChild(wrap);
+
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 

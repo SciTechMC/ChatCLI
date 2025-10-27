@@ -1,3 +1,4 @@
+// src/renderer/auth/session.js
 import { store } from '../core/store.js';
 import { setAccess, apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
@@ -47,8 +48,47 @@ export function wireProfileAndAccount() {
 
   profileForm.addEventListener('submit', async e => {
     e.preventDefault();
+  
     const newUsername = profileForm.querySelector('input[name="username"]').value.trim();
     const newEmail    = profileForm.querySelector('input[name="email"]').value.trim();
+  
+    let storedEmail = null;
+    try { storedEmail = await window.secureStore.get('email'); } catch (_) {}
+  
+    const usernameChanged = !!newUsername && newUsername !== store.username;
+    const emailChanged    = !!newEmail && newEmail !== (storedEmail || '');
+  
+    // Ask for confirmation only if username or email was changed
+    if (usernameChanged || emailChanged) {
+      showConfirmationModal(
+        'Changing your username and/or email requires you to log in again to confirm the update.',
+        'Re-login Required',
+        async () => {
+          try {
+            // Proceed only after confirmation
+            const result = await apiRequest('/user/submit-profile', {
+              body: JSON.stringify({
+                session_token: store.token,
+                username: newUsername,
+                email: newEmail
+              })
+            });
+  
+            hideModal(profileModal);
+  
+            await forceLogoutAfterProfileChange(
+              'Your username and/or email were updated. Please log in again.'
+            );
+          } catch (err) {
+            showToast('Failed to update profile: ' + (err.message || 'Unknown error'), 'error');
+          }
+        }
+      );
+  
+      return;
+    }
+  
+    // If no username/email change, just save
     try {
       const result = await apiRequest('/user/submit-profile', {
         body: JSON.stringify({
@@ -58,17 +98,13 @@ export function wireProfileAndAccount() {
         })
       });
       hideModal(profileModal);
-      if (result.verificationSent) {
-        showToast('Email changed—please verify.', 'info');
-        window.location.href = `verify.html?username=${encodeURIComponent(newUsername)}`;
-      } else {
-        showToast('Profile updated!', 'info');
-        document.querySelector('.username').textContent = result.username || newUsername;
-      }
+      showToast('Profile saved.', 'success');
     } catch (err) {
-      showToast('Failed to update profile: ' + err.message, 'error');
+      showToast('Failed to update profile: ' + (err.message || 'Unknown error'), 'error');
     }
   });
+  
+  
 
   // Disable account
   if (disableAccountBtn) {
@@ -193,4 +229,24 @@ export function putUsernameInUI() {
     el.style.overflowWrap = 'break-word';
     el.style.color = 'var(--text-primary)';
   }
+}
+
+async function forceLogoutAfterProfileChange(message = 'Profile updated. Please log in again.') {
+  try {
+    // Best-effort server side logout for current session(s)
+    await apiRequest('/user/logout-all', {
+      method: 'POST',
+      body: JSON.stringify({ session_token: store.token })
+    });
+  } catch (_) { /* ignore server errors here */ }
+
+  // Best-effort local cleanup
+  try { if (store.username && window.auth?.clear) await window.auth.clear(store.username); } catch (_) {}
+  try { await window.secureStore.delete('session_token'); } catch (_) {}
+  try { await window.secureStore.delete('refresh_token'); } catch (_) {}
+  try { await window.secureStore.delete('username'); } catch (_) {}
+  try { await window.secureStore.delete('email'); } catch (_) {}
+
+  showToast(message, 'info');
+  window.location.href = 'index.html';
 }
