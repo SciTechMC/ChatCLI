@@ -110,14 +110,14 @@ def create_database_and_tables():
                     """
                     CREATE TABLE IF NOT EXISTS refresh_tokens (
                       id            BIGINT UNSIGNED      AUTO_INCREMENT PRIMARY KEY,
-                      user_id       INT                  NOT NULL,
+                      userID       INT                  NOT NULL,
                       token         CHAR(64)             NOT NULL UNIQUE,  # SHA-256 hex
                       created_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
                       expires_at    DATETIME             NOT NULL,
                       revoked       BOOLEAN              NOT NULL DEFAULT FALSE,
-                      INDEX idx_ref_user    (user_id),
+                      INDEX idx_ref_user    (userID),
                       INDEX idx_ref_expires (expires_at),
-                      FOREIGN KEY (user_id) REFERENCES users(userID)
+                      FOREIGN KEY (userID) REFERENCES users(userID)
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 
