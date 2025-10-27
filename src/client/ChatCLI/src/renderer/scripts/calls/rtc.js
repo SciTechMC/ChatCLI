@@ -10,24 +10,37 @@ function ensureCallState() {
 
 export function createPC() {
   const pc = new RTCPeerConnection({ iceServers: store.call.iceServers });
+
+  // Add local mic
   store.call.localStream.getAudioTracks().forEach(track => {
     pc.addTrack(track, store.call.localStream);
   });
+
+  // Remote audio
   pc.ontrack = (e) => {
     if (store.refs.remoteAudio) store.refs.remoteAudio.srcObject = e.streams[0];
   };
+
+  // Trickle ICE
   pc.onicecandidate = (e) => {
     if (e.candidate) callSend({ type: 'ice-candidate', chatID: store.currentChatID, candidate: e.candidate });
   };
+
+  // Connection lifecycle
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') setStatus('Connected ✅','ok');
-    if (['failed','disconnected','closed'].includes(pc.connectionState)) setStatus('Call ended / issue','warn');
+    if (pc.connectionState === 'connected') setStatus('Connected ✅', 'ok');
+    if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+      setStatus('Call ended / issue', 'warn');
+      // Let UI know if we drop unexpectedly
+      window.dispatchEvent(new Event('call:ended'));
+    }
   };
+
   store.call.pc = pc;
   return pc;
 }
 
-// Called by "Start Call"
+// Called by "Start Call" or "Join"
 export async function startAnswerFlow(isCaller = false) {
   await getMic();
   createPC();
@@ -38,7 +51,7 @@ export async function startAnswerFlow(isCaller = false) {
     callSend({ type: 'offer', chatID: store.currentChatID, sdp: offer });
     setStatus('Calling…');
   } else {
-    // will answer once remote offer is set
+    // callee waits for remote offer; see setRemoteOffer
   }
 }
 
@@ -70,45 +83,43 @@ export function endCall(reason = 'Ended') {
   store.call.pendingOffer = null;
   store.call.isMuted = false;
 
-  if (store.refs.btnLeave)    store.refs.btnLeave.disabled    = true;
-  if (store.refs.btnJoinCall) store.refs.btnJoinCall.disabled = true;
-  if (store.refs.btnMute)     store.refs.btnMute.disabled     = true;
-
+  // No more direct DOM toggling here; UI listens to events:
   setStatus(reason);
+  window.dispatchEvent(new Event('call:ended'));
 }
 
 export function toggleMute() {
   if (!store.call.localStream) return;
   store.call.isMuted = !store.call.isMuted;
   store.call.localStream.getAudioTracks().forEach(t => t.enabled = !store.call.isMuted);
-  if (store.refs.btnMute) store.refs.btnMute.textContent = store.call.isMuted ? 'Unmute' : 'Mute';
   setStatus(store.call.isMuted ? 'Muted' : 'Unmuted');
+  window.dispatchEvent(new CustomEvent('call:muted', { detail: { muted: store.call.isMuted } }));
 }
 
 export async function startCall() {
   ensureCallState();
   await ensureCallWSOpen();
-  
-  // Enable leave button immediately when starting a call
+
+  // Flip to in-call immediately from the caller side
   store.call.inCall = true;
-  store.refs?.btnLeave && (store.refs.btnLeave.disabled = false);
-  
+
   callSend({ type: 'call-started', chatID: store.currentChatID });
   await startAnswerFlow(true);
+  window.dispatchEvent(new Event('call:started'));
 }
 
 export async function joinCall() {
   store.call.joiningArmed = true;
   await startAnswerFlow(false);
+
   if (store.call.pendingOffer) {
     await setRemoteOffer(store.call.pendingOffer);
     store.call.pendingOffer = null;
     store.call.inCall = true;
-    if (store.refs.btnLeave) store.refs.btnLeave.disabled = false;
-    if (store.refs.btnMute)  store.refs.btnMute.disabled  = false;
     setStatus('Joining…');
+    window.dispatchEvent(new Event('call:started'));
   } else {
     setStatus('Joining… (waiting for offer)');
+    // when the offer arrives, callSockets will set inCall and dispatch 'call:started'
   }
-  if (store.refs.btnJoinCall) store.refs.btnJoinCall.disabled = true;
 }

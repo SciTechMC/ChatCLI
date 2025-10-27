@@ -84,18 +84,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // calls UI
     statusEl: document.getElementById('status'),
-    btnStartCall: document.getElementById('btnStartCall'),
-    btnJoinCall: document.getElementById('btnJoinCall'),
-    btnLeave: document.getElementById('btnLeave'),
-    btnMute: document.getElementById('btnMute'),
+    btnCallPrimary: document.getElementById('btnCallPrimary'),
     remoteAudio: document.getElementById('remoteAudio')
   };
 
-  // disable call buttons initially
-  if (store.refs.btnStartCall) store.refs.btnStartCall.disabled = true;
-  if (store.refs.btnJoinCall)  store.refs.btnJoinCall.disabled  = true;
-  if (store.refs.btnLeave)     store.refs.btnLeave.disabled     = true;
-  if (store.refs.btnMute)      store.refs.btnMute.disabled      = true;
+  // === Call UI state & helpers ===
+  store.callState = 'idle'; // 'idle' | 'incoming' | 'in-call'
+
+  function setCallButtonVisible(visible) {
+    const btn = store.refs.btnCallPrimary;
+    if (!btn) return;
+    btn.style.display = visible ? 'inline-flex' : 'none';
+  }
+
+  function updateCallButton() {
+    const btn = store.refs.btnCallPrimary;
+    if (!btn) return;
+    const iconUse = btn.querySelector('use');
+    btn.dataset.state = store.callState;
+
+    // show only in private chats and when a chat is selected
+    const isPrivate = store.currentChat?.type === 'private' || store.currentChatIsPrivate === true;
+    setCallButtonVisible(!!store.currentChatID && isPrivate);
+
+    if (store.callState === 'idle') {
+      btn.disabled = !store.currentChatID || !isPrivate;
+      iconUse.setAttribute('href', '#icon-phone');
+      btn.setAttribute('aria-label', 'Start call');
+    } else if (store.callState === 'incoming') {
+      btn.disabled = false;
+      iconUse.setAttribute('href', '#icon-phone');
+      btn.setAttribute('aria-label', 'Join call');
+    } else {
+      btn.disabled = false;
+      iconUse.setAttribute('href', '#icon-phone-off');
+      btn.setAttribute('aria-label', 'Leave call');
+    }
+  }
+
+  // Single icon-only call button = three actions
+  store.refs.btnCallPrimary?.addEventListener('click', async () => {
+    try {
+      if (store.callState === 'idle') {
+        // ensure signaling for this chat
+        await connectCallWS();
+        await startCall();
+        store.callState = 'in-call';
+        // status text is handled in your modules already
+      } else if (store.callState === 'incoming') {
+        await connectCallWS();
+        await joinCall();
+        store.callState = 'in-call';
+      } else {
+        await endCall('You left');
+        store.callState = 'idle';
+      }
+    } catch (err) {
+      console.error('[CALL] click handler error:', err);
+    } finally {
+      updateCallButton();
+    }
+  });
+
+  // React to signaling events from callSockets/rtc
+  window.addEventListener('call:incoming', () => { store.callState = 'incoming'; updateCallButton(); });
+  window.addEventListener('call:started',  () => { store.callState = 'in-call';  updateCallButton(); });
+  window.addEventListener('call:ended',    () => { store.callState = 'idle';     updateCallButton(); });
+
+  // initialize hidden until a private chat is selected
+  setCallButtonVisible(false);
+
+  window.addEventListener('chat:selected', async (ev) => {
+    const { chatID, type } = ev.detail || {};
+    store.currentChatID = chatID || null;
+    store.currentChat   = chatID ? { id: chatID, type } : null;
+    store.currentChatIsPrivate = type === 'private';
+    if (chatID) await connectCallWS();     // so Start/Join works
+    if (store.callState !== 'in-call') store.callState = 'idle';
+    updateCallButton();                     // show/hide + icon state
+  });   
+
 
   // Placeholder
   const placeholder = document.createElement('div');
@@ -276,12 +344,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       chatSend({ type: 'typing', chatID: store.currentChatID });
     });
   }
-
-  // Call buttons
-  if (store.refs.btnStartCall) store.refs.btnStartCall.onclick = startCall;
-  if (store.refs.btnJoinCall)  store.refs.btnJoinCall.onclick  = joinCall;
-  if (store.refs.btnLeave)     store.refs.btnLeave.onclick     = () => endCall('You left');
-  if (store.refs.btnMute)      store.refs.btnMute.onclick      = toggleMute;
 
   // Profile + account wiring
   wireProfileAndAccount();

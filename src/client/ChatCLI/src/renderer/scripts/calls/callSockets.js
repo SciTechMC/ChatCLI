@@ -44,7 +44,7 @@ function flushQueue() {
 
 /** Ensure the call WS is OPEN (returns after 'open') */
 export async function ensureCallWSOpen() {
-  console.log('[CALL] Ensuring WebSocket connection...');
+  console.log('[CALL] Ensuring WebSocket connection.');
   if (store.call.callWS?.readyState === WebSocket.OPEN) {
     console.log('[CALL] WebSocket already open');
     return;
@@ -112,40 +112,43 @@ export function connectCallWS() {
     const msg = JSON.parse(ev.data);
     console.log('[CALL] Received signal:', msg.type, msg);
 
+    // Someone started a call in this chat — prompt to join if you're not in-call yet
     if (msg.type === 'call-started' && !store.call.inCall) {
       console.log('[CALL] New call started by:', msg.from);
-      store.refs?.btnJoinCall && (store.refs.btnJoinCall.disabled = false);
       setStatus(`${msg.from || 'Peer'} started a call — click Join`, 'ok');
+      window.dispatchEvent(new Event('call:incoming'));
       return;
     }
 
+    // Caller sends an SDP offer
     if (msg.type === 'offer') {
       console.log('[CALL] Received offer, joining armed:', store.call.joiningArmed);
       if (!store.call.joiningArmed) {
         console.log('[CALL] Storing pending offer');
         store.call.pendingOffer = msg.sdp;
-        store.refs?.btnJoinCall && (store.refs.btnJoinCall.disabled = false);
         setStatus('Incoming call — click Join', 'ok');
+        window.dispatchEvent(new Event('call:incoming'));
         return;
       }
       await setRemoteOffer(msg.sdp);
       console.log('[CALL] Set remote offer and enabled controls');
       store.call.inCall = true;
-      store.refs?.btnLeave && (store.refs.btnLeave.disabled = false);
-      store.refs?.btnMute  && (store.refs.btnMute.disabled  = false);
+      window.dispatchEvent(new Event('call:started'));
       return;
     }
 
+    // Callee answers with SDP answer
     if (msg.type === 'answer') {
       console.log('[CALL] Received answer, signaling state:', store.call.pc?.signalingState);
       if (store.call.pc && store.call.pc.signalingState === 'have-local-offer') {
         await setRemoteAnswer(msg.sdp);
         console.log('[CALL] Set remote answer');
-        store.refs?.btnMute && (store.refs.btnMute.disabled = false);
+        window.dispatchEvent(new Event('call:answer'));
       }
       return;
     }
 
+    // ICE
     if (msg.type === 'ice-candidate' && store.call.pc && msg.candidate) {
       console.log('[CALL] Received ICE candidate:', msg.candidate.candidate);
       try {
@@ -157,9 +160,11 @@ export function connectCallWS() {
       return;
     }
 
+    // Peer left
     if (msg.type === 'leave') {
       console.log('[CALL] Peer left the call');
       endCall('Peer left');
+      // endCall will dispatch 'call:ended'
       return;
     }
   };

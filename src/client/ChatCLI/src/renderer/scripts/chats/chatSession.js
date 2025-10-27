@@ -82,9 +82,12 @@ export async function selectChat(chatID) {
   // Normalize once
   const targetId = chatID == null ? null : parseInt(chatID, 10);
 
-  // No chat selected → show welcome / hide composer
+  // No chat selected → show welcome / hide composer/header and notify listeners
   if (!targetId) {
     store.currentChatID = null;
+    store.currentChat = null;
+    store.currentChatIsPrivate = false;
+
     messagesEl.innerHTML = '';
     const welcomeMessage = document.createElement('div');
     welcomeMessage.id = 'no-chat-selected';
@@ -95,23 +98,24 @@ export async function selectChat(chatID) {
       </div>
     `;
     messagesEl.appendChild(welcomeMessage);
+
     document.querySelector('.chat-input').classList.add('hidden');
     document.querySelector('.chat-header').style.display = 'none';
     if (editMembersBtn) editMembersBtn.style.display = 'none';
+
+    // let the rest of the app know
+    window.dispatchEvent(new CustomEvent('chat:selected', {
+      detail: { chatID: null, type: null }
+    }));
     return;
   }
 
-  // Already on this chat? Do nothing (prevents WS spam & reloading)
+  // Already on this chat? keep UX snappy and bail
   if (store.currentChatID === targetId) {
     store.refs.messageInput?.focus();
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return;
   }
-
-  // Prep call buttons
-  if (store.refs.btnStartCall) store.refs.btnStartCall.disabled = !targetId;
-  if (store.refs.btnLeave)     store.refs.btnLeave.disabled     = true;
-  if (store.refs.btnMute)      store.refs.btnMute.disabled      = true;
 
   // Find the clicked chat item
   const chatItem = store.refs.chatListEl.querySelector(`[data-chat-id="${targetId}"]`);
@@ -120,17 +124,15 @@ export async function selectChat(chatID) {
     return;
   }
 
+  // Derive name & type from the list item
   const name = chatItem.dataset.username || 'Unknown Chat';
-  const type = chatItem.dataset.type || 'private';
+  const type = chatItem.dataset.type || 'private'; // 'private' | 'group'
+  const isGroup = type === 'group';
 
   // Show header + composer
   document.querySelector('.chat-header').style.display = 'flex';
   chatTitle.textContent = name;
-  if (type === 'group' && editMembersBtn) {
-    editMembersBtn.style.display = 'block';
-  } else if (editMembersBtn) {
-    editMembersBtn.style.display = 'none';
-  }
+  if (editMembersBtn) editMembersBtn.style.display = isGroup ? 'block' : 'none';
   document.querySelector('.chat-input').classList.remove('hidden');
   store.refs.typingIndicator.style.display = 'none';
 
@@ -146,11 +148,14 @@ export async function selectChat(chatID) {
 
   // Join new chat
   store.currentChatID = targetId;
+  store.currentChat   = { id: targetId, type };
+  store.currentChatIsPrivate = !isGroup;
+
   messagesEl.innerHTML = '';
   chatSend({ type: 'join_chat', chatID: targetId });
 
   // Group extras
-  if (type === 'group') {
+  if (isGroup) {
     loadGroupMembers(targetId);
     if (editMembersBtn) editMembersBtn.style.display = 'block';
   } else if (editMembersBtn) {
@@ -175,11 +180,13 @@ export async function selectChat(chatID) {
     el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === targetId);
   });
 
-  // Ensure call signaling WS is up only when logged in and a chat is open
-  if (store.currentChatID && store.username) {
-    connectCallWS();
-  }
+  // ✅ Tell main.js the selection changed (it will show/hide the call button
+  // and connect the call WebSocket if this is a private chat)
+  window.dispatchEvent(new CustomEvent('chat:selected', {
+    detail: { chatID: targetId, type }
+  }));
 }
+
 
 export function appendMessage({ username: msgUser, message, timestamp }) {
   const { messagesEl } = store.refs;
