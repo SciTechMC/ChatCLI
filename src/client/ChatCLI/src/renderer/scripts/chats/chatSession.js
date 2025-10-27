@@ -54,11 +54,13 @@ export function updateSendButtonState() {
 }
 
 export async function selectChat(chatID) {
-  const {
-    messagesEl, chatTitle, editMembersBtn
-  } = store.refs;
+  const { messagesEl, chatTitle, editMembersBtn } = store.refs;
 
-  if (!chatID) {
+  // Normalize once
+  const targetId = chatID == null ? null : parseInt(chatID, 10);
+
+  // No chat selected → show welcome / hide composer
+  if (!targetId) {
     store.currentChatID = null;
     messagesEl.innerHTML = '';
     const welcomeMessage = document.createElement('div');
@@ -76,13 +78,20 @@ export async function selectChat(chatID) {
     return;
   }
 
-  chatID = parseInt(chatID, 10);
+  // Already on this chat? Do nothing (prevents WS spam & reloading)
+  if (store.currentChatID === targetId) {
+    store.refs.messageInput?.focus();
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return;
+  }
 
-  if (store.refs.btnStartCall) store.refs.btnStartCall.disabled = !chatID;
+  // Prep call buttons
+  if (store.refs.btnStartCall) store.refs.btnStartCall.disabled = !targetId;
   if (store.refs.btnLeave)     store.refs.btnLeave.disabled     = true;
   if (store.refs.btnMute)      store.refs.btnMute.disabled      = true;
 
-  const chatItem = store.refs.chatListEl.querySelector(`[data-chat-id="${chatID}"]`);
+  // Find the clicked chat item
+  const chatItem = store.refs.chatListEl.querySelector(`[data-chat-id="${targetId}"]`);
   if (!chatItem) {
     console.error('Chat item not found');
     return;
@@ -91,12 +100,13 @@ export async function selectChat(chatID) {
   const name = chatItem.dataset.username || 'Unknown Chat';
   const type = chatItem.dataset.type || 'private';
 
+  // Show header + composer
   document.querySelector('.chat-header').style.display = 'flex';
-  store.refs.chatTitle.textContent = name;
-  if (type === 'group' && store.refs.editMembersBtn) {
-    store.refs.editMembersBtn.style.display = 'block';
-  } else if (store.refs.editMembersBtn) {
-    store.refs.editMembersBtn.style.display = 'none';
+  chatTitle.textContent = name;
+  if (type === 'group' && editMembersBtn) {
+    editMembersBtn.style.display = 'block';
+  } else if (editMembersBtn) {
+    editMembersBtn.style.display = 'none';
   }
   document.querySelector('.chat-input').classList.remove('hidden');
   store.refs.typingIndicator.style.display = 'none';
@@ -106,26 +116,28 @@ export async function selectChat(chatID) {
   store.typingTimeouts.forEach(timeout => clearTimeout(timeout));
   store.typingTimeouts.clear();
 
-  // leave previous chat
+  // Leave previous chat (only when switching)
   if (store.currentChatID != null) {
     chatSend({ type: 'leave_chat', chatID: store.currentChatID });
   }
 
-  store.currentChatID = chatID;
-  store.refs.messagesEl.innerHTML = '';
+  // Join new chat
+  store.currentChatID = targetId;
+  messagesEl.innerHTML = '';
+  chatSend({ type: 'join_chat', chatID: targetId });
 
-  chatSend({ type: 'join_chat', chatID });
-
+  // Group extras
   if (type === 'group') {
-    loadGroupMembers(chatID);
-    if (store.refs.editMembersBtn) store.refs.editMembersBtn.style.display = 'block';
-  } else if (store.refs.editMembersBtn) {
-    store.refs.editMembersBtn.style.display = 'none';
+    loadGroupMembers(targetId);
+    if (editMembersBtn) editMembersBtn.style.display = 'block';
+  } else if (editMembersBtn) {
+    editMembersBtn.style.display = 'none';
   }
 
+  // Load history
   try {
     const history = await apiRequest('/chat/messages', {
-      body: JSON.stringify({ session_token: store.token, chatID })
+      body: JSON.stringify({ session_token: store.token, chatID: targetId })
     });
     if (Array.isArray(history?.messages)) {
       history.messages.forEach(appendMessage);
@@ -135,12 +147,14 @@ export async function selectChat(chatID) {
     showToast('Failed to load message history: ' + (err.message || 'Unknown error'), 'error');
   }
 
+  // Mark active in list
   document.querySelectorAll('.chat-item').forEach(el => {
-    el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === chatID);
+    el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === targetId);
   });
 
+  // Ensure call signaling WS is up only when logged in and a chat is open
   if (store.currentChatID && store.username) {
-    connectCallWS(); // signaling WS for calls
+    connectCallWS();
   }
 }
 
