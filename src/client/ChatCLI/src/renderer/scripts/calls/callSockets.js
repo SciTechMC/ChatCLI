@@ -164,7 +164,6 @@ export function connectCallWS() {
     if (msg.type === 'leave') {
       console.log('[CALL] Peer left the call');
       endCall('Peer left');
-      // endCall will dispatch 'call:ended'
       return;
     }
   };
