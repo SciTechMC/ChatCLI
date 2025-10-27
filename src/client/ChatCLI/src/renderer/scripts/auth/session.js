@@ -7,7 +7,7 @@ import { loadChats } from '../chats/chatList.js';
 export async function autoLoginOrRedirect() {
   store.username = await window.secureStore.get('username');
   if (!store.username) {
-    window.location.href = 'login.html';
+    window.location.href = 'index.html';
     return false;
   }
   try {
@@ -152,7 +152,7 @@ export function wireProfileAndAccount() {
       await window.secureStore.delete('refresh_token');
       await window.secureStore.delete('username');
       await window.secureStore.delete('email');
-      setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      setTimeout(() => { window.location.href = 'index.html'; }, 1000);
     } catch (err) {
       showToast(err.message || 'Password change failed', 'error');
     }
@@ -176,7 +176,7 @@ export function wireProfileAndAccount() {
         } catch (e2) {
           console.warn('Local logout cleanup error:', e2);
         }
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
       }
     });
   }

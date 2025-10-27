@@ -1,11 +1,86 @@
-// renderer.js
+// common.js
 document.addEventListener('DOMContentLoaded', async () => {
-  const statusEl = document.getElementById('server-status');
+  /* =========================
+   *  Overlay / Modal helpers
+   * ========================= */
+  const overlays = {
+    welcome:  document.getElementById('welcome-overlay'),
+    login:    document.getElementById('login-overlay'),
+    register: document.getElementById('register-overlay'),
+    verify:   document.getElementById('verify-overlay'),
+    reset:    document.getElementById('reset-overlay'),
+  };
+
+  function showOverlay(name) {
+    Object.entries(overlays).forEach(([k, el]) => {
+      if (!el) return;
+      el.hidden = (k !== name);
+    });
+    if (name) {
+      if (name === 'welcome') {
+        const params = location.search ? location.search : '';
+        history.replaceState(null, '', `${params || ' '}`);
+      } else {
+        const params = location.search ? location.search : '';
+        history.replaceState(null, '', `${params}#${name}`);
+      }
+    }
+    if (name === 'verify') updateVerifyUsernameLabel();
+    // when switching modals, re-run gating on visible form
+    requestAnimationFrame(() => refreshAllGates());
+  }
+
+  const openLoginBtn        = document.getElementById('open-login');
+  const backToWelcomeBtn    = document.getElementById('back-to-welcome');
+  const openRegisterBtn     = document.getElementById('open-register');
+  const backFromRegisterBtn = document.getElementById('back-to-welcome-from-register');
+  const backFromVerifyBtn   = document.getElementById('back-to-welcome-from-verify');
+  const openResetBtn        = document.getElementById('open-reset');
+  const backFromResetBtn    = document.getElementById('back-to-login-from-reset');
+
+  openLoginBtn?.addEventListener('click', () => showOverlay('login'));
+  backToWelcomeBtn?.addEventListener('click', () => showOverlay('welcome'));
+  openRegisterBtn?.addEventListener('click', () => showOverlay('register'));
+  backFromRegisterBtn?.addEventListener('click', () => showOverlay('welcome'));
+  backFromVerifyBtn?.addEventListener('click', () => showOverlay('welcome'));
+  openResetBtn?.addEventListener('click', () => showOverlay('reset'));
+  backFromResetBtn?.addEventListener('click', () => showOverlay('login'));
+
+  const initialTarget = (location.hash || '').replace('#','');
+  if (initialTarget && overlays[initialTarget]) showOverlay(initialTarget);
+  else showOverlay('welcome');
+
+  window.addEventListener('hashchange', () => {
+    const target = (location.hash || '').replace('#','');
+    if (target && overlays[target]) showOverlay(target);
+  });
+
+  // URL param helpers for verify
+  function getUsernameFromParams() {
+    const params = new URLSearchParams(location.search);
+    return params.get('username') || '';
+  }
+  function setUsernameParam(username) {
+    const params = new URLSearchParams(location.search);
+    if (username) params.set('username', username);
+    else params.delete('username');
+    const hash = location.hash || '';
+    history.replaceState(null, '', `?${params.toString()}${hash}`);
+  }
+  function updateVerifyUsernameLabel() {
+    const el = document.getElementById('verify-username-label');
+    if (!el) return;
+    const name = getUsernameFromParams();
+    el.textContent = name ? name : 'your account';
+  }
+
+  /* =========================
+   *  Online / Offline + status
+   * ========================= */
   const retryBtn = document.getElementById('retry-btn');
   let online = false;
   const CHECK_INTERVAL = 10_000;
 
-  // access token: memory only
   let accessToken = null;
   function setAccess(token) {
     accessToken = token;
@@ -13,35 +88,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.api.setAccessToken(token);
     }
   }
-  function clearAccess() {
-    setAccess(null);
-  }
+  function clearAccess() { setAccess(null); }
 
   function disableButtons() {
-    document.querySelectorAll('[data-requires-online]')
-      .forEach(btn => btn.disabled = true);
+    document.querySelectorAll('[data-requires-online]').forEach(btn => btn.disabled = true);
     window.dispatchEvent(new CustomEvent('online-status-changed', { detail: false }));
   }
-
   function enableButtons() {
-    document.querySelectorAll('[data-requires-online]')
-      .forEach(btn => btn.disabled = false);
+    document.querySelectorAll('[data-requires-online]').forEach(btn => btn.disabled = false);
     window.dispatchEvent(new CustomEvent('online-status-changed', { detail: true }));
   }
 
-  function setServerStatus(online, msg) {
-    const statusEl = document.getElementById('server-status');
-    if (!statusEl) return;
-
-    const spinner = statusEl.querySelector('.spinner');
-    if (spinner) spinner.style.display = online ? 'none' : 'inline-block';
-
-    statusEl.classList.toggle('status-online', online);
-    statusEl.classList.toggle('status-offline', !online);
-    statusEl.querySelector('.status-text').textContent = msg;
+  function setServerStatus(isOnline, msg) {
+    const statusTextEl = document.querySelector('.status-text');
+    if (!statusTextEl) return;
+    const dotEl = document.querySelector('.dot');
+    if (dotEl) {
+      dotEl.style.background = isOnline ? 'var(--accent)' : 'gray';
+      dotEl.style.boxShadow = isOnline
+        ? '0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent)'
+        : 'none';
+    }
+    statusTextEl.textContent = msg;
   }
 
-  // run ONLY after server is online so we don't block UI
   async function tryAutoLoginIfNeeded() {
     if (accessToken) return;
     if (!window.secureStore) return;
@@ -50,14 +120,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!window.auth || typeof window.auth.refresh !== 'function') return;
 
     try {
-      const res = await window.auth.refresh(accountId); // expected { ok, access_token }
+      const res = await window.auth.refresh(accountId); // { ok, access_token }
       if (res && res.ok && res.access_token) {
         setAccess(res.access_token);
         setTimeout(() => { location.href = 'main.html'; }, 200);
       }
-    } catch {
-      // ignore; user will see login UI as usual
-    }
+    } catch { /* ignore */ }
   }
 
   async function checkServer() {
@@ -69,7 +137,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         online = true;
         setServerStatus(true, 'Server is online');
         enableButtons();
-        // now that we're online, try silent refresh (non-blocking)
         tryAutoLoginIfNeeded();
       } else {
         const errMsg = data && (data.message || data.error) || 'Unknown error';
@@ -79,39 +146,118 @@ document.addEventListener('DOMContentLoaded', async () => {
       online = false;
       setServerStatus(false, `Offline: ${err.message}`);
       disableButtons();
+    } finally {
+      refreshAllGates();
     }
   }
 
   retryBtn?.addEventListener('click', checkServer);
   setInterval(() => { if (!online) checkServer(); }, CHECK_INTERVAL);
-  checkServer(); // unchanged: first check happens immediately
+  checkServer();
 
-  const loginBtn    = document.getElementById('login-btn');
-  const registerBtn = document.getElementById('register-btn');
-  loginBtn?.addEventListener('click', () => location.href = 'login.html');
-  registerBtn?.addEventListener('click', () => location.href = 'register.html');
+  /* =========================
+   *  FORM GATING (core)
+   *  Disable submit buttons unless: online && form.valid && extraRules()
+   * ========================= */
+  const gates = []; // each: { form, button, extra }
 
+  // --- Password rule validator (Register only) ---
+  function passwordStrongEnough(password) {
+    // At least one lowercase, one uppercase, one number, one special char, and 8+ chars total
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    return regex.test(password);
+  }
+
+  function bindFormGate(form, submitButton, extraValidator = null, disableOnInvalid = true) {
+    // track "touched" and "tried submit" states
+    if (!form.__state) form.__state = { tried: false };
+    const state = form.__state;
+  
+    // mark invalid fields only if user tried submit or the field was touched
+    function markInvalidFields() {
+      const inputs = form.querySelectorAll('input, textarea, select');
+      for (const input of inputs) {
+        const touched = input.dataset.touched === '1';
+        const valid = input.checkValidity();
+        if ((state.tried || touched) && !valid) input.classList.add('invalid');
+        else input.classList.remove('invalid');
+      }
+    }
+  
+    const compute = () => {
+      const isVisible = form.closest('.overlay')?.hidden === false;
+      const baseValid = form.checkValidity();
+      const extraOk   = extraValidator ? extraValidator() : true;
+  
+      // gating behavior
+      const ok = baseValid && extraOk;
+      const shouldDisable =
+        !online || !isVisible || (disableOnInvalid && !ok);
+  
+      submitButton.disabled = shouldDisable;
+  
+      // only mark red *after* attempt or when fields are touched (not immediately on open)
+      if (isVisible) markInvalidFields();
+    };
+  
+    // mark an input as "touched" on blur or input
+    form.addEventListener('blur', (e) => {
+      if (e.target.matches('input, textarea, select')) {
+        e.target.dataset.touched = '1';
+        compute();
+      }
+    }, true);
+    form.addEventListener('input', compute, true);
+    form.addEventListener('change', compute, true);
+  
+    // when server status changes
+    window.addEventListener('online-status-changed', compute);
+  
+    // intercept submit to show errors if invalid
+    form.addEventListener('submit', (e) => {
+      const baseValid = form.checkValidity();
+      const extraOk   = extraValidator ? extraValidator() : true;
+      if (!baseValid || !extraOk) {
+        state.tried = true;     // now we can show red borders everywhere
+        e.preventDefault();     // block submission
+        compute();
+        // optional: toast
+        showToast('Please fill all required fields correctly.', 'error');
+      }
+    }, true);
+  
+    gates.push({ form, button: submitButton, extra: extraValidator, compute, disableOnInvalid });
+    compute();
+  }
+  
+  function refreshAllGates() { gates.forEach(g => g.compute()); }
+  
+
+  /* =========================
+   *  AUTH: Login
+   * ========================= */
   const loginForm = document.getElementById('login-form');
   if (loginForm) {
-    const loginBtn = document.getElementById('login-submit');
-    window.addEventListener('online-status-changed', ({ detail }) => {
-      loginBtn.disabled = !detail;
-    });
+    const loginSubmitBtn = document.getElementById('login-submit');
+
+
+    // gate: requires username + password (HTML already has required/minlength)
+    bindFormGate(loginForm, loginSubmitBtn, null, /* disableOnInvalid= */ false);
 
     loginForm.addEventListener('submit', async e => {
       e.preventDefault();
-      loginBtn.disabled = true;
-      loginBtn.textContent = 'Logging in…';
+      if (loginSubmitBtn.disabled) return;
+
+      loginSubmitBtn.disabled = true;
+      loginSubmitBtn.textContent = 'Logging in…';
 
       try {
         const username = loginForm.username.value.trim();
         const password = loginForm.password.value;
         const res = await window.api.login({ username, password });
 
-        // keep access in memory only
         setAccess(res.access_token);
 
-        // store refresh in OS keychain via main; persist only the username
         if (window.auth && typeof window.auth.storeRefresh === 'function') {
           await window.auth.storeRefresh(username, res.refresh_token);
         }
@@ -123,84 +269,194 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(() => location.href = 'main.html', 1000);
       } catch (err) {
         showToast('Login failed: ' + (err.message || 'Unknown error'), 'error');
-        loginBtn.disabled = false;
-        loginBtn.textContent = 'Log In';
+        loginSubmitBtn.textContent = 'Log In';
+      } finally {
+        refreshAllGates();
       }
     });
   }
 
-  const registerForm = document.getElementById('register-form');
-  if (registerForm) {
-    const registerBtn = document.getElementById('register-submit');
-    window.addEventListener('online-status-changed', ({ detail }) => {
-      registerBtn.disabled = !detail;
-    });
+/* =========================
+ *  AUTH: Register
+ * ========================= */
+const registerForm = document.getElementById('register-form');
+if (registerForm) {
+  const registerSubmitBtn = document.getElementById('register-submit');
 
-    registerForm.addEventListener('submit', async e => {
-      e.preventDefault();
-      registerBtn.disabled = true;
-      registerBtn.textContent = 'Registering…';
-    
-      try {
-        const username = registerForm.username.value.trim();
-        const email = registerForm.email.value.trim();
-        const password = registerForm.password.value;
-    
-        await window.api.register({ username, email, password });
-    
-        showToast('Account created! Redirecting to verification…', 'info');
-        setTimeout(() => {
-          location.href = `verify.html?username=${encodeURIComponent(username)}`;
-        }, 1000);
-      } catch (err) {
-        showToast('Registration failed: ' + (err.message || 'Unknown error'), 'error');
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Register';
-      }
-    });
+  // Elements that may or may not exist (guard everything)
+  const infoBtn     = registerForm.querySelector('.info[data-for="password"]');
+  const ruleUpper   = registerForm.querySelector('.tooltip .rules [data-rule="upper"]');
+  const ruleLower   = registerForm.querySelector('.tooltip .rules [data-rule="lower"]');
+  const ruleNumber  = registerForm.querySelector('.tooltip .rules [data-rule="number"]');
+  const ruleSpecial = registerForm.querySelector('.tooltip .rules [data-rule="special"]');
+  const ruleLength  = registerForm.querySelector('.tooltip .rules [data-rule="length"]');
+
+  // Helper: overall password rules
+  function passwordStrongEnough(pwd) {
+    return /[A-Z]/.test(pwd) &&
+           /[a-z]/.test(pwd) &&
+           /\d/.test(pwd) &&
+           /[^A-Za-z0-9]/.test(pwd) &&
+           pwd.length >= 8;
   }
 
-  (() => {
-    const verifyForm = document.getElementById('verify-form');
-    if (!verifyForm) return;
+  // Gate function for register (rules + confirm match)
+  const passwordRulesOk = () => {
+    const p  = registerForm.password?.value ?? '';
+    const cp = registerForm.confirm?.value ?? '';
+    return passwordStrongEnough(p) && p === cp;
+  };
 
-    const params = new URLSearchParams(window.location.search);
-    const username = params.get('username');
-    if (username) {
-      const userInfo = document.createElement('p');
-      userInfo.textContent = `Verifying account for: ${username}`;
-      userInfo.className = 'user-info';
-      verifyForm.insertBefore(userInfo, verifyForm.firstChild);
+  // If you’re using bindFormGate, keep this (disableOnInvalid=false so users can click then see errors)
+  if (typeof bindFormGate === 'function') {
+    bindFormGate(registerForm, registerSubmitBtn, passwordRulesOk, /* disableOnInvalid */ false);
+  }
+
+  function updatePwdRulesVisuals(pwd) {
+    const rules = {
+      upper:   /[A-Z]/.test(pwd),
+      lower:   /[a-z]/.test(pwd),
+      number:  /\d/.test(pwd),
+      special: /[^A-Za-z0-9]/.test(pwd),
+      length:  pwd.length >= 8,
+    };
+
+    // Toggle each rule row + symbol safely
+    ([
+      ruleUpper   && [ruleUpper,   rules.upper],
+      ruleLower   && [ruleLower,   rules.lower],
+      ruleNumber  && [ruleNumber,  rules.number],
+      ruleSpecial && [ruleSpecial, rules.special],
+      ruleLength  && [ruleLength,  rules.length],
+    ].filter(Boolean)).forEach(([el, pass]) => {
+      el.classList.toggle('ok',  pass);
+      el.classList.toggle('bad', !pass && pwd.length > 0);
+      const sym = el.querySelector('.symbol');
+      if (sym) sym.textContent = pass ? '✓' : '✗';
+    });
+
+    // Tint the ⓘ icon overall (if present)
+    const strong = Object.values(rules).every(Boolean);
+    if (infoBtn) {
+      infoBtn.classList.toggle('valid',  strong && pwd.length > 0);
+      infoBtn.classList.toggle('invalid', !strong && pwd.length > 0);
     }
+  }
+
+  // Live update rules as user types
+  registerForm.password?.addEventListener('input', () => {
+    updatePwdRulesVisuals(registerForm.password.value);
+    if (typeof refreshAllGates === 'function') refreshAllGates();
+  });
+
+  // Run once (covers autofill)
+  try { updatePwdRulesVisuals(registerForm.password?.value || ''); } catch {}
+
+  // (Optional) Confirm must exactly match to clear red
+  const confirmInput  = registerForm.querySelector('input[name="confirm"]');
+  const passwordInput = registerForm.querySelector('input[name="password"]');
+  function updateConfirmMatchVisual() {
+    if (!confirmInput || !passwordInput) return;
+    const same = passwordInput.value === confirmInput.value && confirmInput.value !== '';
+    if (same) confirmInput.classList.remove('invalid');
+    else if (registerForm.__state?.tried || confirmInput.dataset.touched === '1') {
+      confirmInput.classList.add('invalid');
+    }
+  }
+  confirmInput?.addEventListener('input', updateConfirmMatchVisual);
+  confirmInput?.addEventListener('blur', () => {
+    confirmInput.dataset.touched = '1';
+    updateConfirmMatchVisual();
+  });
+  passwordInput?.addEventListener('input', updateConfirmMatchVisual);
+
+  // Submit
+  registerForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (registerSubmitBtn.disabled) return;
+
+    registerSubmitBtn.disabled = true;
+    registerSubmitBtn.textContent = 'Registering…';
+
+    try {
+      const username = registerForm.username.value.trim();
+      const email    = registerForm.email.value.trim();
+      const password = registerForm.password.value;
+
+      await window.api.register({ username, email, password });
+
+      setUsernameParam(username);
+      showOverlay('verify'); // open inline verify modal
+      showToast('Account created! Enter your 6-digit code to verify.', 'info');
+      registerForm.reset();
+      try { updatePwdRulesVisuals(''); } catch {}
+      updateConfirmMatchVisual();
+    } catch (err) {
+      showToast('Registration failed: ' + (err.message || 'Unknown error'), 'error');
+      registerSubmitBtn.textContent = 'Register';
+    } finally {
+      if (typeof refreshAllGates === 'function') refreshAllGates();
+    }
+  });
+}
+
+  /* =========================
+   *  AUTH: Verify (6-digit)
+   * ========================= */
+  const verifyForm = document.getElementById('verify-form');
+  if (verifyForm) {
+    const verifySubmitBtn = document.getElementById('verify-submit');
+
+    const verifyCodeOk = () => /^\d{6}$/.test((verifyForm.token.value || '').trim());
+
+    bindFormGate(verifyForm, verifySubmitBtn, verifyCodeOk, /* disableOnInvalid= */ false);
 
     verifyForm.addEventListener('submit', async e => {
       e.preventDefault();
-      const btn = verifyForm.querySelector('button');
-      btn.disabled = true;
-      btn.textContent = 'Verifying…';
+      if (verifySubmitBtn.disabled) return;
 
-      const email_token = document.getElementById('token').value.trim();
+      verifySubmitBtn.disabled = true;
+      verifySubmitBtn.textContent = 'Verifying…';
+
+      const username    = getUsernameFromParams();
+      const email_token = (verifyForm.token.value || '').trim();
+
+      if (!username) {
+        showToast('Missing username for verification. Please register again.', 'error');
+        verifySubmitBtn.textContent = 'Verify';
+        refreshAllGates();
+        return;
+      }
+
       try {
         await window.api.verifyEmail({ username, email_token });
-        showToast('Email verified! Redirecting to login…', 'info');
-        setTimeout(() => location.href = 'login.html', 1200);
+        showToast('Email verified! You can log in now.', 'info');
+        verifyForm.reset();
+        setUsernameParam('');
+        showOverlay('login');
       } catch (err) {
         showToast('Verification failed: ' + (err.message || 'Server error'), 'error');
-        btn.disabled = false;
-        btn.textContent = 'Verify';
+        verifySubmitBtn.textContent = 'Verify';
+      } finally {
+        refreshAllGates();
       }
     });
-  })();
+  }
 
+  /* =========================
+   *  Reset password request
+   * ========================= */
   const resetForm = document.getElementById('reset-password-form');
   if (resetForm) {
     const resetBtn = document.getElementById('reset-password-submit');
-    window.addEventListener('online-status-changed', ({ detail }) => {
-      resetBtn.disabled = !detail;
-    });
+
+    // gate: username required (HTML has required)
+    bindFormGate(resetForm, resetBtn, null, /* disableOnInvalid= */ false);
 
     resetForm.addEventListener('submit', async e => {
       e.preventDefault();
+      if (resetBtn.disabled) return;
+
       resetBtn.disabled = true;
       resetBtn.textContent = 'Sending…';
 
@@ -209,27 +465,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         await window.api.request('/user/reset-password-request', {
           body: JSON.stringify({ username })
         });
-        showToast('If the username exists, a reset link has been sent. Please check your inbox.', 'info');
+        showToast('If the username exists, a reset link has been sent. Check your email.', 'info');
+        setTimeout(() => showOverlay('login'), 800);
+        resetForm.reset();
       } catch (err) {
         showToast('Reset failed: ' + (err.message || 'Unknown error'), 'error');
-        resetBtn.disabled = false;
         resetBtn.textContent = 'Send reset email';
+      } finally {
+        refreshAllGates();
       }
     });
   }
 });
 
-/* Toast-only messaging (no status divs) */
+/* =========================
+ *  Eye toggle for passwords
+ * ========================= */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-toggle-password]');
+  if (!btn) return;
+  const input = btn.parentElement.querySelector('input[type="password"], input[type="text"]');
+  if (!input) return;
+  const nextType = input.type === 'password' ? 'text' : 'password';
+  input.type = nextType;
+  btn.setAttribute('aria-label', nextType === 'password' ? 'Show password' : 'Hide password');
+});
+
+/* =========================
+ *  Toasts (no-op if container absent)
+ * ========================= */
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
   if (!container) return;
-
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.textContent = message;
-
   container.appendChild(toast);
-
   setTimeout(() => {
     toast.style.animation = 'fadeOut 0.3s ease-in';
     toast.addEventListener('animationend', () => toast.remove());
