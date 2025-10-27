@@ -205,7 +205,7 @@ body {
 .chat-item {
   display: flex; align-items: center; padding: 8px 16px;
   cursor: pointer; transition: background .2s ease, border-color .16s ease;
-  border-radius: 10px; margin: 0 8px;
+  border-radius: 10px; margin: 0 8px; margin-bottom: 6px;
   border: 1px solid transparent;
 }
 .chat-item:hover { background: var(--message-hover); border-color: var(--glass-border); }
