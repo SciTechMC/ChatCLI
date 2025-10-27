@@ -28,13 +28,16 @@ export function createPC() {
 
   // Connection lifecycle
   pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') setStatus('Connected ✅', 'ok');
+    if (pc.connectionState === 'connected') {
+      setStatus('Connected ✅', 'ok');
+      window.dispatchEvent(new Event('call:connected'));
+    }
     if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
       setStatus('Call ended / issue', 'warn');
-      // Let UI know if we drop unexpectedly
       window.dispatchEvent(new Event('call:ended'));
     }
   };
+  
 
   store.call.pc = pc;
   return pc;

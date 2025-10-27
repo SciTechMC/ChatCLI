@@ -17,6 +17,8 @@ import { loadGroupMembers } from './chats/groupService.js';
 
 import { connectCallWS } from './calls/callSockets.js';
 import { startCall, joinCall, endCall, toggleMute } from './calls/rtc.js';
+import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
+
 
 // --- events from ws
 window.addEventListener('chat:new-message', onWSNewMessage);
@@ -85,8 +87,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     // calls UI
     statusEl: document.getElementById('status'),
     btnCallPrimary: document.getElementById('btnCallPrimary'),
-    remoteAudio: document.getElementById('remoteAudio')
+    remoteAudio: document.getElementById('remoteAudio'),
+    btnMute: document.getElementById('btnMute'),
+    muteIconUse: document.getElementById('muteIconUse'),
   };
+
+  const SWITCH_CALL_ACTION = 'disable';
+
+  store.callState = 'idle';
+  store.callActiveChatID = null;
+
+  store.refs.btnMute?.addEventListener('click', async () => {
+    try {
+      await toggleMute(); // uses your existing helper
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
+  function updateMuteButton() {
+    const muteBtn = store.refs.btnMute;
+    if (!muteBtn) return;
+    const inSameChatAsCall = store.callActiveChatID && store.currentChatID === store.callActiveChatID;
+    const shouldShow = store.callState === 'in-call' && inSameChatAsCall;
+    muteBtn.style.display = shouldShow ? 'inline-flex' : 'none';
+  }
+
+  function updateCallButton() {
+    const btn = store.refs.btnCallPrimary;
+    if (!btn) return;
+    const iconUse = btn.querySelector('use');
+    btn.dataset.state = store.callState;
+
+    const isPrivate = store.currentChat?.type === 'private' || store.currentChatIsPrivate === true;
+    setCallButtonVisible(!!store.currentChatID && isPrivate);
+
+    // If we’re in-call in another chat, optionally disable this button.
+    const inOtherChat = store.callState === 'in-call' && store.callActiveChatID && store.currentChatID !== store.callActiveChatID;
+    if (inOtherChat && SWITCH_CALL_ACTION === 'disable') {
+      btn.disabled = true;
+      btn.title = 'Already in a call — end it in its chat first';
+    } else {
+      btn.disabled = !store.currentChatID || !isPrivate;
+      btn.title = '';
+    }
+
+    if (store.callState === 'idle') {
+      iconUse.setAttribute('href', '#icon-phone');
+      btn.setAttribute('aria-label', 'Start call');
+    } else if (store.callState === 'incoming') {
+      iconUse.setAttribute('href', '#icon-phone');
+      btn.setAttribute('aria-label', 'Join call');
+    } else {
+      iconUse.setAttribute('href', '#icon-phone-off');
+      btn.setAttribute('aria-label', 'Leave call');
+    }
+
+    updateMuteButton();
+  }
+
 
   // === Call UI state & helpers ===
   store.callState = 'idle'; // 'idle' | 'incoming' | 'in-call'
@@ -125,19 +184,39 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Single icon-only call button = three actions
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
     try {
+      const inOtherChat = store.callState === 'in-call' && store.callActiveChatID && store.currentChatID !== store.callActiveChatID;
+  
       if (store.callState === 'idle') {
-        // ensure signaling for this chat
         await connectCallWS();
         await startCall();
         store.callState = 'in-call';
-        // status text is handled in your modules already
+        store.callActiveChatID = store.currentChatID;
+        playRingback(); // start ringback immediately
       } else if (store.callState === 'incoming') {
         await connectCallWS();
         await joinCall();
         store.callState = 'in-call';
+        store.callActiveChatID = store.currentChatID;
+        // joining: ringback will stop on 'call:connected'
       } else {
+        // in-call -> leave
         await endCall('You left');
         store.callState = 'idle';
+        store.callActiveChatID = null;
+        stopRingback();
+        stopRingtone();
+      }
+  
+      // Handle cross-chat action if user clicks while in another chat
+      if (inOtherChat && SWITCH_CALL_ACTION === 'end-and-call') {
+        await endCall('Switching call');
+        store.callState = 'idle';
+        // immediately place new call in this chat
+        await connectCallWS();
+        await startCall();
+        store.callState = 'in-call';
+        store.callActiveChatID = store.currentChatID;
+        playRingback();
       }
     } catch (err) {
       console.error('[CALL] click handler error:', err);
@@ -145,11 +224,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       updateCallButton();
     }
   });
+  
 
   // React to signaling events from callSockets/rtc
-  window.addEventListener('call:incoming', () => { store.callState = 'incoming'; updateCallButton(); });
-  window.addEventListener('call:started',  () => { store.callState = 'in-call';  updateCallButton(); });
-  window.addEventListener('call:ended',    () => { store.callState = 'idle';     updateCallButton(); });
+  window.addEventListener('call:incoming', () => {
+    store.callState = 'incoming';
+    playRingtone();
+    updateCallButton();
+  });
+  window.addEventListener('call:started',  () => {
+    store.callState = 'in-call';
+    store.callActiveChatID = store.currentChatID;
+    updateCallButton();
+  });
+  window.addEventListener('call:connected', () => {
+    stopRingback();
+    stopRingtone();
+    updateCallButton();
+  });
+  window.addEventListener('call:ended',    () => {
+    store.callState = 'idle';
+    store.callActiveChatID = null;
+    stopRingback();
+    stopRingtone();
+    updateCallButton();
+  });
+
+  window.addEventListener('call:muted', (ev) => {
+    const muted = !!ev.detail?.muted;
+    store.refs.muteIconUse?.setAttribute('href', muted ? '#icon-mic-off' : '#icon-mic');
+  });
 
   // initialize hidden until a private chat is selected
   setCallButtonVisible(false);
@@ -159,11 +263,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.currentChatID = chatID || null;
     store.currentChat   = chatID ? { id: chatID, type } : null;
     store.currentChatIsPrivate = type === 'private';
-    if (chatID) await connectCallWS();     // so Start/Join works
-    if (store.callState !== 'in-call') store.callState = 'idle';
-    updateCallButton();                     // show/hide + icon state
-  });   
-
+  
+    if (chatID) await connectCallWS();
+    if (store.callState !== 'in-call') {
+      store.callState = 'idle';
+      stopRingback();
+      stopRingtone();
+    }
+    updateCallButton();
+  });
 
   // Placeholder
   const placeholder = document.createElement('div');

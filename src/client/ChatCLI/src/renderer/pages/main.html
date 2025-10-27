@@ -72,6 +72,9 @@
         <button class="header-button call-primary" id="btnCallPrimary" aria-label="Start call">
           <svg width="18" height="18" aria-hidden="true"><use href="#icon-phone"/></svg>
         </button>
+        <button class="header-button" id="btnMute" aria-label="Mute mic" style="display:none">
+          <svg width="18" height="18" aria-hidden="true"><use id="muteIconUse" href="#icon-mic"/></svg>
+        </button>
         <audio id="remoteAudio" autoplay playsinline></audio>
       
         <button class="header-button" id="manageUsersBtn" aria-label="Manage users">
@@ -280,6 +283,22 @@
       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <line x1="18" y1="6" x2="6" y2="18"/>
       <line x1="6" y1="6" x2="18" y2="18"/>
+    </symbol>
+    <symbol id="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10a7 7 0 0 1-14 0"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </symbol>
+    <symbol id="icon-mic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="1" y1="1" x2="23" y2="23"/>
+      <path d="M9 9v2a3 3 0 0 0 5.12 2.12"/>
+      <path d="M15 7V4a3 3 0 0 0-5.94-.5"/>
+      <path d="M19 10a7 7 0 0 1-11.5 5.5"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
     </symbol>
   </svg>
 
