@@ -341,6 +341,49 @@ body {
   stroke-width: 2;
 }
 
+/* Bigger, bolder call button */
+.header-button.call-primary {
+  position: relative;
+  transform-origin: center;
+}
+
+/* Incoming: pulsing + highlight */
+.header-button.call-primary.incoming {
+  background: #10b9811a;           /* subtle emerald tint */
+  color: #065f46;                   /* deep emerald text/icon */
+  border: 1px solid #10b98155;
+  animation: callPulse 1.2s ease-out infinite, callBreathe 1.2s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(16,185,129,0.7);
+}
+
+/* In-call: steady, high-contrast */
+.header-button.call-primary.in-call {
+  background: #10b981;              /* emerald */
+  color: white;
+  border: 1px solid #059669;
+  box-shadow: 0 6px 18px rgba(16,185,129,0.35);
+}
+
+/* Pulse halo */
+@keyframes callPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }
+  70%  { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+/* Gentle scale in/out for attention */
+@keyframes callBreathe {
+  0%   { transform: scale(1.06); }
+  50%  { transform: scale(1.00); }
+  100% { transform: scale(1.06); }
+}
+
+/* Slightly larger tap target on desktop too */
+.header-button.call-primary svg {
+  width: 22px;
+  height: 22px;
+}
+
 /* Messages */
 .chat-messages {
   flex: 1;

@@ -59,25 +59,75 @@ export function stopRingback() {
 export function playRingtone() {
   stopRingtone();
   const ctx = ensureCtx();
-  // pattern: beep-beep (800Hz 200ms, pause 100ms, 800Hz 200ms), rest 1s
-  const onDur = 200, shortGap = 100, rest = 1000;
-  const tick = () => {
-    const burst = (freq, startMs, dur) => {
+
+  // Gentle master gain (so it never blares)
+  const master = ctx.createGain();
+  master.gain.value = 0.06;
+  master.connect(ctx.destination);
+
+  // A small tri-tone melody with soft attack/release
+  const sequence = [
+    { f: 554.37, dur: 220 }, // C#5
+    { rest: 90 },
+    { f: 659.25, dur: 220 }, // E5
+    { rest: 130 },
+    { f: 783.99, dur: 260 }, // G5
+  ];
+
+  const ATTACK = 0.02;
+  const RELEASE = 0.08;
+
+  const scheduleAt = (startTime) => {
+    let t = startTime;
+    for (const step of sequence) {
+      if (step.rest) {
+        t += step.rest / 1000;
+        continue;
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      gain.gain.value = 0.07;
-      osc.frequency.value = freq;
-      osc.connect(gain).connect(ctx.destination);
-      const t0 = ctx.currentTime + startMs / 1000;
-      osc.start(t0);
-      osc.stop(t0 + dur / 1000);
-    };
-    burst(800, 0, onDur);
-    burst(800, onDur + shortGap, onDur);
+
+      // Subtle timbre: triangle + slight vibrato
+      osc.type = 'triangle';
+      osc.frequency.value = step.f;
+
+      // envelope
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(master.gain.value, t + ATTACK);
+      gain.gain.setValueAtTime(master.gain.value, t + (step.dur / 1000) - RELEASE);
+      gain.gain.linearRampToValueAtTime(0, t + (step.dur / 1000));
+
+      osc.connect(gain).connect(master);
+      osc.start(t);
+      osc.stop(t + (step.dur / 1000) + 0.05);
+
+      // tiny vibrato
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.type = 'sine';
+      lfo.frequency.value = 5.5;
+      lfoGain.gain.value = 3; // +/- 3 Hz
+      lfo.connect(lfoGain).connect(osc.frequency);
+      lfo.start(t);
+      lfo.stop(t + (step.dur / 1000));
+
+      t += step.dur / 1000;
+    }
+    return t - startTime; // total duration scheduled
   };
-  tick();
-  _ringtoneTimer = setInterval(tick, onDur + shortGap + onDur + rest);
+
+  // schedule first run immediately
+  const start = ctx.currentTime + 0.02;
+  const totalDur = scheduleAt(start); // seconds
+  // loop it (add a calm rest at the end)
+  const loopMs = (totalDur * 1000) + 600;
+
+  _ringtoneTimer = setInterval(() => {
+    const t0 = ctx.currentTime + 0.02;
+    scheduleAt(t0);
+  }, loopMs);
 }
+
 
 export function stopRingtone() {
   if (_ringtoneTimer) { clearInterval(_ringtoneTimer); _ringtoneTimer = null; }

@@ -143,6 +143,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.setAttribute('aria-label', 'Leave call');
     }
 
+    btn.classList.toggle('incoming', store.callState === 'incoming');
+    btn.classList.toggle('in-call',  store.callState === 'in-call');
+
     updateMuteButton();
   }
 
@@ -154,31 +157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btn = store.refs.btnCallPrimary;
     if (!btn) return;
     btn.style.display = visible ? 'inline-flex' : 'none';
-  }
-
-  function updateCallButton() {
-    const btn = store.refs.btnCallPrimary;
-    if (!btn) return;
-    const iconUse = btn.querySelector('use');
-    btn.dataset.state = store.callState;
-
-    // show only in private chats and when a chat is selected
-    const isPrivate = store.currentChat?.type === 'private' || store.currentChatIsPrivate === true;
-    setCallButtonVisible(!!store.currentChatID && isPrivate);
-
-    if (store.callState === 'idle') {
-      btn.disabled = !store.currentChatID || !isPrivate;
-      iconUse.setAttribute('href', '#icon-phone');
-      btn.setAttribute('aria-label', 'Start call');
-    } else if (store.callState === 'incoming') {
-      btn.disabled = false;
-      iconUse.setAttribute('href', '#icon-phone');
-      btn.setAttribute('aria-label', 'Join call');
-    } else {
-      btn.disabled = false;
-      iconUse.setAttribute('href', '#icon-phone-off');
-      btn.setAttribute('aria-label', 'Leave call');
-    }
   }
 
   // Single icon-only call button = three actions
