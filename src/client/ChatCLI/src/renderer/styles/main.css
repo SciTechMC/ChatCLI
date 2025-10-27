@@ -330,19 +330,17 @@ body {
     radial-gradient(900px 600px at 80% 90%, rgba(78,205,196,.08), transparent 65%);
 }
 
-/* Row = avatar rail + content; row is transparent */
 .message {
   display: grid;
-  grid-template-columns: 40px 1fr; /* avatar rail + content */
+  grid-template-columns: 40px 1fr;
   gap: 10px;
-  margin: 12px 0;   /* your uniform spacing */
+  margin: 12px 0;
   padding: 0;
   background: transparent;
   border: 0;
   border-radius: 0;
 }
 
-/* optional list hover like Discord */
 .message:hover { background: var(--message-hover); }
 
 .message-rail {
@@ -350,38 +348,30 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  position: relative; /* for hover time positioning */
+  position: relative;
 }
 
-/* IMPORTANT: keep the rail visible so hover time can appear */
-.message-rail.spacer {
-  /* no opacity/visibility hidden here */
-}
-
-/* Tiny hover time badge shown only for cluster continuations on hover */
 .hover-time {
   position: absolute;
-  top: 2px;          /* nudge as you like */
+  top: 2px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px;
   line-height: 1;
   color: var(--text-secondary);
-  background: transparent;       /* no pill, keep it minimal */
+  background: transparent;
   padding: 0;
   opacity: 0;
   pointer-events: none;
   transition: opacity .12s ease;
 }
 
-/* show the time only when hovering a continuation row */
 .message.message--cluster-continue:hover .hover-time {
   opacity: 1;
 }
 
 .message-body { min-width: 0; }
 
-/* Header only on cluster start */
 .message-header {
   display: flex;
   align-items: baseline;
