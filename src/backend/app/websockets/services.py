@@ -8,6 +8,7 @@ from db_helper import fetch_records, insert_record
 active_connections: dict[str, WebSocket] = {}
 chat_subscriptions: dict[int, set[WebSocket]] = {}
 idle_subscriptions: set[WebSocket] = set()
+pending_calls: dict[int, dict] = {}
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ async def join_chat(username: str, chat_id: int, ws: WebSocket):
     try:
         chat_subscriptions.setdefault(chat_id, set()).add(ws)
         logger.debug("%s joined chat %s", username, chat_id)
+        await emit_call_state(ws, chat_id)
     except Exception as e:
         logger.error("Error adding %s to chat %s: %s", username, chat_id, e, exc_info=e)
 
@@ -216,3 +218,127 @@ async def notify_status(username: str, is_online: bool):
         except Exception as e:
             logger.warning("Removing dead idle connection: %s", e)
             idle_subscriptions.discard(ws)
+
+async def _send_to_user(username: str, payload: dict) -> bool:
+    """
+    Best-effort send to a specific online user.
+    Returns True if a connection existed and we attempted a send.
+    """
+    ws = active_connections.get(username)
+    if not ws:
+        return False
+    try:
+        await ws.send_json(payload)
+        return True
+    except Exception as e:
+        logger.warning("Dropping dead connection for %s: %s", username, e)
+        active_connections.pop(username, None)
+        return False
+
+async def _broadcast_chat(chat_id: int, payload: dict) -> None:
+    """
+    Send to everyone currently subscribed to chat_id.
+    """
+    subs = chat_subscriptions.get(chat_id, set())
+    # iterate over a snapshot so we can discard safely
+    for ws in set(subs):
+        try:
+            await ws.send_json(payload)
+        except Exception as e:
+            logger.warning("Removing dead connection in chat %s: %s", chat_id, e)
+            subs.discard(ws)
+
+async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
+    """
+    Send the current call state for chat_id to a single websocket (on join or on demand).
+    If there is no call for this chat, it sends nothing.
+    """
+    state = pending_calls.get(chat_id)
+    if not state:
+        return
+    try:
+        await ws.send_json({
+            "type": "call_state",
+            "chatID": chat_id,
+            "from": state.get("from"),
+            "to": state.get("to"),
+            "state": state.get("state", "ringing")
+        })
+    except Exception as e:
+        logger.warning("Failed to emit call_state to client: %s", e)
+
+async def call_invite(caller: str, chat_id: int, callee: str) -> None:
+    """
+    Store a ringing call and notify the callee (globally) + chat subscribers.
+    """
+    pending_calls[chat_id] = {"from": caller, "to": callee, "state": "ringing"}
+    # deliver a global invite to the callee (even if they aren't in the chat)
+    await _send_to_user(callee, {
+        "type": "call_incoming",
+        "chatID": chat_id,
+        "from": caller,
+        "to": callee
+    })
+    # also update anyone already looking at the chat
+    await _broadcast_chat(chat_id, {
+        "type": "call_state",
+        "chatID": chat_id,
+        "from": caller,
+        "to": callee,
+        "state": "ringing"
+    })
+
+async def call_accept(username: str, chat_id: int) -> None:
+    """
+    Callee accepts the call. Notifies both peers and the chat.
+    """
+    call = pending_calls.get(chat_id)
+    if not call:
+        return
+    # only the intended callee can accept
+    if username != call.get("to"):
+        return
+    call["state"] = "accepted"
+    payload = {
+        "type": "call_accepted",
+        "chatID": chat_id,
+        "from": call["from"],
+        "to": call["to"]
+    }
+    await _send_to_user(call["from"], payload)
+    await _send_to_user(call["to"], payload)
+    await _broadcast_chat(chat_id, {
+        "type": "call_state",
+        "chatID": chat_id,
+        "from": call["from"],
+        "to": call["to"],
+        "state": "accepted"
+    })
+
+async def call_decline(username: str, chat_id: int) -> None:
+    """
+    Either party can decline while ringing; clears the pending call.
+    """
+    call = pending_calls.get(chat_id)
+    if not call:
+        return
+    if username not in (call.get("to"), call.get("from")):
+        return
+    payload = {"type": "call_declined", "chatID": chat_id, "by": username}
+    await _send_to_user(call["from"], payload)
+    await _send_to_user(call["to"], payload)
+    await _broadcast_chat(chat_id, payload)
+    pending_calls.pop(chat_id, None)
+
+async def call_end(username: str, chat_id: int) -> None:
+    """
+    Either party ends the call (during ringing or after acceptance).
+    """
+    call = pending_calls.get(chat_id)
+    payload = {"type": "call_ended", "chatID": chat_id, "by": username}
+    if call:
+        await _send_to_user(call["from"], payload)
+        await _send_to_user(call["to"], payload)
+        pending_calls.pop(chat_id, None)
+    # also inform anyone in the chat, even if we didn't have state
+    await _broadcast_chat(chat_id, payload)

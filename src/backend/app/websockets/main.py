@@ -10,6 +10,10 @@ from services import (
     notify_status,
     active_connections,
     idle_subscriptions,
+    call_invite,
+    call_accept,
+    call_decline,
+    call_end
 )
 import uvicorn
 
@@ -91,6 +95,14 @@ async def websocket_endpoint(ws: WebSocket):
                     await broadcast_typing(username, msg.get("chatID"))
                 elif msg_type == "join_idle":
                     idle_subscriptions.add(ws)
+                elif msg_type == "call_invite":
+                    await call_invite(caller=username, chat_id=msg.get("chatID"), callee=msg.get("callee"))
+                elif msg_type == "call_accept":
+                    await call_accept(username=username, chat_id=msg.get("chatID"))
+                elif msg_type == "call_decline":
+                    await call_decline(username=username, chat_id=msg.get("chatID"))
+                elif msg_type == "call_end":
+                    await call_end(username=username, chat_id=msg.get("chatID"))
                 else:
                     raise ValueError(f"Unknown action: {msg_type}")
             except ValueError as ve:
