@@ -110,6 +110,19 @@ export async function selectChat(chatID) {
     return;
   }
 
+  try {
+    connectCallWS();
+  } catch {}
+
+  try {
+    const ws = store.ws;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'join_chat', chatID }));
+    }
+  } catch (e) {
+    console.warn('[CHAT] join_chat notify failed', e);
+  }
+
   // Already on this chat? keep UX snappy and bail
   if (store.currentChatID === targetId) {
     store.refs.messageInput?.focus();

@@ -90,16 +90,75 @@ document.addEventListener('DOMContentLoaded', async () => {
     remoteAudio: document.getElementById('remoteAudio'),
     btnMute: document.getElementById('btnMute'),
     muteIconUse: document.getElementById('muteIconUse'),
+    incomingCallModal: document.getElementById('incomingCallModal'),
+    incomingCallClose: document.getElementById('incomingCallClose'),
+    incomingCallFromEl: document.getElementById('incomingCallFrom'),
+    incomingCallMetaEl: document.getElementById('incomingCallMeta'),
+    incomingCallAvatarEl: document.getElementById('incomingCallAvatar'),
+    acceptCallBtn: document.getElementById('acceptCallBtn'),
+    declineCallBtn: document.getElementById('declineCallBtn'),
   };
 
   const SWITCH_CALL_ACTION = 'disable';
 
-  store.callState = 'idle';
-  store.callActiveChatID = null;
+  store.callState = store.callState || 'idle'; // 'idle' | 'incoming' | 'in-call'
+  store.callIncoming = store.callIncoming || null; // { chatID, from }
+  store.callActiveChatID = store.callActiveChatID || null;
+
+  store.refs.incomingCallClose?.addEventListener('click', hideIncomingCallModal);
+  store.refs.declineCallBtn?.addEventListener('click', async () => {
+    try {
+      // prefer signaling 'decline' if your server supports it; otherwise just end locally
+      const { callSend } = await import('./calls/callSockets.js');
+      if (store.callIncoming?.chatID) {
+        callSend?.({ type: 'decline', chatID: store.callIncoming.chatID });
+      }
+    } catch {}
+    hideIncomingCallModal();
+    stopRingtone();
+    store.callIncoming = null;
+    store.callState = 'idle';
+    window.dispatchEvent(new Event('call:ended')); // keeps UI in sync
+  });
+
+  store.refs.acceptCallBtn?.addEventListener('click', async () => {
+    const { joinCall } = await import('./calls/rtc.js');
+    const { connectCallWS } = await import('./calls/callSockets.js');
+    const { selectChat } = await import('./chats/chatSession.js');
+
+    try {
+      const ringingChat = store.callIncoming?.chatID;
+      if (ringingChat && store.currentChatID !== ringingChat) {
+        await selectChat(ringingChat);
+      }
+      await connectCallWS();
+      sendCallAccept(ringingChat);
+      await joinCall();
+      store.callState = 'in-call';
+      store.callActiveChatID = ringingChat ?? store.currentChatID;
+    } finally {
+      hideIncomingCallModal();
+      stopRingtone();
+    }
+  });
+
+
+  function showIncomingCallModal(from, meta = '') {
+    const { incomingCallModal, incomingCallFromEl, incomingCallMetaEl, incomingCallAvatarEl } = store.refs;
+    if (!incomingCallModal) return;
+    incomingCallFromEl.textContent = from || 'Unknown';
+    incomingCallMetaEl.textContent = meta || 'is calling you…';
+    if (incomingCallAvatarEl) incomingCallAvatarEl.textContent = (from || '?').slice(0,1).toUpperCase();
+  
+    incomingCallModal.classList.add('active');
+  }
+  function hideIncomingCallModal() {
+    store.refs.incomingCallModal?.classList.remove('active');
+  }  
 
   store.refs.btnMute?.addEventListener('click', async () => {
     try {
-      await toggleMute(); // uses your existing helper
+      await toggleMute();
     } catch (e) {
       console.error(e);
     }
@@ -136,8 +195,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       iconUse.setAttribute('href', '#icon-phone');
       btn.setAttribute('aria-label', 'Start call');
     } else if (store.callState === 'incoming') {
-      iconUse.setAttribute('href', '#icon-phone');
-      btn.setAttribute('aria-label', 'Join call');
+      if (store.callIncoming?.chatID === store.currentChatID) {
+        btn.setAttribute('aria-label', 'Join call');
+      } else {
+        btn.setAttribute('aria-label', 'Start call');
+      }
     } else {
       iconUse.setAttribute('href', '#icon-phone-off');
       btn.setAttribute('aria-label', 'Leave call');
@@ -162,54 +224,89 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Single icon-only call button = three actions
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
     try {
-      const inOtherChat = store.callState === 'in-call' && store.callActiveChatID && store.currentChatID !== store.callActiveChatID;
+      const { startCall, joinCall, endCall } = await import('./calls/rtc.js');
+      const { connectCallWS } = await import('./calls/callSockets.js');
+      const { selectChat } = await import('./chats/chatSession.js');
+  
+      const inOtherChat =
+        store.callState === 'in-call' &&
+        store.callActiveChatID &&
+        store.currentChatID !== store.callActiveChatID;
   
       if (store.callState === 'idle') {
         await connectCallWS();
         await startCall();
         store.callState = 'in-call';
         store.callActiveChatID = store.currentChatID;
-        playRingback(); // start ringback immediately
-      } else if (store.callState === 'incoming') {
+        playRingback();
+        return;
+      }
+  
+      if (store.callState === 'incoming') {
+        // ensure we’re accepting the *incoming* call’s chat
+        if (store.callIncoming?.chatID && store.currentChatID !== store.callIncoming.chatID) {
+          await selectChat(store.callIncoming.chatID);
+        }
         await connectCallWS();
         await joinCall();
         store.callState = 'in-call';
-        store.callActiveChatID = store.currentChatID;
-        // joining: ringback will stop on 'call:connected'
-      } else {
-        // in-call -> leave
-        await endCall('You left');
-        store.callState = 'idle';
-        store.callActiveChatID = null;
-        stopRingback();
-        stopRingtone();
+        store.callActiveChatID = store.callIncoming?.chatID ?? store.currentChatID;
+        return;
       }
   
-      // Handle cross-chat action if user clicks while in another chat
-      if (inOtherChat && SWITCH_CALL_ACTION === 'end-and-call') {
-        await endCall('Switching call');
-        store.callState = 'idle';
-        // immediately place new call in this chat
+      // else: in-call → leave
+      await endCall('You left');
+      store.callState = 'idle';
+      store.callActiveChatID = null;
+      stopRingback();
+      stopRingtone();
+  
+      // optional: if you wanted "end and call current chat" behavior, do it here.
+      if (inOtherChat && false /* SWITCH_CALL_ACTION === 'end-and-call' */) {
+        await selectChat(store.currentChatID);
         await connectCallWS();
         await startCall();
         store.callState = 'in-call';
         store.callActiveChatID = store.currentChatID;
         playRingback();
       }
-    } catch (err) {
-      console.error('[CALL] click handler error:', err);
+    } catch (e) {
+      console.error(e);
     } finally {
-      updateCallButton();
+      updateCallButton?.(); // if you have this helper
     }
   });
-  
 
   // React to signaling events from callSockets/rtc
-  window.addEventListener('call:incoming', () => {
+  window.addEventListener('call:incoming', (ev) => {
+    const chatID = ev?.detail?.chatID ?? store.currentChatID;
+    const from   = ev?.detail?.from ?? ev?.detail?.fromUsername ?? 'Unknown';
+  
     store.callState = 'incoming';
+    store.callIncoming = { chatID, from };
+  
     playRingtone();
+    showIncomingCallModal(from, 'is calling you…');
     updateCallButton();
   });
+  
+  window.addEventListener('call:connected', () => {
+    hideIncomingCallModal();
+    stopRingback();
+    stopRingtone();
+    store.callIncoming = null;
+    updateCallButton?.();
+  });
+  
+  window.addEventListener('call:ended', () => {
+    hideIncomingCallModal();
+    store.callState = 'idle';
+    store.callActiveChatID = null;
+    store.callIncoming = null;
+    stopRingback();
+    stopRingtone();
+    updateCallButton?.();
+  });  
   window.addEventListener('call:started',  () => {
     store.callState = 'in-call';
     store.callActiveChatID = store.currentChatID;
@@ -243,11 +340,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.currentChatIsPrivate = type === 'private';
   
     if (chatID) await connectCallWS();
+  
     if (store.callState !== 'in-call') {
-      store.callState = 'idle';
-      stopRingback();
-      stopRingtone();
+      const isRingingHere =
+        store.callState === 'incoming' &&
+        store.callIncoming?.chatID === chatID;
+      if (!isRingingHere) {
+        store.callState = 'idle';
+        store.callIncoming = null;
+        stopRingback();
+        stopRingtone();
+      }
     }
+  
     updateCallButton();
   });
 

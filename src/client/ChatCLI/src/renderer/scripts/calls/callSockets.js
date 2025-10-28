@@ -17,7 +17,7 @@ export function setStatus(text, cls = '') {
   console.log('[CALL] Status:', text, `(${cls})`);
 }
 
-/** Queue-or-send signaling messages */
+/** Queue-or-send signaling messages (WebRTC-level) */
 export function callSend(obj) {
   ensureCallState();
   const ws = store.call.callWS;
@@ -40,6 +40,33 @@ function flushQueue() {
     ws.send(JSON.stringify(msg));
   }
   store.call.queue.length = 0;
+}
+
+/** ---- app-level signaling helpers (invite / accept / decline / end) ----
+ * These go over the same socket and hit your new backend handlers.
+ */
+export function sendCallInvite({ chatID, callee }) {
+  const ws = store.call?.callWS;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return console.warn('[CALL] WS not open for call_invite');
+  ws.send(JSON.stringify({ type: 'call_invite', chatID, callee }));
+}
+
+export function sendCallAccept(chatID) {
+  const ws = store.call?.callWS;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return console.warn('[CALL] WS not open for call_accept');
+  ws.send(JSON.stringify({ type: 'call_accept', chatID }));
+}
+
+export function sendCallDecline(chatID) {
+  const ws = store.call?.callWS;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return console.warn('[CALL] WS not open for call_decline');
+  ws.send(JSON.stringify({ type: 'call_decline', chatID }));
+}
+
+export function sendCallEnd(chatID) {
+  const ws = store.call?.callWS;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return console.warn('[CALL] WS not open for call_end');
+  ws.send(JSON.stringify({ type: 'call_end', chatID }));
 }
 
 /** Ensure the call WS is OPEN (returns after 'open') */
@@ -79,6 +106,7 @@ export function connectCallWS() {
 
   // Base WS from preload (window.api.WS_URL like ws://host:8765/ws)
   const base = new URL(window.api.WS_URL);
+  // keep your /ws/{chatID}/{username} pattern (server accepts typed messages too)
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/ws/${currentChatID}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
 
@@ -97,6 +125,8 @@ export function connectCallWS() {
         username
       }));
     }
+    // also (re)join this chat so server can emit call_state when we switch in
+    ws.send(JSON.stringify({ type: 'join_chat', chatID: currentChatID }));
     setStatus('Call WS connected ✅', 'ok');
     flushQueue();
   };
@@ -112,11 +142,62 @@ export function connectCallWS() {
     const msg = JSON.parse(ev.data);
     console.log('[CALL] Received signal:', msg.type, msg);
 
+    // Normalize a chatID for UI events
+    const msgChatID = msg.chatID ?? store.currentChatID;
+
+    /** -------- NEW: app-level call messages from the backend -------- */
+
+    if (msg.type === 'call_incoming') {
+      // global invite to callee (even if they aren't in this chat)
+      window.dispatchEvent(new CustomEvent('call:incoming', {
+        detail: { chatID: msgChatID, from: msg.from }
+      }));
+      setStatus(`${msg.from || 'Peer'} is calling…`, 'ok');
+      return;
+    }
+
+    if (msg.type === 'call_state') {
+      // sent when you join a chat with a ringing/accepted call (fixes UI not updating)
+      if (msg.state === 'ringing') {
+        window.dispatchEvent(new CustomEvent('call:incoming', {
+          detail: { chatID: msgChatID, from: msg.from }
+        }));
+        setStatus(`${msg.from || 'Peer'} is calling…`, 'ok');
+      } else if (msg.state === 'accepted') {
+        window.dispatchEvent(new Event('call:connected'));
+        setStatus('Call accepted — connecting…', 'ok');
+      }
+      return;
+    }
+
+    if (msg.type === 'call_accepted') {
+      // both peers get this
+      window.dispatchEvent(new Event('call:connected'));
+      setStatus('Call accepted — connecting…', 'ok');
+      return;
+    }
+
+    if (msg.type === 'call_declined') {
+      window.dispatchEvent(new Event('call:ended'));
+      setStatus('Call declined', 'warn');
+      return;
+    }
+
+    if (msg.type === 'call_ended') {
+      window.dispatchEvent(new Event('call:ended'));
+      setStatus('Call ended', 'warn');
+      return;
+    }
+
+    /** -------- EXISTING: per-chat WebRTC signaling -------- */
+
     // Someone started a call in this chat — prompt to join if you're not in-call yet
     if (msg.type === 'call-started' && !store.call.inCall) {
       console.log('[CALL] New call started by:', msg.from);
       setStatus(`${msg.from || 'Peer'} started a call — click Join`, 'ok');
-      window.dispatchEvent(new Event('call:incoming'));
+      window.dispatchEvent(new CustomEvent('call:incoming', {
+        detail: { chatID: msgChatID, from: msg.from }
+      }));
       return;
     }
 
@@ -127,7 +208,9 @@ export function connectCallWS() {
         console.log('[CALL] Storing pending offer');
         store.call.pendingOffer = msg.sdp;
         setStatus('Incoming call — click Join', 'ok');
-        window.dispatchEvent(new Event('call:incoming'));
+        window.dispatchEvent(new CustomEvent('call:incoming', {
+          detail: { chatID: msgChatID, from: msg.from }
+        }));
         return;
       }
       await setRemoteOffer(msg.sdp);

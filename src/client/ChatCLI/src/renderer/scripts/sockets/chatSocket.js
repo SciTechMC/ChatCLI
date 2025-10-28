@@ -125,6 +125,39 @@ export function connectWS() {
     if (msg.type === 'user_status') {
       window.dispatchEvent(new CustomEvent('chat:user-status', { detail: msg }));
     }
+    // ---- CALL SIGNALING (GLOBAL) ----
+    if (msg.type === 'call_incoming') {
+      // Callee gets this even if not in the target chat
+      window.dispatchEvent(new CustomEvent('call:incoming', {
+        detail: { chatID: msg.chatID, from: msg.from }
+      }));
+      // optional: toast
+      window.dispatchEvent(new CustomEvent('toast', { detail: { text: `${msg.from || 'Someone'} is calling…` } }));
+      return;
+    }
+
+    if (msg.type === 'call_state') {
+      // Sent whenever you join a chat that has a pending/active call (server side)
+      if (msg.state === 'ringing') {
+        window.dispatchEvent(new CustomEvent('call:incoming', {
+          detail: { chatID: msg.chatID, from: msg.from }
+        }));
+      } else if (msg.state === 'accepted') {
+        window.dispatchEvent(new Event('call:connected'));
+      }
+      return;
+    }
+
+    if (msg.type === 'call_accepted') {
+      window.dispatchEvent(new Event('call:connected'));
+      return;
+    }
+
+    if (msg.type === 'call_declined' || msg.type === 'call_ended') {
+      window.dispatchEvent(new Event('call:ended'));
+      return;
+    }
+
   });
 
   ws.addEventListener('error', (error) => {
