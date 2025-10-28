@@ -6,41 +6,6 @@ function ensureCallState() {
   store.call ??= {};
   store.call.queue ??= [];            // queue ALL signaling until WS is OPEN
   store.call.iceServers ??= [{ urls: 'stun:stun.l.google.com:19302' }];
-  store.call.waiters ??= {};
-}
-
-function _waitFor(type, timeoutMs = 1500) {
-  return new Promise((resolve, reject) => {
-    const key = 'wait_${type}_${Date.now()}';
-    const timeout = setTimeout(() => {
-      delete store.call.waiters[type];
-      reject(new Error('Timeout waiting for ' + type));
-    }, timeoutMs);
-    store.call.waiters[type] = (payload) => {
-      clearTimeout(timeout);
-      delete store.call.waiters[type];
-      resolve(payload);
-    };
-  });
-}
-
-export async function fetchCallState() {
-  await ensureCallWSOpen();
-  // server sends call_state automatically on open, but if we reconnect,
-  // it may have sent already – we still wait for the next one briefly.
-  try {
-    const snap = await _waitFor('call_state', 1200);
-    return snap;
-  } catch {
-    // fallback: ask explicitly if you add a 'get_call_state' request on server
-    try {
-      callSend({ type: 'get_call_state', chatID: store.currentChatID });
-      const snap = await _waitFor('call_state', 1200);
-      return snap;
-    } catch (e) {
-      return { ongoing: false }; // be conservative
-    }
-  }
 }
 
 export function setStatus(text, cls = '') {
@@ -182,20 +147,6 @@ export function connectCallWS() {
       }
       return;
     }
-
-    if (msg.type === 'call_state') {
-      // resolve waiter if any
-      const waiter = store.call.waiters?.call_state;
-      if (waiter) waiter(msg);
-    
-      // If a call is ongoing and we haven't armed join yet, prime pendingOffer and raise incoming
-      if (msg.ongoing && !store.call.joiningArmed) {
-        if (msg.latestOffer) store.call.pendingOffer = msg.latestOffer;
-        window.dispatchEvent(new Event('call:incoming'));
-      }
-      return;
-    }
-    
 
     // ICE
     if (msg.type === 'ice-candidate' && store.call.pc && msg.candidate) {
