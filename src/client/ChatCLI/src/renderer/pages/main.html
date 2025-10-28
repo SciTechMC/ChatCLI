@@ -267,6 +267,34 @@
     </div>
   </div>
 
+  <!-- Incoming Call Modal -->
+  <div class="modal" id="incomingCallModal" aria-hidden="true">
+    <div class="modal-content modal--narrow">
+      <div class="modal-header">
+        <div class="modal-title">Incoming Call</div>
+        <div class="modal-close" id="incomingCallClose" aria-label="Close">
+          <svg width="20" height="20"><use href="#icon-x"/></svg>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="avatar" id="incomingCallAvatar">?</div>
+          <div>
+            <div id="incomingCallFrom" style="font-weight:600;">Unknown</div>
+            <div id="incomingCallMeta" style="color:var(--text-secondary);font-size:13px;">
+              is calling you…
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-button secondary" id="declineCallBtn">Decline</button>
+        <button class="modal-button primary" id="acceptCallBtn">Accept</button>
+      </div>
+    </div>
+  </div>
+
+
   <script type="module" src="../scripts/main.js"></script>
   <!-- SVG sprite (hidden) -->
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
