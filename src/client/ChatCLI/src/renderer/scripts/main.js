@@ -165,37 +165,46 @@ document.addEventListener('DOMContentLoaded', async () => {
       const inOtherChat = store.callState === 'in-call' && store.callActiveChatID && store.currentChatID !== store.callActiveChatID;
   
       if (store.callState === 'idle') {
-        await connectCallWS();
-        await startCall();
-        store.callState = 'in-call';
-        store.callActiveChatID = store.currentChatID;
-        playRingback(); // start ringback immediately
+        // NEW: check room snapshot first
+        const { fetchCallState } = await import('./calls/callSockets.js');
+        const snap = await fetchCallState();
+  
+        if (snap.ongoing) {
+          // Join existing call
+          await joinCall();
+          store.callState = 'in-call';
+          store.callActiveChatID = store.currentChatID;
+        } else {
+          // Start a new one
+          await startCall();
+          store.callState = 'in-call';
+          store.callActiveChatID = store.currentChatID;
+          playRingback();
+        }
+  
       } else if (store.callState === 'incoming') {
-        await connectCallWS();
         await joinCall();
         store.callState = 'in-call';
         store.callActiveChatID = store.currentChatID;
-        // joining: ringback will stop on 'call:connected'
+  
       } else {
-        // in-call -> leave
         await endCall('You left');
         store.callState = 'idle';
         store.callActiveChatID = null;
-        stopRingback();
-        stopRingtone();
+        stopRingback(); stopRingtone();
       }
   
-      // Handle cross-chat action if user clicks while in another chat
       if (inOtherChat && SWITCH_CALL_ACTION === 'end-and-call') {
         await endCall('Switching call');
         store.callState = 'idle';
-        // immediately place new call in this chat
         await connectCallWS();
-        await startCall();
+        const { fetchCallState } = await import('./calls/callSockets.js');
+        const snap2 = await fetchCallState();
+        if (snap2.ongoing) { await joinCall(); } else { await startCall(); playRingback(); }
         store.callState = 'in-call';
         store.callActiveChatID = store.currentChatID;
-        playRingback();
       }
+  
     } catch (err) {
       console.error('[CALL] click handler error:', err);
     } finally {
@@ -204,6 +213,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   
 
+  window.addEventListener('call:global-incoming', async (ev) => {
+    const { chatID, caller } = ev.detail || {};
+    if (!chatID) return;
+  
+    playRingtone();
+  
+    const { showConfirmationModal } = await import('./ui/modals.js');
+    showConfirmationModal(
+      `${caller} is calling you. Join the call?`,
+      'Incoming Call',
+      async () => {
+        // Accept
+        try {
+          await selectChat(chatID);          // switch to the right chat (second visual clue)
+          await connectCallWS();             // connect room WS
+          await joinCall();                  // answer flow; pendingOffer is primed by call_state
+          store.callState = 'in-call';
+          store.callActiveChatID = chatID;
+        } catch (e) {
+          console.error('Accept failed:', e);
+        } finally {
+          stopRingtone();
+          updateCallButton();
+        }
+      }
+    );
+  
+    // Optional: also add a cancel handler that stops the ringtone
+    const { cancelConfirmBtn, closeConfirmationModalBtn } = store.refs;
+    [cancelConfirmBtn, closeConfirmationModalBtn].forEach(btn => {
+      btn?.addEventListener('click', () => {
+        stopRingtone();
+        // chatSend({ type: 'call_decline', chatID }); // optional
+      }, { once: true });
+    });
+  });
   // React to signaling events from callSockets/rtc
   window.addEventListener('call:incoming', () => {
     store.callState = 'incoming';

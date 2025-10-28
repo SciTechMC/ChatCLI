@@ -97,35 +97,55 @@ export function connectWS() {
     hbTimeout = setTimeout(() => {
       try { ws?.close(); } catch {}
     }, HEARTBEAT_DEAD_MS);
-
-    const msg = JSON.parse(event.data);
-
+  
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch (e) {
+      console.error('Bad WS JSON:', e, event.data);
+      return;
+    }
+  
     // optional: explicit pong from server
     if (msg.type === 'pong') return;
-
+  
+    // 🔔 Global incoming call → raise a UI event for main.js
+    if (msg.type === 'incoming_call') {
+      const me = (store.username || '').toLowerCase();
+      if ((msg.caller || '').toLowerCase() === me) return;
+    
+      window.dispatchEvent(new CustomEvent('call:global-incoming', {
+        detail: { chatID: msg.chatID, caller: msg.caller, startedAt: msg.startedAt }
+      }));
+      return;
+    }
+    
+  
     if (msg.type === 'auth_ack') return;
-
+  
     if (msg.type === 'new_message') {
       if (store.seenMessageIDs.has(msg.messageID)) return;
       store.seenMessageIDs.add(msg.messageID);
       window.dispatchEvent(new CustomEvent('chat:new-message', { detail: msg }));
       return;
     }
-
+  
     if (msg.type === 'error' && msg.message?.includes('Invalid credentials')) {
       try { ws.close(); } catch {}
       return;
     }
-
+  
     if (msg.type === 'user_typing' && msg.chatID === store.currentChatID &&
         msg.username.toLowerCase() !== (store.username || '').toLowerCase()) {
       window.dispatchEvent(new CustomEvent('chat:user-typing', { detail: msg.username }));
+      return;
     }
-
+  
     if (msg.type === 'user_status') {
       window.dispatchEvent(new CustomEvent('chat:user-status', { detail: msg }));
+      return;
     }
-  });
+  });  
 
   ws.addEventListener('error', (error) => {
     // This will still fire for ERR_NETWORK_IO_SUSPENDED; we just back off calmly.
