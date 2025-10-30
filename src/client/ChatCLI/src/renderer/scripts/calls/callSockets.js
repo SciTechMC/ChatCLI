@@ -91,7 +91,6 @@ export function connectCallWS() {
   }
 
   const base = new URL(window.api.WS_URL);
-  // keep your /ws/{chatID}/{username} pattern (server accepts typed messages too)
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/ws/${currentChatID}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
 

@@ -168,17 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.dataset.state = store.callState;
 
     const isPrivate = store.currentChat?.type === 'private' || store.currentChatIsPrivate === true;
-    setCallButtonVisible(!!store.currentChatID && isPrivate);
-
-    // If we’re in-call in another chat, optionally disable this button.
-    const inOtherChat = store.callState === 'in-call' && store.callActiveChatID && store.currentChatID !== store.callActiveChatID;
-    if (inOtherChat && SWITCH_CALL_ACTION === 'disable') {
-      btn.disabled = true;
-      btn.title = 'Already in a call — end it in its chat first';
-    } else {
-      btn.disabled = !store.currentChatID || !isPrivate;
-      btn.title = '';
-    }
+    setCallButtonVisible(!!store.currentChatID && isPrivate); 
 
     if (store.callState === 'idle') {
       iconUse.setAttribute('href', '#icon-phone');
@@ -210,11 +200,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.style.display = visible ? 'inline-flex' : 'none';
   }
 
-  // Single icon-only call button = three actions
+  // Send call accept signaling
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
     try {
-
-  
       const inOtherChat =
         store.callState === 'in-call' &&
         store.callActiveChatID &&
@@ -230,7 +218,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
   
       if (store.callState === 'incoming') {
-        // ensure we’re accepting the *incoming* call’s chat
         if (store.callIncoming?.chatID && store.currentChatID !== store.callIncoming.chatID) {
           await selectChat(store.callIncoming.chatID);
         }
@@ -242,14 +229,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
   
       // else: in-call → leave
-      await endCall('You left');
+      endCall('You left');
       store.callState = 'idle';
       store.callActiveChatID = null;
       stopRingback();
       stopRingtone();
   
-      // optional: if you wanted "end and call current chat" behavior, do it here.
-      if (inOtherChat && false /* SWITCH_CALL_ACTION === 'end-and-call' */) {
+      if (inOtherChat && false) {
         await selectChat(store.currentChatID);
         await connectCallWS();
         await startCall();
@@ -260,7 +246,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       console.error(e);
     } finally {
-      updateCallButton?.(); // if you have this helper
+      updateCallButton();
     }
   });
 
@@ -282,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     stopRingback();
     stopRingtone();
     store.callIncoming = null;
-    updateCallButton?.();
+    updateCallButton();
   });
   
   window.addEventListener('call:ended', () => {
@@ -292,7 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.callIncoming = null;
     stopRingback();
     stopRingtone();
-    updateCallButton?.();
+    updateCallButton();
   });  
   window.addEventListener('call:started',  () => {
     store.callState = 'in-call';
@@ -317,7 +303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.refs.muteIconUse?.setAttribute('href', muted ? '#icon-mic-off' : '#icon-mic');
   });
 
-  // initialize hidden until a private chat is selected
+  // Initial call button state
   setCallButtonVisible(false);
 
   window.addEventListener('chat:selected', async (ev) => {
