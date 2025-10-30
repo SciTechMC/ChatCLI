@@ -1,4 +1,5 @@
-// common.js
+import { showToast } from '../ui/toasts.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
   /* =========================
    *  Overlay / Modal helpers
@@ -218,10 +219,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const baseValid = form.checkValidity();
       const extraOk   = extraValidator ? extraValidator() : true;
       if (!baseValid || !extraOk) {
-        state.tried = true;     // now we can show red borders everywhere
+        state.tried = true;
         e.preventDefault();     // block submission
         compute();
-        // optional: toast
         showToast('Please fill all required fields correctly.', 'error');
       }
     }, true);
@@ -283,7 +283,7 @@ const registerForm = document.getElementById('register-form');
 if (registerForm) {
   const registerSubmitBtn = document.getElementById('register-submit');
 
-  // Elements that may or may not exist (guard everything)
+  // Elements for password rules
   const infoBtn     = registerForm.querySelector('.info[data-for="password"]');
   const ruleUpper   = registerForm.querySelector('.tooltip .rules [data-rule="upper"]');
   const ruleLower   = registerForm.querySelector('.tooltip .rules [data-rule="lower"]');
@@ -307,7 +307,6 @@ if (registerForm) {
     return passwordStrongEnough(p) && p === cp;
   };
 
-  // If you’re using bindFormGate, keep this (disableOnInvalid=false so users can click then see errors)
   if (typeof bindFormGate === 'function') {
     bindFormGate(registerForm, registerSubmitBtn, passwordRulesOk, /* disableOnInvalid */ false);
   }
@@ -352,7 +351,7 @@ if (registerForm) {
   // Run once (covers autofill)
   try { updatePwdRulesVisuals(registerForm.password?.value || ''); } catch {}
 
-  // (Optional) Confirm must exactly match to clear red
+  // Confirm must exactly match to clear red
   const confirmInput  = registerForm.querySelector('input[name="confirm"]');
   const passwordInput = registerForm.querySelector('input[name="password"]');
   function updateConfirmMatchVisual() {
@@ -490,19 +489,3 @@ document.addEventListener('click', (e) => {
   input.type = nextType;
   btn.setAttribute('aria-label', nextType === 'password' ? 'Show password' : 'Hide password');
 });
-
-/* =========================
- *  Toasts (no-op if container absent)
- * ========================= */
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.animation = 'fadeOut 0.3s ease-in';
-    toast.addEventListener('animationend', () => toast.remove());
-  }, 3000);
-}
