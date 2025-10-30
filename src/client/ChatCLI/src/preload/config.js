@@ -1,5 +1,5 @@
 // config.js
-const HOST = '172.27.27.179';
+const HOST = '127.0.0.1';
 const API_PORT = 5123;
 const WS_PORT = 8765;
 
