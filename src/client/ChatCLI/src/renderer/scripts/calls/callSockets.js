@@ -79,7 +79,6 @@ export async function ensureCallWSOpen() {
 /** Create (or reconnect) the per-chat call WebSocket */
 export function connectCallWS() {
   ensureCallState();
-  console.log('[CALL] Initializing call WebSocket');
 
   const { currentChatID, username, token } = store;
   if (!currentChatID || !username) {
@@ -88,11 +87,9 @@ export function connectCallWS() {
 
   // close an existing socket if it's CONNECTING or OPEN
   if (store.call.callWS && store.call.callWS.readyState <= 1) {
-    console.log('[CALL] Closing existing WebSocket connection');
     try { store.call.callWS.close(); } catch {}
   }
 
-  // Base WS from preload (window.api.WS_URL like ws://host:8765/ws)
   const base = new URL(window.api.WS_URL);
   // keep your /ws/{chatID}/{username} pattern (server accepts typed messages too)
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/ws/${currentChatID}/${encodeURIComponent(username)}`;
@@ -103,19 +100,6 @@ export function connectCallWS() {
 
   ws.onopen = () => {
     console.log('[CALL] WebSocket opened successfully');
-    // Optional: auth/handshake if your server expects it
-    if (token) {
-      console.log('[CALL] Sending authentication');
-      ws.send(JSON.stringify({
-        type: 'auth',
-        token,
-        chatID: currentChatID,
-        username
-      }));
-    }
-    else {
-      console.warn("Token unavailable!");
-    }
     ws.send(JSON.stringify({ type: 'join_chat', chatID: currentChatID }));
     flushQueue();
   };

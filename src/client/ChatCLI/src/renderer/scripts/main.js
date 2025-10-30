@@ -3,17 +3,15 @@ import { store } from './core/store.js';
 import { connectWS, chatSend } from './sockets/chatSocket.js';
 import { setupModalClosing } from './ui/modals.js';
 import { initTypingIndicator } from './ui/typing.js';
-import { showToast } from './ui/toasts.js';
 
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
 
 import { initChatSearch, reapplyChatSearch } from './chats/search.js';
 
 import { loadChats } from './chats/chatList.js';
-import { renderArchivedChats, archiveChat, handleArchiveChat } from './chats/archive.js';
+import { handleArchiveChat } from './chats/archive.js';
 import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus } from './chats/chatSession.js';
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
-import { loadGroupMembers } from './chats/groupService.js';
 
 import { connectCallWS } from './calls/callSockets.js';
 import { startCall, joinCall, endCall, toggleMute } from './calls/rtc.js';
