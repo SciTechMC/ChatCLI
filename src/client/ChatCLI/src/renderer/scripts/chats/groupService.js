@@ -2,6 +2,7 @@ import { store } from '../core/store.js';
 import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
 
+// Load and display the members of a group chat
 export async function loadGroupMembers(chatID) {
   try {
     const { members } = await apiRequest('/chat/get-members',

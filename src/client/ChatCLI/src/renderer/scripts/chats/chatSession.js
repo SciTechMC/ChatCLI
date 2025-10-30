@@ -1,5 +1,3 @@
-// src/renderer/scripts/chats/chatSession.js
-
 import { store } from '../core/store.js';
 import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
@@ -15,6 +13,7 @@ const MAX_SPLIT_PARTS = 5;
 const HARD_MAX = MAX_MESSAGE_LEN * MAX_SPLIT_PARTS;
 const CLUSTER_WINDOW_MS = 5 * 60 * 1000;
 
+// Cluster detection: new cluster if different user or time gap exceeded
 function isNewCluster(prevMsgEl, user, tsMs) {
   if (!prevMsgEl) return true;
   const prevUser = prevMsgEl.dataset.username || '';
@@ -24,12 +23,7 @@ function isNewCluster(prevMsgEl, user, tsMs) {
   return !(sameUser && closeInTime);
 }
 
-// (Optional) Resolve an avatar URL for a username.
-// Replace this with your real avatar logic if you have one.
 function getAvatarFor(username) {
-  // Example options, uncomment the one you use:
-  // return `/api/avatar?u=${encodeURIComponent(username)}`;
-  // return `https://www.gravatar.com/avatar/${md5(username.trim().toLowerCase())}?d=identicon`;
   return null; // fallback to initials chip if no image URL
 }
 
@@ -37,6 +31,7 @@ function makeInitials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('') || '?';
 }
 
+// Splits a long text into chunks of given size, trying to split on soft breaks
 function splitIntoChunks(text, size = MAX_MESSAGE_LEN, maxParts = MAX_SPLIT_PARTS) {
   const chunks = [];
   let i = 0;
@@ -45,7 +40,7 @@ function splitIntoChunks(text, size = MAX_MESSAGE_LEN, maxParts = MAX_SPLIT_PART
     const remaining = text.length - i;
     const partsLeft = maxParts - chunks.length;
 
-    if (partsLeft === 1) {               // last part must take the rest
+    if (partsLeft === 1) {
       chunks.push(text.slice(i));
       break;
     }
@@ -76,6 +71,7 @@ export function updateSendButtonState() {
   sendBtn.disabled = !hasContent;
 }
 
+// Selects a chat by ID, or clears selection if null/undefined
 export async function selectChat(chatID) {
   const { messagesEl, chatTitle, editMembersBtn } = store.refs;
 
@@ -103,7 +99,7 @@ export async function selectChat(chatID) {
     document.querySelector('.chat-header').style.display = 'none';
     if (editMembersBtn) editMembersBtn.style.display = 'none';
 
-    // let the rest of the app know
+    // let the rest of the app know that no chat is selected
     window.dispatchEvent(new CustomEvent('chat:selected', {
       detail: { chatID: null, type: null }
     }));
@@ -193,8 +189,7 @@ export async function selectChat(chatID) {
     el.classList.toggle('active', parseInt(el.dataset.chatId, 10) === targetId);
   });
 
-  // ✅ Tell main.js the selection changed (it will show/hide the call button
-  // and connect the call WebSocket if this is a private chat)
+  // Focus input
   window.dispatchEvent(new CustomEvent('chat:selected', {
     detail: { chatID: targetId, type }
   }));

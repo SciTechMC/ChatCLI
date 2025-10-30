@@ -1,6 +1,6 @@
 import { store } from '../core/store.js';
 import { getMic } from './media.js';
-import { callSend, setStatus, ensureCallWSOpen } from './callSockets.js';
+import { callSend, ensureCallWSOpen } from './callSockets.js';
 
 function ensureCallState() {
   store.call ??= {};
@@ -29,15 +29,12 @@ export function createPC() {
   // Connection lifecycle
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') {
-      setStatus('Connected ✅', 'ok');
       window.dispatchEvent(new Event('call:connected'));
     }
     if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-      setStatus('Call ended / issue', 'warn');
       window.dispatchEvent(new Event('call:ended'));
     }
   };
-  
 
   store.call.pc = pc;
   return pc;
@@ -52,21 +49,19 @@ export async function startAnswerFlow(isCaller = false) {
     const offer = await store.call.pc.createOffer({ offerToReceiveAudio: true });
     await store.call.pc.setLocalDescription(offer);
     callSend({ type: 'offer', chatID: store.currentChatID, sdp: offer });
-    setStatus('Calling…');
-  } else {
-    // callee waits for remote offer; see setRemoteOffer
   }
 }
 
+// Called when receiving an offer from remote
 export async function setRemoteOffer(offerSDP) {
   if (!store.call.pc) { await getMic(); createPC(); }
   await store.call.pc.setRemoteDescription(new RTCSessionDescription(offerSDP));
   const answer = await store.call.pc.createAnswer();
   await store.call.pc.setLocalDescription(answer);
   callSend({ type: 'answer', chatID: store.currentChatID, sdp: answer });
-  setStatus('Answer sent');
 }
 
+// Called when receiving an answer from remote
 export async function setRemoteAnswer(answerSDP) {
   await store.call.pc.setRemoteDescription(new RTCSessionDescription(answerSDP));
 }
@@ -86,11 +81,10 @@ export function endCall(reason = 'Ended') {
   store.call.pendingOffer = null;
   store.call.isMuted = false;
 
-  // No more direct DOM toggling here; UI listens to events:
-  setStatus(reason);
   window.dispatchEvent(new Event('call:ended'));
 }
 
+// Toggle mute state
 export function toggleMute() {
   if (!store.call.localStream) return;
   store.call.isMuted = !store.call.isMuted;
@@ -99,11 +93,11 @@ export function toggleMute() {
   window.dispatchEvent(new CustomEvent('call:muted', { detail: { muted: store.call.isMuted } }));
 }
 
+// Called by "Start Call" button
 export async function startCall() {
   ensureCallState();
   await ensureCallWSOpen();
 
-  // Flip to in-call immediately from the caller side
   store.call.inCall = true;
 
   callSend({ type: 'call-started', chatID: store.currentChatID });
@@ -111,6 +105,7 @@ export async function startCall() {
   window.dispatchEvent(new Event('call:started'));
 }
 
+// Called by "Join Call" button
 export async function joinCall() {
   store.call.joiningArmed = true;
   await startAnswerFlow(false);
@@ -119,10 +114,6 @@ export async function joinCall() {
     await setRemoteOffer(store.call.pendingOffer);
     store.call.pendingOffer = null;
     store.call.inCall = true;
-    setStatus('Joining…');
     window.dispatchEvent(new Event('call:started'));
-  } else {
-    setStatus('Joining… (waiting for offer)');
-    // when the offer arrives, callSockets will set inCall and dispatch 'call:started'
   }
 }

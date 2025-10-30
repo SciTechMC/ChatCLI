@@ -36,7 +36,7 @@ function stopOsc(osc) {
 export function playRingback() {
   stopRingback();
   const ctx = ensureCtx();
-  // pattern: 400 Hz for 1s, 2s off (very simple EU-ish ringback feel)
+  // pattern: 400 Hz for 1s, 2s off
   const on = 1000, off = 2000;
   const tick = () => {
     _ringbackOsc = ctx.createOscillator();
@@ -60,12 +60,10 @@ export function playRingtone() {
   stopRingtone();
   const ctx = ensureCtx();
 
-  // Gentle master gain (so it never blares)
   const master = ctx.createGain();
   master.gain.value = 0.06;
   master.connect(ctx.destination);
 
-  // A small tri-tone melody with soft attack/release
   const sequence = [
     { f: 554.37, dur: 220 }, // C#5
     { rest: 90 },
@@ -87,11 +85,9 @@ export function playRingtone() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
-      // Subtle timbre: triangle + slight vibrato
       osc.type = 'triangle';
       osc.frequency.value = step.f;
 
-      // envelope
       gain.gain.setValueAtTime(0, t);
       gain.gain.linearRampToValueAtTime(master.gain.value, t + ATTACK);
       gain.gain.setValueAtTime(master.gain.value, t + (step.dur / 1000) - RELEASE);
@@ -101,25 +97,22 @@ export function playRingtone() {
       osc.start(t);
       osc.stop(t + (step.dur / 1000) + 0.05);
 
-      // tiny vibrato
       const lfo = ctx.createOscillator();
       const lfoGain = ctx.createGain();
       lfo.type = 'sine';
       lfo.frequency.value = 5.5;
-      lfoGain.gain.value = 3; // +/- 3 Hz
+      lfoGain.gain.value = 3;
       lfo.connect(lfoGain).connect(osc.frequency);
       lfo.start(t);
       lfo.stop(t + (step.dur / 1000));
 
       t += step.dur / 1000;
     }
-    return t - startTime; // total duration scheduled
+    return t - startTime;
   };
 
-  // schedule first run immediately
   const start = ctx.currentTime + 0.02;
-  const totalDur = scheduleAt(start); // seconds
-  // loop it (add a calm rest at the end)
+  const totalDur = scheduleAt(start);
   const loopMs = (totalDur * 1000) + 600;
 
   _ringtoneTimer = setInterval(() => {
@@ -127,7 +120,6 @@ export function playRingtone() {
     scheduleAt(t0);
   }, loopMs);
 }
-
 
 export function stopRingtone() {
   if (_ringtoneTimer) { clearInterval(_ringtoneTimer); _ringtoneTimer = null; }

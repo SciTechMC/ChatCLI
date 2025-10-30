@@ -4,6 +4,7 @@ import { showToast } from '../ui/toasts.js';
 import { renderArchivedChats } from './archive.js';
 import { selectChat } from './chatSession.js';
 
+// Creates a chat item element for the chat list
 export function createChatItem(chatID, name, type) {
   const chatItem = document.createElement('div');
   chatItem.classList.add('chat-item');
@@ -45,6 +46,7 @@ export function createChatItem(chatID, name, type) {
   return chatItem;
 }
 
+// Loads chats from the server and populates the chat list
 export async function loadChats() {
   const { token } = store;
   const { chatListEl, placeholder } = store.refs;
@@ -71,6 +73,7 @@ export async function loadChats() {
       chatListEl.appendChild(emptyDiv);
     }
 
+    // Populate chat list
     const frag = document.createDocumentFragment();
     chats.forEach(({ chatID, name, type }) => {
       frag.appendChild(createChatItem(chatID, name, type));

@@ -12,6 +12,7 @@ function ensureContainer() {
 }
 
 export function showToast(message, type = 'info') {
+  /// type: 'info' | 'warning' | 'error'
   const container = ensureContainer();
   const toast = document.createElement('div');
   toast.classList.add('toast', type);

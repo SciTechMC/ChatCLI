@@ -32,18 +32,3 @@ export const store = {
 };
 
 export const selfName = () => (store.username || '').toLowerCase();
-
-export async function persistUsername(newUsername) {
-  store.username = newUsername;
-
-  // Best-effort persistence in both secureStore and localStorage
-  try {
-    if (window.secureStore?.set) {
-      await window.secureStore.set('username', newUsername);
-    }
-  } catch (_) { /* ignore */ }
-
-  try {
-    localStorage.setItem('username', newUsername);
-  } catch (_) { /* ignore */ }
-}

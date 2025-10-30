@@ -3,11 +3,13 @@ import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
 import { selectChat } from './chatSession.js';
 
+// Renders the archived chats in the chat list
 export function renderArchivedChats() {
   const { chatListEl } = store.refs;
   chatListEl.querySelectorAll('.chat-item.archived').forEach(el => el.remove());
   if (!store.archivedVisible) return;
 
+  // Append archived chats
   store.archivedChatsData.forEach(({ chatID, name, type }) => {
     const item = document.createElement('div');
     item.classList.add('chat-item', 'archived');
@@ -15,6 +17,7 @@ export function renderArchivedChats() {
     item.dataset.username = name;
     item.dataset.type = type;
 
+    // Chat info
     const info = document.createElement('div');
     info.classList.add('chat-info');
     const chatName = document.createElement('div');
@@ -23,6 +26,7 @@ export function renderArchivedChats() {
     info.appendChild(chatName);
     item.appendChild(info);
 
+    // Unarchive button
     const unarchiveBtn = document.createElement('div');
     unarchiveBtn.classList.add('chat-close');
     unarchiveBtn.title = 'Unarchive';
@@ -35,7 +39,7 @@ export function renderArchivedChats() {
         });
         showToast('Chat unarchived successfully!', 'info');
         store.archivedVisible = false;
-        await window.dispatchEvent(new CustomEvent('chat:reload'));
+        window.dispatchEvent(new CustomEvent('chat:reload'));
         if (store.currentChatID === chatID) selectChat(null);
       } catch (err) {
         console.error('Unarchive error:', err);
@@ -55,7 +59,7 @@ export async function archiveChat(chatID) {
       body: JSON.stringify({ session_token: store.token, chatID })
     });
     showToast('Chat archived successfully!', 'info');
-    await window.dispatchEvent(new CustomEvent('chat:reload'));
+    window.dispatchEvent(new CustomEvent('chat:reload'));
     if (store.currentChatID === chatID) selectChat(null);
   } catch (err) {
     console.error('archiveChat error:', err);
@@ -63,6 +67,7 @@ export async function archiveChat(chatID) {
   }
 }
 
+// Initiates the archive chat process with confirmation
 export function handleArchiveChat(chatID) {
   window.dispatchEvent(new CustomEvent('chat:confirm-archive', { detail: { chatID } }));
 }

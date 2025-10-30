@@ -1,9 +1,7 @@
-// src/renderer/auth/session.js
 import { store } from '../core/store.js';
 import { setAccess, apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
 import { showModal, hideModal, showConfirmationModal } from '../ui/modals.js';
-import { loadChats } from '../chats/chatList.js';
 
 export async function autoLoginOrRedirect() {
   store.username = await window.secureStore.get('username');
@@ -12,7 +10,7 @@ export async function autoLoginOrRedirect() {
     return false;
   }
   try {
-    const r = await window.auth.refresh(store.username); // { ok, access_token }
+    const r = await window.auth.refresh(store.username);
     if (!r || !r.ok || !r.access_token) throw new Error('Refresh failed');
     setAccess(r.access_token);
     return true;
@@ -54,7 +52,7 @@ export function wireProfileAndAccount() {
   
     let storedEmail = null;
     try { storedEmail = await window.secureStore.get('email'); } catch (_) {}
-  
+
     const usernameChanged = !!newUsername && newUsername !== store.username;
     const emailChanged    = !!newEmail && newEmail !== (storedEmail || '');
   
@@ -65,7 +63,6 @@ export function wireProfileAndAccount() {
         'Re-login Required',
         async () => {
           try {
-            // Proceed only after confirmation
             const result = await apiRequest('/user/submit-profile', {
               body: JSON.stringify({
                 session_token: store.token,
@@ -87,8 +84,7 @@ export function wireProfileAndAccount() {
   
       return;
     }
-  
-    // If no username/email change, just save
+
     try {
       const result = await apiRequest('/user/submit-profile', {
         body: JSON.stringify({
@@ -104,8 +100,6 @@ export function wireProfileAndAccount() {
     }
   });
   
-  
-
   // Disable account
   if (disableAccountBtn) {
     disableAccountBtn.addEventListener('click', () => {
@@ -209,6 +203,8 @@ export function wireProfileAndAccount() {
           if (store.username && window.auth?.clear) await window.auth.clear(store.username);
           await window.secureStore.delete('username');
           await window.secureStore.delete('email');
+          await window.secureStore.delete('session_token');
+          await window.secureStore.delete('refresh_token');
         } catch (e2) {
           console.warn('Local logout cleanup error:', e2);
         }
@@ -233,14 +229,12 @@ export function putUsernameInUI() {
 
 async function forceLogoutAfterProfileChange(message = 'Profile updated. Please log in again.') {
   try {
-    // Best-effort server side logout for current session(s)
     await apiRequest('/user/logout-all', {
       method: 'POST',
       body: JSON.stringify({ session_token: store.token })
     });
-  } catch (_) { /* ignore server errors here */ }
+  } catch (_) {}
 
-  // Best-effort local cleanup
   try { if (store.username && window.auth?.clear) await window.auth.clear(store.username); } catch (_) {}
   try { await window.secureStore.delete('session_token'); } catch (_) {}
   try { await window.secureStore.delete('refresh_token'); } catch (_) {}

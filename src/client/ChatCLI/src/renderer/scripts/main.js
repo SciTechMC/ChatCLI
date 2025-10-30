@@ -1,4 +1,4 @@
-import { persistUsername ,store } from './core/store.js';
+import { store } from './core/store.js';
 
 import { connectWS, chatSend } from './sockets/chatSocket.js';
 import { setupModalClosing } from './ui/modals.js';
@@ -374,7 +374,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('auth:username-updated', async (ev) => {
     const next = ev.detail?.username;
     if (!next) return;
-    await persistUsername(next);
     putUsernameInUI();
   });
 

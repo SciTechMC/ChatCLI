@@ -2,6 +2,7 @@ import { store } from '../core/store.js';
 
 let debTimer = null;
 
+// Simple HTML escape
 const ESC = s => s
   .replace(/&/g,'&amp;')
   .replace(/</g,'&lt;')
@@ -29,8 +30,6 @@ function ensureEmptyStateEl() {
 }
 
 function getChatItems() {
-  // Expect each chat row to have data-chat-id
-  // and a child .chat-name (we'll add data-label for the pristine text)
   return Array.from(store.refs.chatListEl?.querySelectorAll('[data-chat-id]') || []);
 }
 
@@ -57,7 +56,6 @@ function applyFilter(query) {
   let visible = 0;
   for (const row of rows) {
     const nameEl = getLabelEl(row);
-    // keep pristine label in data-label once
     if (!nameEl.dataset.label) nameEl.dataset.label = nameEl.textContent?.trim() || '';
 
     const raw = nameEl.dataset.label;
@@ -68,7 +66,6 @@ function applyFilter(query) {
       setLabelWithHighlight(nameEl, raw, query);
       visible++;
     } else {
-      // restore in case it was highlighted earlier (kept hidden, but consistent)
       nameEl.innerHTML = ESC(raw);
     }
   }
@@ -80,7 +77,6 @@ export function initChatSearch() {
   const input = store.refs.chatSearchInput;
   if (!input) return;
 
-  // initial reapply if user has something typed (e.g., hot reload)
   if (input.value) applyFilter(input.value);
 
   input.addEventListener('input', () => {
@@ -98,7 +94,6 @@ export function initChatSearch() {
   });
 }
 
-// Call this after you re-render the chat list (e.g., after loadChats())
 export function reapplyChatSearch() {
   const input = store.refs.chatSearchInput;
   if (input) applyFilter(input.value || '');

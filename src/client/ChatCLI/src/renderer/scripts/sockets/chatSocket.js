@@ -7,39 +7,9 @@ let isConnecting = false;
 // ---- Reconnect backoff (unbounded, capped at MAX) ----
 let reconnectAttempts = 0;
 const BACKOFF_BASE = 1000;        // 1s
-const BACKOFF_MAX  = 30000;       // 30s cap
+const BACKOFF_MAX  = 15000;       // 15s cap
 
-// ---- Heartbeat ----
-let hbInterval = null;
-let hbTimeout  = null;
-const HEARTBEAT_EVERY   = 25000;  // send ping every 25s
-const HEARTBEAT_DEAD_MS = 10000;  // if no pong (or any msg) in 10s, kill sock
-
-function clearHeartbeat() {
-  if (hbInterval) { clearInterval(hbInterval); hbInterval = null; }
-  if (hbTimeout)  { clearTimeout(hbTimeout);   hbTimeout = null; }
-}
-function armHeartbeat() {
-  clearHeartbeat();
-  // treat ANY inbound message as liveness
-  const markAlive = () => {
-    if (hbTimeout) { clearTimeout(hbTimeout); hbTimeout = null; }
-    hbTimeout = setTimeout(() => {
-      try { ws?.close(); } catch {}
-    }, HEARTBEAT_DEAD_MS);
-  };
-  markAlive();
-  hbInterval = setInterval(() => {
-    try {
-      ws?.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
-      // if server doesn't send 'pong', any message still resets the timer via onmessage
-      markAlive();
-    } catch {
-      // if send fails, the socket is already dead; let onclose handle it
-    }
-  }, HEARTBEAT_EVERY);
-}
-
+// ---------- Utility: reconnect scheduling ----------
 function nextDelay() {
   const raw = Math.min(BACKOFF_MAX, BACKOFF_BASE * 2 ** reconnectAttempts);
   // jitter 80–120%
@@ -47,22 +17,24 @@ function nextDelay() {
 }
 
 function shouldHoldReconnect() {
-  // Don’t hammer while offline or tab hidden (common cause of ERR_NETWORK_IO_SUSPENDED)
+  // Don’t hammer while offline or tab hidden
   if (navigator && 'onLine' in navigator && !navigator.onLine) return true;
   if (document && typeof document.hidden === 'boolean' && document.hidden) return true;
   return false;
 }
 
 function scheduleReconnect(reason = '') {
-  if (shouldHoldReconnect()) return; // will be resumed by visibility/online handler
+  if (shouldHoldReconnect()) return;
   const delay = nextDelay();
   reconnectAttempts++;
+  console.warn(`[CHAT-WS] Reconnecting in ${delay}ms (${reason})`);
   setTimeout(connectWS, delay);
 }
 
+// ---------- Main connect ----------
 export function connectWS() {
   if (isConnecting || (ws && ws.readyState === WebSocket.OPEN)) return;
-  if (shouldHoldReconnect()) return; // wait until visible/online
+  if (shouldHoldReconnect()) return;
 
   isConnecting = true;
   try {
@@ -76,35 +48,41 @@ export function connectWS() {
   ws.addEventListener('open', () => {
     reconnectAttempts = 0;
     isConnecting = false;
+    console.log('[CHAT-WS] Connected ✅');
 
-    // auth + idle join (your existing behavior)
-    ws.send(JSON.stringify({ type: 'auth', token: store.token }));
+    // Authenticate and join idle lobby
+    if (store.token) {
+      ws.send(JSON.stringify({ type: 'auth', token: store.token }));
+    }
     ws.send(JSON.stringify({ type: 'join_idle' }));
-
-    // start heartbeat
-    armHeartbeat();
   });
 
   ws.addEventListener('close', () => {
+    console.warn('[CHAT-WS] Closed ❌');
     isConnecting = false;
-    clearHeartbeat();
     scheduleReconnect('close');
   });
 
+  ws.addEventListener('error', (error) => {
+    console.error('[CHAT-WS] Error', error);
+    isConnecting = false;
+    showToast('Connection issue. Reconnecting…', 'error');
+    scheduleReconnect('error');
+  });
+
+  // ---------- Main message handler ----------
   ws.addEventListener('message', (event) => {
-    // liveness: any message counts
-    if (hbTimeout) { clearTimeout(hbTimeout); hbTimeout = null; }
-    hbTimeout = setTimeout(() => {
-      try { ws?.close(); } catch {}
-    }, HEARTBEAT_DEAD_MS);
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      console.warn('[CHAT-WS] Bad JSON', event.data);
+      return;
+    }
 
-    const msg = JSON.parse(event.data);
+    console.log('[CHAT-WS]', msg);
 
-    // optional: explicit pong from server
-    if (msg.type === 'pong') return;
-
-    if (msg.type === 'auth_ack') return;
-
+    // ---------- Chat messages ----------
     if (msg.type === 'new_message') {
       if (store.seenMessageIDs.has(msg.messageID)) return;
       store.seenMessageIDs.add(msg.messageID);
@@ -112,32 +90,30 @@ export function connectWS() {
       return;
     }
 
-    if (msg.type === 'error' && msg.message?.includes('Invalid credentials')) {
-      try { ws.close(); } catch {}
-      return;
-    }
-
-    if (msg.type === 'user_typing' && msg.chatID === store.currentChatID &&
+    if (msg.type === 'user_typing' &&
+        msg.chatID === store.currentChatID &&
         msg.username.toLowerCase() !== (store.username || '').toLowerCase()) {
       window.dispatchEvent(new CustomEvent('chat:user-typing', { detail: msg.username }));
+      return;
     }
 
     if (msg.type === 'user_status') {
       window.dispatchEvent(new CustomEvent('chat:user-status', { detail: msg }));
+      return;
     }
-    // ---- CALL SIGNALING (GLOBAL) ----
+
+    // ---------- Call signaling (global) ----------
     if (msg.type === 'call_incoming') {
-      // Callee gets this even if not in the target chat
+      console.log('[CALL-INCOMING]', msg);
       window.dispatchEvent(new CustomEvent('call:incoming', {
         detail: { chatID: msg.chatID, from: msg.from }
       }));
-      // optional: toast
-      window.dispatchEvent(new CustomEvent('toast', { detail: { text: `${msg.from || 'Someone'} is calling…` } }));
+      showToast(`${msg.from || 'Someone'} is calling…`, 'info');
       return;
     }
 
     if (msg.type === 'call_state') {
-      // Sent whenever you join a chat that has a pending/active call (server side)
+      console.log('[CALL-STATE]', msg);
       if (msg.state === 'ringing') {
         window.dispatchEvent(new CustomEvent('call:incoming', {
           detail: { chatID: msg.chatID, from: msg.from }
@@ -149,43 +125,44 @@ export function connectWS() {
     }
 
     if (msg.type === 'call_accepted') {
+      console.log('[CALL-ACCEPTED]', msg);
       window.dispatchEvent(new Event('call:connected'));
       return;
     }
 
     if (msg.type === 'call_declined' || msg.type === 'call_ended') {
+      console.log('[CALL-ENDED/DECLINED]', msg);
       window.dispatchEvent(new Event('call:ended'));
       return;
     }
 
-  });
-
-  ws.addEventListener('error', (error) => {
-    // This will still fire for ERR_NETWORK_IO_SUSPENDED; we just back off calmly.
-    console.error('WebSocket error:', error);
-    isConnecting = false;
-    clearHeartbeat();
-    showToast('Connection issue. Reconnecting…', 'error');
-    // Let 'close' handler scheduleReconnect; if it doesn't fire, do it here as a fallback:
-    scheduleReconnect('error');
+    if (msg.type === 'error' && msg.message?.includes('Invalid credentials')) {
+      console.error('[CHAT-WS] Invalid credentials, closing');
+      try { ws.close(); } catch {}
+      return;
+    }
   });
 }
 
-// Keep your existing API
+// ---------- Sending ----------
 export function chatSend(payload) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload));
+  } else {
+    console.warn('[CHAT-WS] send() called while not open', payload);
   }
 }
 
-// ---- Resume logic: when the user returns or network is back, attempt reconnect now
+// ---------- Resume logic ----------
 function resumeIfNeeded() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
-  reconnectAttempts = Math.max(0, reconnectAttempts - 1); // be gentle after a resume
+  reconnectAttempts = Math.max(0, reconnectAttempts - 1);
   connectWS();
 }
 
 window.addEventListener('online', resumeIfNeeded);
 window.addEventListener('focus', resumeIfNeeded);
-window.addEventListener('visibilitychange', () => { if (!document.hidden) resumeIfNeeded(); });
-window.addEventListener('pageshow', resumeIfNeeded); // fired after bfcache restore on some browsers
+window.addEventListener('visibilitychange', () => {
+  if (!document.hidden) resumeIfNeeded();
+});
+window.addEventListener('pageshow', resumeIfNeeded);

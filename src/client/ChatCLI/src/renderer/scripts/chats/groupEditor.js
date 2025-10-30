@@ -5,6 +5,7 @@ import { hideModal, showModal, showConfirmationModal } from '../ui/modals.js';
 import { loadChats } from './chatList.js';
 import { selectChat } from './chatSession.js';
 
+// Initializes event listeners for the group editor modal
 export function initGroupEditor() {
   const {
     groupEditorModal, groupMemberList, editMemberInput, editMemberAddBtn,
