@@ -19,6 +19,7 @@ import uvicorn
 
 # Configure module logger
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 app = FastAPI()
 
@@ -74,6 +75,7 @@ async def websocket_endpoint(ws: WebSocket):
 
             msg_type = msg.get("type")
             logger.debug("Received message for %s: %s", username, msg)
+
 
             try:
                 if msg_type == "join_chat":
@@ -165,4 +167,4 @@ async def ws_endpoint(ws: WebSocket, room: str, user: str):
             del rooms[room]
             
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info", use_colors=False)

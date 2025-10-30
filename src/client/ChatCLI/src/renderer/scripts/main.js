@@ -1,22 +1,18 @@
 import { store } from './core/store.js';
-
 import { connectWS, chatSend } from './sockets/chatSocket.js';
-import { setupModalClosing } from './ui/modals.js';
+import { setupModalClosing, showModal, hideModal, showConfirmationModal } from './ui/modals.js';
 import { initTypingIndicator } from './ui/typing.js';
-
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
-
 import { initChatSearch, reapplyChatSearch } from './chats/search.js';
-
+import { apiRequest } from './core/api.js';
 import { loadChats } from './chats/chatList.js';
-import { handleArchiveChat } from './chats/archive.js';
+import { handleArchiveChat, archiveChat } from './chats/archive.js';
 import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus } from './chats/chatSession.js';
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
-
-import { connectCallWS } from './calls/callSockets.js';
-import { startCall, joinCall, endCall, toggleMute } from './calls/rtc.js';
+import { showToast } from './ui/toasts.js';
+import { callSend, connectCallWS } from './calls/callSockets.js';
+import { toggleMute, startCall, joinCall, endCall } from './calls/rtc.js';
 import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
-
 
 // --- events from ws
 window.addEventListener('chat:new-message', onWSNewMessage);
@@ -106,8 +102,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   store.refs.incomingCallClose?.addEventListener('click', hideIncomingCallModal);
   store.refs.declineCallBtn?.addEventListener('click', async () => {
     try {
-      // prefer signaling 'decline' if your server supports it; otherwise just end locally
-      const { callSend } = await import('./calls/callSockets.js');
       if (store.callIncoming?.chatID) {
         callSend?.({ type: 'decline', chatID: store.callIncoming.chatID });
       }
@@ -120,9 +114,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   store.refs.acceptCallBtn?.addEventListener('click', async () => {
-    const { joinCall } = await import('./calls/rtc.js');
-    const { connectCallWS } = await import('./calls/callSockets.js');
-    const { selectChat } = await import('./chats/chatSession.js');
 
     try {
       const ringingChat = store.callIncoming?.chatID;
@@ -222,9 +213,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Single icon-only call button = three actions
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
     try {
-      const { startCall, joinCall, endCall } = await import('./calls/rtc.js');
-      const { connectCallWS } = await import('./calls/callSockets.js');
-      const { selectChat } = await import('./chats/chatSession.js');
+
   
       const inOtherChat =
         store.callState === 'in-call' &&
@@ -421,16 +410,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     newChatInput.value = '';
     newGroupNameInput.value = '';
     groupMemberInput.value = '';
-    import('./ui/modals.js').then(({ showModal }) => showModal(createChatModal));
+    showModal(createChatModal);
   });
 
   // Create chat modal close/cancel
   if (store.refs.closeCreateChatBtn) store.refs.closeCreateChatBtn.addEventListener('click', async () => {
-    const { hideModal } = await import('./ui/modals.js');
     hideModal(store.refs.createChatModal);
   });
   if (store.refs.cancelCreateChatBtn) store.refs.cancelCreateChatBtn.addEventListener('click', async () => {
-    const { hideModal } = await import('./ui/modals.js');
     hideModal(store.refs.createChatModal);
   });
 
@@ -438,9 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (store.refs.createChatSubmitBtn) {
     store.refs.createChatSubmitBtn.addEventListener('click', async () => {
       const { newChatInput, newGroupNameInput, groupMemberInput, createChatModal } = store.refs;
-      const { showModal, hideModal } = await import('./ui/modals.js');
-      const { apiRequest } = await import('./core/api.js');
-      const { showToast } = await import('./ui/toasts.js');
+
 
       const chatType = document.querySelector('input[name="chatType"]:checked')?.value;
       if (!chatType) return showToast('Please select a chat type', 'error');
@@ -538,12 +523,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Sidebar archive confirm
   window.addEventListener('chat:confirm-archive', async (ev) => {
-    const { showConfirmationModal } = await import('./ui/modals.js');
     showConfirmationModal(
       'Are you sure you want to archive this chat? You can still rejoin it later.',
       'Archive Chat',
       async () => { 
-        const { archiveChat } = await import('./chats/archive.js');
         await archiveChat(ev.detail.chatID);
       }
     );
