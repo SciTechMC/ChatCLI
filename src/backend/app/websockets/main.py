@@ -184,3 +184,6 @@ async def call_ws(ws: WebSocket, call_id: str, user: str):
         if not room:
             call_rooms.pop(call_id, None)
             call_users.pop(call_id, None)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info", use_colors=False)
