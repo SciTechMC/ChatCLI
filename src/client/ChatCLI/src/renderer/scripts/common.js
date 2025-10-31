@@ -1,4 +1,4 @@
-import { showToast } from '../ui/toasts.js';
+import { showToast } from './ui/toasts.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   /* =========================
