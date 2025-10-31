@@ -1,6 +1,6 @@
 import { store } from '../core/store.js';
 import { getMic } from './media.js';
-import { callSend, ensureCallWSOpen } from './callSockets.js';
+import { callSend } from './callSockets.js';
 
 function ensureCallState() {
   store.call ??= {};
@@ -95,12 +95,7 @@ export function toggleMute() {
 
 // Called by "Start Call" button
 export async function startCall() {
-  ensureCallState();
-  await ensureCallWSOpen();
-
   store.call.inCall = true;
-
-  callSend({ type: 'call-started', chatID: store.currentChatID });
   await startAnswerFlow(true);
   window.dispatchEvent(new Event('call:started'));
 }

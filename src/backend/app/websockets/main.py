@@ -13,7 +13,8 @@ from services import (
     call_invite,
     call_accept,
     call_decline,
-    call_end
+    call_end,
+    call_sessions,
 )
 import uvicorn
 
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
 app = FastAPI()
+call_rooms: dict[str, set[WebSocket]] = {}
+
+call_users: dict[str, set[str]] = {}
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
@@ -145,26 +149,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-rooms = {}
-
-async def broadcast(room, msg, sender):
-    for ws in rooms.get(room, []):
-        if ws is not sender:
-            await ws.send_json(msg)
-
-@app.websocket("/ws/{room}/{user}")
-async def ws_endpoint(ws: WebSocket, room: str, user: str):
+@app.websocket("/call/{call_id}/{user}")
+async def call_ws(ws: WebSocket, call_id: str, user: str):
     await ws.accept()
-    rooms.setdefault(room, []).append(ws)
+
+    sess = call_sessions.get(call_id)
+    if sess and user not in {sess.get("from"), sess.get("to")}:
+        await ws.close(code=1008)
+        return
+
+    call_rooms.setdefault(call_id, set()).add(ws)
+    call_users.setdefault(call_id, set()).add(user)
+
     try:
         while True:
             data = await ws.receive_json()
+            # Attach sender; fan out to other participant(s) in this call
             data["from"] = user
-            await broadcast(room, data, ws)
+            for peer in list(call_rooms.get(call_id, set())):
+                if peer is not ws:
+                    await peer.send_json(data)
     except WebSocketDisconnect:
-        rooms[room].remove(ws)
-        if not rooms[room]:
-            del rooms[room]
-            
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8765, log_level="info", use_colors=False)
+        pass
+    finally:
+        try:
+            for peer in list(call_rooms.get(call_id, set())):
+                if peer is not ws:
+                    await peer.send_json({"type": "leave", "by": user})
+        except Exception:
+            pass
+
+        room = call_rooms.get(call_id, set())
+        room.discard(ws)
+        if not room:
+            call_rooms.pop(call_id, None)
+            call_users.pop(call_id, None)
