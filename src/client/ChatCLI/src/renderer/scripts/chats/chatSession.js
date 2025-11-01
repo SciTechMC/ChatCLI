@@ -2,9 +2,8 @@ import { store } from '../core/store.js';
 import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
 import { showConfirmationModal } from '../ui/modals.js';
-import { connectWS, chatSend } from '../sockets/chatSocket.js';
+import { chatSend } from '../sockets/chatSocket.js';
 import { updateTypingIndicator } from '../ui/typing.js';
-import { loadChats } from './chatList.js';
 import { loadGroupMembers } from './groupService.js';
 
 const MAX_MESSAGE_LEN = 2048;

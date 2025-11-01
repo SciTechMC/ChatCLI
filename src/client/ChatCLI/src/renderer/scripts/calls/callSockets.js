@@ -50,7 +50,7 @@ export function openCallWS(callId, username) {
     try { store.call.callWS.close(); } catch {}
   }
   const base = new URL(store.ws);
-  base.pathname = base.pathname.replace(/\/?ws$/, '')  `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
+  base.pathname = base.pathname.replace(/\/?ws$/, '') + `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
   const ws = new WebSocket(callUrl);
   store.call.callWS = ws;

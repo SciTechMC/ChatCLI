@@ -18,7 +18,10 @@ export function createPC() {
 
   // Remote audio
   pc.ontrack = (e) => {
-    if (store.refs.remoteAudio) store.refs.remoteAudio.srcObject = e.streams[0];
+    if (store.refs.remoteAudio) {
+      store.refs.remoteAudio.srcObject = e.streams[0];
+      store.refs.remoteAudio.play?.().catch(()=>{});
+    }
   };
 
   // Trickle ICE
