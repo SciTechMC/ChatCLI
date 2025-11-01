@@ -8,6 +8,7 @@ export async function getMic() {
       video: false
     });
     store.call.localStream.getAudioTracks().forEach(t => t.enabled = !store.call.isMuted);
+    console.debug('[MEDIA] mic acquired; tracks=', store.call.localStream.getAudioTracks().length);
     return store.call.localStream;
   } catch (err) {
     console.error('[CALL] getMic error:', err);

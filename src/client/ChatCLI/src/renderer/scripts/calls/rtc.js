@@ -10,32 +10,39 @@ function ensureCallState() {
 
 export function createPC() {
   const pc = new RTCPeerConnection({ iceServers: store.call.iceServers });
+  console.debug('[RTC] pc created', store.call.iceServers);
 
-  // Add local mic
+  // Add local mic (assumes getMic() already ran)
   store.call.localStream.getAudioTracks().forEach(track => {
     pc.addTrack(track, store.call.localStream);
   });
 
-  // Remote audio
+  pc.oniceconnectionstatechange = () => {
+    console.log('[RTC] iceConnectionState:', pc.iceConnectionState);
+  };
+  pc.onconnectionstatechange = () => {
+    console.log('[RTC] connectionState:', pc.connectionState);
+    if (pc.connectionState === 'connected') window.dispatchEvent(new Event('call:connected'));
+    if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) window.dispatchEvent(new Event('call:ended'));
+  };
+  pc.onsignalingstatechange = () => {
+    console.log('[RTC] signalingState:', pc.signalingState);
+  };
+
   pc.ontrack = (e) => {
+    console.log('[RTC] remote track received; streams=', e.streams?.length || 0);
     if (store.refs.remoteAudio) {
       store.refs.remoteAudio.srcObject = e.streams[0];
-      store.refs.remoteAudio.play?.().catch(()=>{});
+      store.refs.remoteAudio.play?.().catch(err => console.warn('[RTC] remote play failed', err));
     }
   };
 
-  // Trickle ICE
   pc.onicecandidate = (e) => {
-    if (e.candidate) callSend({ type: 'ice-candidate', chatID: store.currentChatID, candidate: e.candidate });
-  };
-
-  // Connection lifecycle
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected') {
-      window.dispatchEvent(new Event('call:connected'));
-    }
-    if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
-      window.dispatchEvent(new Event('call:ended'));
+    if (e.candidate) {
+      callSend({ type: 'ice-candidate', chatID: store.currentChatID, candidate: e.candidate });
+      console.log('[RTC] local ICE sent');
+    } else {
+      console.log('[RTC] ICE gathering complete');
     }
   };
 
@@ -49,23 +56,32 @@ export async function startAnswerFlow(isCaller = false) {
   createPC();
 
   if (isCaller) {
+    console.debug('[RTC] creating offer');
     const offer = await store.call.pc.createOffer({ offerToReceiveAudio: true });
     await store.call.pc.setLocalDescription(offer);
+    console.debug('[RTC] local offer set; sending');
     callSend({ type: 'offer', chatID: store.currentChatID, sdp: offer });
   }
 }
 
 // Called when receiving an offer from remote
 export async function setRemoteOffer(offerSDP) {
-  if (!store.call.pc) { await getMic(); createPC(); }
+  if (!store.call.pc) {
+    console.debug('[RTC] no pc on offer; init join flow');
+    await getMic();
+    createPC();
+  }
+  console.debug('[RTC] applying remote offer');
   await store.call.pc.setRemoteDescription(new RTCSessionDescription(offerSDP));
   const answer = await store.call.pc.createAnswer();
   await store.call.pc.setLocalDescription(answer);
+  console.debug('[RTC] local answer set; sending');
   callSend({ type: 'answer', chatID: store.currentChatID, sdp: answer });
 }
 
 // Called when receiving an answer from remote
 export async function setRemoteAnswer(answerSDP) {
+  console.debug('[RTC] applying remote answer');
   await store.call.pc.setRemoteDescription(new RTCSessionDescription(answerSDP));
 }
 

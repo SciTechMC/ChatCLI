@@ -45,23 +45,51 @@ function flushQueue() {
 /** --- Call WS (per call_id) --- */
 export function openCallWS(callId, username) {
   ensureCallState();
+
+  // Close previous per-call WS if present
   if (store.call.callWS && store.call.callWS.readyState <= 1) {
     try { store.call.callWS.close(); } catch {}
   }
-  const base = new URL(store.WS_URL);
+
+  // Build per-call WS URL based on configured WS_URL
+  const base = new URL(store.WS_URL);                  // expects ws(s)://host/ws
+  // strip trailing /ws and append /call/<id>/<user>
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
+
+  console.debug('[CALL-WS] opening', callUrl);
   const ws = new WebSocket(callUrl);
   store.call.callWS = ws;
-  ws.onopen = flushQueue;
-  ws.onclose = () => {};
-  ws.onerror = (e) => console.error('[CALL] Call WS error:', e);
-  ws.onmessage = async (ev) => { const msg = JSON.parse(ev.data);
-      // SDP/ICE only on this socket
+
+  ws.onopen = () => {
+    console.log('[CALL-WS] open');
+    flushQueue();
+  };
+
+  ws.onclose = (e) => {
+    console.warn('[CALL-WS] close', e.code, e.reason);
+  };
+
+  ws.onerror = (e) => {
+    console.error('[CALL-WS] error', e);
+  };
+
+  ws.onmessage = async (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (err) {
+      console.error('[CALL-WS] parse error', err, ev.data);
+      return;
+    }
+    console.debug('[CALL-WS] msg', msg);
+
+    // SDP/ICE only on this socket
     if (msg.type === 'offer') {
+      console.debug('[CALL] recv offer; joiningArmed=', !!store.call.joiningArmed);
       if (!store.call.joiningArmed) {
         store.call.pendingOffer = msg.sdp;
-        window.dispatchEvent(new CustomEvent('call:incoming', { detail: { chatID: store.callActiveChatID, from: msg.from } }));
+        window.dispatchEvent(new CustomEvent('call:incoming', {
+          detail: { chatID: store.callActiveChatID, from: msg.from }
+        }));
         return;
       }
       await setRemoteOffer(msg.sdp);
@@ -69,19 +97,28 @@ export function openCallWS(callId, username) {
       window.dispatchEvent(new Event('call:started'));
       return;
     }
+
     if (msg.type === 'answer') {
+      console.debug('[CALL] recv answer; signalingState=', store.call.pc?.signalingState);
       if (store.call.pc && store.call.pc.signalingState === 'have-local-offer') {
         await setRemoteAnswer(msg.sdp);
         window.dispatchEvent(new Event('call:answer'));
       }
       return;
     }
+
     if (msg.type === 'ice-candidate' && store.call.pc && msg.candidate) {
-      try { await store.call.pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); }
-      catch (e) { console.error('[CALL] ICE add failed:', e); }
+      try {
+        await store.call.pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        console.debug('[CALL] remote ICE added');
+      } catch (e) {
+        console.error('[CALL] ICE add failed:', e);
+      }
       return;
     }
+
     if (msg.type === 'leave') {
+      console.warn('[CALL] peer left');
       endCall('Peer left');
       return;
     }
