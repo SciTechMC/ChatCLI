@@ -1,5 +1,7 @@
 import { store } from '../core/store.js';
 import { showToast } from '../ui/toasts.js';
+import { joinCall } from '../call/rtc.js';
+import { openCallWS } from '../call/callSockets.js';
 
 let ws;
 let isConnecting = false;
@@ -51,7 +53,6 @@ export function connectWS() {
     isConnecting = false;
     console.log('[CHAT-WS] Connected ✅');
 
-    // Authenticate and join idle lobby
     if (store.token) {
       ws.send(JSON.stringify({ type: 'auth', token: store.token }));
     }
@@ -71,8 +72,8 @@ export function connectWS() {
     scheduleReconnect('error');
   });
 
-  // ---------- Main message handler ----------
-  ws.addEventListener('message', (event) => {
+  // ---------- Main message handler (ASYNC) ----------
+  ws.addEventListener('message', async (event) => {
     let msg;
     try {
       msg = JSON.parse(event.data);
@@ -83,7 +84,7 @@ export function connectWS() {
 
     console.log('[CHAT-WS]', msg);
 
-    // ---------- Chat messages ----------
+    // Chat messages
     if (msg.type === 'new_message') {
       if (store.seenMessageIDs.has(msg.messageID)) return;
       store.seenMessageIDs.add(msg.messageID);
@@ -103,7 +104,7 @@ export function connectWS() {
       return;
     }
 
-    // ---------- Call signaling (global) ----------
+    // Call signaling (global)
     if (msg.type === 'call_incoming') {
       console.log('[CALL-INCOMING]', msg);
       window.dispatchEvent(new CustomEvent('call:incoming', {
@@ -119,15 +120,36 @@ export function connectWS() {
         window.dispatchEvent(new CustomEvent('call:incoming', {
           detail: { chatID: msg.chatID, from: msg.from }
         }));
-      } else if (msg.state === 'accepted') {
+        return;
+      }
+      if (msg.state === 'accepted') {
+        if (msg.call_id) {
+          console.debug('[CALL] opening per-call WS (state:accepted)', msg.call_id);
+          openCallWS(msg.call_id, store.username);
+        }
+        await joinCall();
+
+        store.callState = 'in-call';
+        store.callActiveChatID = msg.chatID;
         window.dispatchEvent(new Event('call:connected'));
+        updateCallButton?.();
+        return;
       }
       return;
     }
 
     if (msg.type === 'call_accepted') {
       console.log('[CALL-ACCEPTED]', msg);
+      if (msg.call_id) {
+        console.debug('[CALL] opening per-call WS (accepted)', msg.call_id);
+        openCallWS(msg.call_id, store.username);
+      }
+      await joinCall();
+
+      store.callState = 'in-call';
+      store.callActiveChatID = msg.chatID;
       window.dispatchEvent(new Event('call:connected'));
+      updateCallButton?.();
       return;
     }
 
@@ -136,14 +158,9 @@ export function connectWS() {
       window.dispatchEvent(new Event('call:ended'));
       return;
     }
-
-    if (msg.type === 'error' && msg.message?.includes('Invalid credentials')) {
-      console.error('[CHAT-WS] Invalid credentials, closing');
-      try { ws.close(); } catch {}
-      return;
-    }
   });
 }
+
 
 // ---------- Sending ----------
 export function chatSend(payload) {
