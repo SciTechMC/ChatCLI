@@ -21,7 +21,6 @@ function sendOnGlobalWS(payload) {
 export function callSend(obj) {
   ensureCallState();
   const ws = store.call.callWS;
-  console.log('[CALL] Sending signal:', obj.type, obj);
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(obj));
   } else {
@@ -45,11 +44,17 @@ function flushQueue() {
 /** --- Call WS (per call_id) --- */
 export function openCallWS(callId, username) {
   ensureCallState();
-
-  // Close previous per-call WS if present
-  if (store.call.callWS && store.call.callWS.readyState <= 1) {
+  if (store.call.currentCallId === callId &&
+      store.call.callWS &&
+      (store.call.callWS.readyState === WebSocket.OPEN ||
+      store.call.callWS.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  // If a different call is in-flight, close it.
+  if (store.call.callWS && store.call.currentCallId !== callId) {
     try { store.call.callWS.close(); } catch {}
   }
+  store.call.currentCallId = callId;
 
   const base = new URL(store.WS_URL);
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
@@ -66,6 +71,7 @@ export function openCallWS(callId, username) {
 
   ws.onclose = (e) => {
     console.warn('[CALL-WS] close', e.code, e.reason);
+    store.call.callWS = null;
   };
 
   ws.onerror = (e) => {
@@ -83,10 +89,17 @@ export function openCallWS(callId, username) {
     // SDP/ICE only on this socket
     if (msg.type === 'offer') {
       console.debug('[CALL] recv offer; joiningArmed=', !!store.call.joiningArmed);
+      const s = msg.sdp?.sdp || JSON.stringify(msg.sdp);
+      if (store.call._lastOfferSDP === s) {
+        console.debug('[CALL] duplicate offer ignored');
+        return;
+      }
+      store.call._lastOfferSDP = s;
+
       if (!store.call.joiningArmed) {
         store.call.pendingOffer = msg.sdp;
         window.dispatchEvent(new CustomEvent('call:incoming', {
-          detail: { chatID: msg.chatID, from: msg.from }
+          detail: { chatID: msg.chatID, from: msg.from, call_id: msg.call_id }
         }));
         return;
       }
@@ -105,7 +118,18 @@ export function openCallWS(callId, username) {
       return;
     }
 
-    if (msg.type === 'ice-candidate' && store.call.pc && msg.candidate) {
+    if (msg.type === 'ice-candidate' && msg.candidate) {
+      const c = msg.candidate.candidate || '';
+      if (/\b\.local\b/i.test(c) || /\b::1\b/i.test(c) || /\bfe80:/i.test(c) ||
+          /\b0\.0\.0\.0\b/.test(c) || /\b169\.254\./.test(c) || /\b127\.0\.0\.1\b/.test(c)) {
+        console.debug('[CALL] dropped unsuitable ICE candidate:', c);
+        return;
+      }
+      if (!store.call.pc || !store.call.pc.remoteDescription) {
+        store.call.iceCandidateBuffer.push(msg.candidate);
+        console.debug('[CALL] remote ICE buffered (pc not ready)');
+        return;
+      }
       try {
         await store.call.pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
         console.debug('[CALL] remote ICE added');

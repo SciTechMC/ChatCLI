@@ -11,7 +11,7 @@ import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyp
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
-import { toggleMute, startCall, joinCall, endCall } from './calls/rtc.js';
+import { toggleMute, joinCall, endCall } from './calls/rtc.js';
 import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
 
 // --- events from ws
@@ -93,11 +93,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     declineCallBtn: document.getElementById('declineCallBtn'),
   };
 
+
+  const resume = () => { try { import('./calls/media.js').then(m => m.resumeAudioCtx()); } catch {} };
+  window.addEventListener('click', resume, { once: true, capture: true });
+  window.addEventListener('keydown', resume, { once: true, capture: true });
+  try { endCall('App reloaded'); } catch {}
+  store.callState = 'idle';
+  store.callActiveChatID = null;
+  if (store.call) { store.call.currentCallId = null; }
+
+  window.addEventListener('beforeunload', () => {
+    try { endCall('Unload'); } catch {}
+    try { store.call?.callWS?.close(); } catch {}
+  });
+
   const SWITCH_CALL_ACTION = 'disable';
 
-  store.callState = store.callState || 'idle'; // 'idle' | 'incoming' | 'in-call'
-  store.callIncoming = store.callIncoming || null; // { chatID, from }
-  store.callActiveChatID = store.callActiveChatID || null;
+  store.callIncoming = store.callIncoming || null;
 
   store.refs.incomingCallClose?.addEventListener('click', hideIncomingCallModal);
   store.refs.declineCallBtn?.addEventListener('click', async () => {
@@ -121,7 +133,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (ringingChat && store.currentChatID !== ringingChat) {
         await selectChat(ringingChat);
       }
-      await joinCall();
+    if (store.callIncoming?.call_id) store.call.currentCallId = store.callIncoming.call_id;
       sendCallAcceptViaGlobal(ringingChat);
       store.callState = 'in-call';
       store.callActiveChatID = ringingChat ?? store.currentChatID;
@@ -158,10 +170,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   store.refs.btnMute?.addEventListener('click', async () => {
     try {
-      await toggleMute();
-    } catch (e) {
-      console.error(e);
-    }
+      if (!store.call.localStream) {
+        const { getMic } = await import('./calls/media.js');
+        await getMic();
+      }
+      toggleMute();
+    } catch (e) { console.error(e); }
   });
 
   function updateMuteButton() {
@@ -206,8 +220,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
   // === Call UI state & helpers ===
-  store.callState = 'idle'; // 'idle' | 'incoming' | 'in-call'
-
   function setCallButtonVisible(visible) {
     const btn = store.refs.btnCallPrimary;
     if (!btn) return;
@@ -238,10 +250,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (store.callIncoming?.chatID && store.currentChatID !== store.callIncoming.chatID) {
           await selectChat(store.callIncoming.chatID);
         }
-        // Accept via GLOBAL WS; Call WS opens on 'call_accepted'
-        await joinCall();
+        if (store.callIncoming?.call_id) {
+          store.call.currentCallId = store.callIncoming.call_id;
+        }
         sendCallAcceptViaGlobal(store.callIncoming?.chatID ?? store.currentChatID);
-        store.callState = 'incoming';
+        store.callState = 'in-call';
         store.callActiveChatID = store.callIncoming?.chatID ?? store.currentChatID;
         return;
       }
@@ -264,9 +277,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('call:incoming', (ev) => {
     const chatID = ev?.detail?.chatID ?? store.currentChatID;
     const from   = ev?.detail?.from ?? ev?.detail?.fromUsername ?? 'Unknown';
-  
+    const call_id = ev?.detail?.call_id;
     store.callState = 'incoming';
-    store.callIncoming = { chatID, from };
+    store.callIncoming = { chatID, from, call_id };
   
     playRingtone();
     showIncomingCallModal(from, 'is calling you…');
@@ -293,18 +306,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('call:started',  () => {
     store.callState = 'in-call';
     store.callActiveChatID = store.currentChatID;
-    updateCallButton();
-  });
-  window.addEventListener('call:connected', () => {
-    stopRingback();
-    stopRingtone();
-    updateCallButton();
-  });
-  window.addEventListener('call:ended',    () => {
-    store.callState = 'idle';
-    store.callActiveChatID = null;
-    stopRingback();
-    stopRingtone();
     updateCallButton();
   });
 
@@ -351,22 +352,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         break;
       }
       case 'call_accepted': {
-        const { chatID, call_id } = msg;
-        openCallWS(call_id, store.username);
-        if (store.callState === 'incoming') await joinCall();
         store.callState = 'in-call';
-        store.callActiveChatID = chatID;
-        window.dispatchEvent(new Event('call:connected'));
+        store.callActiveChatID = msg.chatID;
         updateCallButton();
         break;
       }
 
       case 'call_state': {
         if (msg.state === 'accepted') {
-          if (store.callState === 'incoming') await joinCall();
           store.callState = 'in-call';
           store.callActiveChatID = msg.chatID;
-          window.dispatchEvent(new Event('call:connected'));
           updateCallButton();
         }
         break;

@@ -1,6 +1,7 @@
 import { store } from '../core/store.js';
 
 export async function getMic() {
+  console.debug('[MEDIA] acquiring mic...');
   if (store.call.localStream) return store.call.localStream;
   try {
     store.call.localStream = await navigator.mediaDevices.getUserMedia({
@@ -24,9 +25,16 @@ export async function getMic() {
 // --- Simple tone engine (ringback + ringtone) ---
 let _audioCtx, _ringbackTimer, _ringbackOsc, _ringtoneTimer, _ringtoneOsc;
 
-function ensureCtx() {
+export function ensureCtx() {
   _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
   return _audioCtx;
+}
+
+export function resumeAudioCtx() {
+  try {
+    const ctx = ensureCtx();
+    if (ctx.state === 'suspended') ctx.resume().catch(()=>{});
+  } catch {}
 }
 
 function stopOsc(osc) {

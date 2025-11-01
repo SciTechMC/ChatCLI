@@ -20,6 +20,7 @@ export const store = {
   // call
   call: {
     callWS: null,
+    currentCallId: null,
     pc: null,
     localStream: null,
     inCall: false,

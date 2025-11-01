@@ -109,7 +109,7 @@ export function connectWS() {
     if (msg.type === 'call_incoming') {
       console.log('[CALL-INCOMING]', msg);
       window.dispatchEvent(new CustomEvent('call:incoming', {
-        detail: { chatID: msg.chatID, from: msg.from }
+        detail: { chatID: msg.chatID, from: msg.from, call_id: msg.call_id }
       }));
       showToast(`${msg.from || 'Someone'} is calling…`, 'info');
       return;
@@ -119,20 +119,20 @@ export function connectWS() {
       console.log('[CALL-STATE]', msg);
       if (msg.state === 'ringing') {
         window.dispatchEvent(new CustomEvent('call:incoming', {
-          detail: { chatID: msg.chatID, from: msg.from }
+          detail: { chatID: msg.chatID, from: msg.from, call_id: msg.call_id }
         }));
         return;
       }
       if (msg.state === 'accepted') {
-        if (msg.call_id) {
-          console.debug('[CALL] opening per-call WS (state:accepted)', msg.call_id);
-          openCallWS(msg.call_id, store.username);
-          const iAmCaller = store.username && store.username === msg.from;
-          if (iAmCaller) await startCall();
-          else           await joinCall();
-        }
-        await joinCall();
-
+        if (store.call._startedForCallId === msg.call_id) return;
+        store.call._startedForCallId = msg.call_id;
+        const allowed = (store.callState === 'incoming' || store.callState === 'outgoing');
+        if (!allowed) return;
+        if (store.call.currentCallId && store.call.currentCallId !== msg.call_id) return;
+        if (!store.call.currentCallId) store.call.currentCallId = msg.call_id;
+        if (msg.call_id) openCallWS(msg.call_id, store.username);
+        const iAmCaller = (store.username || '').toLowerCase() === (msg.from || '').toLowerCase();
+        if (iAmCaller) await startCall(); else await joinCall();
         store.callState = 'in-call';
         store.callActiveChatID = msg.chatID;
         window.dispatchEvent(new Event('call:connected'));
@@ -142,13 +142,11 @@ export function connectWS() {
     }
 
     if (msg.type === 'call_accepted') {
-      console.log('[CALL-ACCEPTED]', msg);
-      if (msg.call_id) {
-        console.debug('[CALL] opening per-call WS (accepted)', msg.call_id);
-        openCallWS(msg.call_id, store.username);
-      }
-      await joinCall();
-
+      if (store.call._startedForCallId === msg.call_id) return;
+      store.call._startedForCallId = msg.call_id;
+      if (msg.call_id) { store.call.currentCallId = msg.call_id; openCallWS(msg.call_id, store.username); }
+      const iAmCaller = (store.username || '').toLowerCase() === (msg.from || '').toLowerCase();
+      if (iAmCaller) await startCall(); else await joinCall();
       store.callState = 'in-call';
       store.callActiveChatID = msg.chatID;
       window.dispatchEvent(new Event('call:connected'));
