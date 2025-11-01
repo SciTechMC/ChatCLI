@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       await joinCall();
       sendCallAcceptViaGlobal(ringingChat);
-      store.callState = 'incoming';
+      store.callState = 'in-call';
       store.callActiveChatID = ringingChat ?? store.currentChatID;
     } finally {
       hideIncomingCallModal();
@@ -352,8 +352,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       case 'call_accepted': {
         const { chatID, call_id } = msg;
-        openCallWS(call_id, store.username);          // ensure Call WS is up
-        if (store.callState === 'incoming') await joinCall(); // callee path
+        openCallWS(call_id, store.username);
+        if (store.callState === 'incoming') await joinCall();
         store.callState = 'in-call';
         store.callActiveChatID = chatID;
         window.dispatchEvent(new Event('call:connected'));
@@ -363,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       case 'call_state': {
         if (msg.state === 'accepted') {
-          if (store.callState === 'incoming') await joinCall(); // safety: callee
+          if (store.callState === 'incoming') await joinCall();
           store.callState = 'in-call';
           store.callActiveChatID = msg.chatID;
           window.dispatchEvent(new Event('call:connected'));

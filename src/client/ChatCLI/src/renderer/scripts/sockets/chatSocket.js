@@ -1,6 +1,6 @@
 import { store } from '../core/store.js';
 import { showToast } from '../ui/toasts.js';
-import { joinCall } from '../calls/rtc.js';
+import { joinCall, startCall } from '../calls/rtc.js';
 import { openCallWS } from '../calls/callSockets.js';
 
 let ws;
@@ -127,6 +127,9 @@ export function connectWS() {
         if (msg.call_id) {
           console.debug('[CALL] opening per-call WS (state:accepted)', msg.call_id);
           openCallWS(msg.call_id, store.username);
+          const iAmCaller = store.username && store.username === msg.from;
+          if (iAmCaller) await startCall();
+          else           await joinCall();
         }
         await joinCall();
 

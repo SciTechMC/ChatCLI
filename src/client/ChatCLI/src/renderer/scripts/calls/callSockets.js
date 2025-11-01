@@ -86,7 +86,7 @@ export function openCallWS(callId, username) {
       if (!store.call.joiningArmed) {
         store.call.pendingOffer = msg.sdp;
         window.dispatchEvent(new CustomEvent('call:incoming', {
-          detail: { chatID: store.callActiveChatID, from: msg.from }
+          detail: { chatID: msg.chatID, from: msg.from }
         }));
         return;
       }
