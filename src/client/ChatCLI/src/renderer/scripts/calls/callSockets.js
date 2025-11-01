@@ -45,11 +45,10 @@ function flushQueue() {
 /** --- Call WS (per call_id) --- */
 export function openCallWS(callId, username) {
   ensureCallState();
-  // close existing call socket if any
   if (store.call.callWS && store.call.callWS.readyState <= 1) {
     try { store.call.callWS.close(); } catch {}
   }
-  const base = new URL(store.ws);
+  const base = new URL(store.WS_URL);
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
   const ws = new WebSocket(callUrl);
