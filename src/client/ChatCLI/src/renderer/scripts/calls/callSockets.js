@@ -140,7 +140,7 @@ export function openCallWS(callId, username) {
     }
 
     if (msg.type === 'leave') {
-      console.warn('[CALL] peer left');
+      console.log('[CALL] peer left');
       endCall('Peer left');
       return;
     }

@@ -83,8 +83,6 @@ export function connectWS() {
       return;
     }
 
-    console.log('[CHAT-WS]', msg);
-
     // Chat messages
     if (msg.type === 'new_message') {
       if (store.seenMessageIDs.has(msg.messageID)) return;
