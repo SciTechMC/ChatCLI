@@ -1,7 +1,7 @@
 import { store } from '../core/store.js';
 import { showToast } from '../ui/toasts.js';
-import { joinCall } from '../call/rtc.js';
-import { openCallWS } from '../call/callSockets.js';
+import { joinCall } from '../calls/rtc.js';
+import { openCallWS } from '../calls/callSockets.js';
 
 let ws;
 let isConnecting = false;
