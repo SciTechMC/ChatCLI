@@ -6,7 +6,6 @@ import { connectWS, chatSend } from '../sockets/chatSocket.js';
 import { updateTypingIndicator } from '../ui/typing.js';
 import { loadChats } from './chatList.js';
 import { loadGroupMembers } from './groupService.js';
-import { connectCallWS } from '../calls/callSockets.js';
 
 const MAX_MESSAGE_LEN = 2048;
 const MAX_SPLIT_PARTS = 5;
@@ -104,19 +103,6 @@ export async function selectChat(chatID) {
       detail: { chatID: null, type: null }
     }));
     return;
-  }
-
-  try {
-    connectCallWS();
-  } catch {}
-
-  try {
-    const ws = store.ws;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'join_chat', chatID }));
-    }
-  } catch (e) {
-    console.warn('[CHAT] join_chat notify failed', e);
   }
 
   // Already on this chat? keep UX snappy and bail

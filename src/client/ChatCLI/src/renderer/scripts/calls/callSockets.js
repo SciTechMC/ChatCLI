@@ -8,6 +8,15 @@ function ensureCallState() {
   store.call.iceServers ??= [{ urls: 'stun:stun.l.google.com:19302' }];
 }
 
+function sendOnGlobalWS(payload) {
+  const ws = store.ws;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.warn('[WS] global socket not open, cannot send', payload);
+    return;
+  }
+  ws.send(JSON.stringify(payload));
+}
+
 /** Queue-or-send signaling messages (WebRTC-level) */
 export function callSend(obj) {
   ensureCallState();
@@ -40,7 +49,7 @@ export function openCallWS(callId, username) {
   if (store.call.callWS && store.call.callWS.readyState <= 1) {
     try { store.call.callWS.close(); } catch {}
   }
-  const base = new URL(store.WS_URL);
+  const base = new URL(store.ws);
   base.pathname = base.pathname.replace(/\/?ws$/, '')  `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
   const ws = new WebSocket(callUrl);
@@ -82,14 +91,14 @@ export function openCallWS(callId, username) {
 
 /** --- Send call control via GLOBAL WS --- */
 export function sendCallInviteViaGlobal({ chatID, callee }) {
-  window.dispatchEvent(new CustomEvent('global:send', { detail: { type: 'call_invite', chatID, callee }}));
+  sendOnGlobalWS({ type: 'call_invite', chatID, callee });
 }
 export function sendCallAcceptViaGlobal(chatID) {
-  window.dispatchEvent(new CustomEvent('global:send', { detail: { type: 'call_accept', chatID }}));
+  sendOnGlobalWS({ type: 'call_accept', chatID });
 }
 export function sendCallDeclineViaGlobal(chatID) {
-  window.dispatchEvent(new CustomEvent('global:send', { detail: { type: 'call_decline', chatID }}));
+  sendOnGlobalWS({ type: 'call_decline', chatID });
 }
 export function sendCallEndViaGlobal(chatID) {
-  window.dispatchEvent(new CustomEvent('global:send', { detail: { type: 'call_end', chatID }}));
+  sendOnGlobalWS({ type: 'call_end', chatID });
 }

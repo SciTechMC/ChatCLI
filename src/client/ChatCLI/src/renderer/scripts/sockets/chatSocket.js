@@ -39,6 +39,7 @@ export function connectWS() {
   isConnecting = true;
   try {
     ws = new WebSocket(window.api.WS_URL);
+    store.ws = ws;
   } catch (e) {
     isConnecting = false;
     scheduleReconnect('ctor-failed');
@@ -160,9 +161,9 @@ function resumeIfNeeded() {
   connectWS();
 }
 
-window.addEventListener('online', resumeIfNeeded);
-window.addEventListener('focus', resumeIfNeeded);
-window.addEventListener('visibilitychange', () => {
-  if (!document.hidden) resumeIfNeeded();
-});
-window.addEventListener('pageshow', resumeIfNeeded);
+export function initChatSocketAutoResume() {
+  window.addEventListener('online', resumeIfNeeded);
+  window.addEventListener('focus', resumeIfNeeded);
+  window.addEventListener('visibilitychange', () => { if (!document.hidden) resumeIfNeeded(); });
+  window.addEventListener('pageshow', resumeIfNeeded);
+}

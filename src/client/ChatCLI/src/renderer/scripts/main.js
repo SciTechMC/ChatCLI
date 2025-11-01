@@ -1,5 +1,5 @@
 import { store } from './core/store.js';
-import { connectWS, chatSend } from './sockets/chatSocket.js';
+import { connectWS, chatSend, initChatSocketAutoResume } from './sockets/chatSocket.js';
 import { setupModalClosing, showModal, hideModal, showConfirmationModal } from './ui/modals.js';
 import { initTypingIndicator } from './ui/typing.js';
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
       if (store.callState === 'idle') {
         // Determine callee for private chat
-        const callee = store.currentChat?.peerUsername || store.currentChat?.username || store.currentChat?.peer;
+        const callee = store.peerUsername;
         if (!callee) { showToast('No callee for this chat', 'error'); return; }
         // Invite via GLOBAL WS; open Call WS after 'call_accepted'
         sendCallInviteViaGlobal({ chatID: store.currentChatID, callee });
@@ -494,7 +494,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.refs.editMembersBtn.addEventListener('click', openGroupEditor);
   }
 
-  // Connect chat WS + initial chats
+  // Connect chat WS + initial chats (wait for auth token)
+  await autoLoginOrRedirect();
+  initChatSocketAutoResume();
   connectWS();
   await loadChats();
   reapplyChatSearch();
