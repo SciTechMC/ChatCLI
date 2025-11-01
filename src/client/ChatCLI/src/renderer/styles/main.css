@@ -395,8 +395,6 @@ body {
     radial-gradient(900px 600px at 80% 90%, rgba(78,205,196,.08), transparent 65%);
 }
 
-#btnCallPrimary { display: none; }
-
 /* Messages */
 .chat-messages {
   flex: 1;

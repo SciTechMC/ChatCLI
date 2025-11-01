@@ -41,6 +41,7 @@ export function connectWS() {
   isConnecting = true;
   try {
     ws = new WebSocket(window.api.WS_URL);
+    store.WS_URL = window.api.WS_URL;
     store.ws = ws;
   } catch (e) {
     isConnecting = false;
@@ -132,7 +133,6 @@ export function connectWS() {
         store.callState = 'in-call';
         store.callActiveChatID = msg.chatID;
         window.dispatchEvent(new Event('call:connected'));
-        updateCallButton?.();
         return;
       }
       return;
@@ -149,7 +149,6 @@ export function connectWS() {
       store.callState = 'in-call';
       store.callActiveChatID = msg.chatID;
       window.dispatchEvent(new Event('call:connected'));
-      updateCallButton?.();
       return;
     }
 

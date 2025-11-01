@@ -51,9 +51,7 @@ export function openCallWS(callId, username) {
     try { store.call.callWS.close(); } catch {}
   }
 
-  // Build per-call WS URL based on configured WS_URL
-  const base = new URL(store.WS_URL);                  // expects ws(s)://host/ws
-  // strip trailing /ws and append /call/<id>/<user>
+  const base = new URL(store.WS_URL);
   base.pathname = base.pathname.replace(/\/?ws$/, '') + `/call/${encodeURIComponent(callId)}/${encodeURIComponent(username)}`;
   const callUrl = base.href;
 
