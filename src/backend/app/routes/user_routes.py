@@ -66,7 +66,7 @@ def route_reset_password():
 
 
 @user.route("/refresh-token", methods=["POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("10 per minute")
 def route_refresh_token():
     data = request.get_json(silent=True)
     if not data:
