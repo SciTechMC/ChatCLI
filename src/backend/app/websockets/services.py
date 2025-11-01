@@ -89,7 +89,6 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
     try:
         chat_subscriptions.setdefault(chat_id, set()).add(ws)
-        logger.debug("%s joined chat %s", username, chat_id)
         await emit_call_state(ws, chat_id)
     except Exception as e:
         logger.error("Error adding %s to chat %s: %s", username, chat_id, e, exc_info=e)
@@ -237,13 +236,32 @@ async def _send_to_user(username: str, payload: dict) -> bool:
         active_connections.pop(username, None)
         return False
 
-async def _broadcast_chat(chat_id: int, payload: dict) -> None:
+async def _broadcast_chat(
+    chat_id: int,
+    payload: dict,
+    exclude_users: set[str] | None = None,
+    exclude_ws: set | None = None,
+) -> None:
     """
-    Send to everyone currently subscribed to chat_id.
+    Send to everyone currently subscribed to chat_id, excluding:
+      - any usernames in exclude_users (mapped via active_connections)
+      - any websocket objects in exclude_ws
     """
     subs = chat_subscriptions.get(chat_id, set())
-    # iterate over a snapshot so we can discard safely
+    if not subs:
+        return
+
+    exc_ws = set(exclude_ws or ())
+    if exclude_users:
+        for u in exclude_users:
+            ws = active_connections.get(u)
+            if ws:
+                exc_ws.add(ws)
+
+    # iterate over a snapshot to discard safely
     for ws in set(subs):
+        if ws in exc_ws:
+            continue
         try:
             await ws.send_json(payload)
         except Exception as e:
@@ -284,7 +302,7 @@ async def call_invite(caller: str, chat_id: int, callee: str) -> None:
         "to": callee,
         "state": "ringing",
         "call_id": call_id
-    })
+    }, exclude_users={caller})
 
 async def call_accept(username: str, chat_id: int) -> None:
     call = pending_calls.get(chat_id)

@@ -20,7 +20,21 @@ import uvicorn
 
 # Configure module logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler('app.log', mode='w'),
+        logging.StreamHandler()
+    ]
+)
+# Logging level priority (low → high)
+# NOTSET   = 0   → disables filtering
+# DEBUG    = 10  → detailed debug info
+# INFO     = 20  → general runtime events
+# WARNING  = 30  → unexpected but non-fatal issues
+# ERROR    = 40  → serious problems in execution
+# CRITICAL = 50  → severe errors; program may fail
 
 app = FastAPI()
 call_rooms: dict[str, set[WebSocket]] = {}
@@ -44,7 +58,6 @@ async def websocket_endpoint(ws: WebSocket):
 
     try:
         username = await authenticate(ws, init)
-        logger.info("Authentication result for %s: %s", init, username)
     except Exception as e:
         logger.error("Error during authentication", exc_info=e)
         try:
@@ -62,7 +75,7 @@ async def websocket_endpoint(ws: WebSocket):
     # Acknowledge successful auth
     try:
         await ws.send_json({"type": "auth_ack", "status": "ok"})
-        logger.info("Authentication acknowledged for user: %s", username)
+        #logger.info("Authentication acknowledged for user: %s", username)
         active_connections[username] = ws
     except RuntimeError:
         await ws.close(code=1008)
@@ -102,6 +115,7 @@ async def websocket_endpoint(ws: WebSocket):
                 elif msg_type == "join_idle":
                     idle_subscriptions.add(ws)
                 elif msg_type == "call_invite":
+                    logger.info("Call invite from %s to %s in chat %s", username, msg.get("callee"), msg.get("chatID"))
                     await call_invite(caller=username, chat_id=msg.get("chatID"), callee=msg.get("callee"))
                 elif msg_type == "call_accept":
                     await call_accept(username=username, chat_id=msg.get("chatID"))
