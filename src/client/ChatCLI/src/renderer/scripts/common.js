@@ -220,7 +220,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const extraOk   = extraValidator ? extraValidator() : true;
       if (!baseValid || !extraOk) {
         state.tried = true;
-        e.preventDefault();     // block submission
+        e.preventDefault();
+        e.stopImmediatePropagation();
         compute();
         showToast('Please fill all required fields correctly.', 'error');
       }
@@ -242,7 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
     // gate: requires username + password (HTML already has required/minlength)
-    bindFormGate(loginForm, loginSubmitBtn, null, /* disableOnInvalid= */ false);
+    bindFormGate(loginForm, loginSubmitBtn, null, /* disableOnInvalid= */ true);
 
     loginForm.addEventListener('submit', async e => {
       e.preventDefault();
@@ -308,7 +309,7 @@ if (registerForm) {
   };
 
   if (typeof bindFormGate === 'function') {
-    bindFormGate(registerForm, registerSubmitBtn, passwordRulesOk, /* disableOnInvalid */ false);
+    bindFormGate(registerForm, registerSubmitBtn, passwordRulesOk, /* disableOnInvalid */ true);
   }
 
   function updatePwdRulesVisuals(pwd) {
@@ -372,7 +373,9 @@ if (registerForm) {
   // Submit
   registerForm.addEventListener('submit', async e => {
     e.preventDefault();
-    if (registerSubmitBtn.disabled) return;
+    const baseValid = registerForm.checkValidity();
+    const extraOk   = passwordRulesOk();
+    if (!baseValid || !extraOk) return;
 
     registerSubmitBtn.disabled = true;
     registerSubmitBtn.textContent = 'Registering…';
