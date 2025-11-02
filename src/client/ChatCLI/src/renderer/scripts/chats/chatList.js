@@ -12,8 +12,6 @@ export function createChatItem(chatID, name, type) {
   chatItem.dataset.username = name;
   chatItem.dataset.type = type;
 
-  store.peerUsername = name;
-
   if (type === 'private') {
     const statusIndicator = document.createElement('div');
     statusIndicator.classList.add('chat-status', 'offline');

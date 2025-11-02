@@ -9,6 +9,9 @@ function ensureCallState() {
 }
 
 function sendOnGlobalWS(payload) {
+  if (!store.currentChatIsPrivate || !store.peerUsername) {
+    showToast('Select a private chat to start a call', 'error'); return;
+  }
   const ws = store.ws;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     console.warn('[WS] global socket not open, cannot send', payload);

@@ -11,7 +11,7 @@ import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyp
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
-import { toggleMute, joinCall, endCall } from './calls/rtc.js';
+import { toggleMute, endCall } from './calls/rtc.js';
 import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
 
 // --- events from ws

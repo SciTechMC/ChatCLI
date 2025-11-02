@@ -81,6 +81,7 @@ export async function selectChat(chatID) {
     store.currentChatID = null;
     store.currentChat = null;
     store.currentChatIsPrivate = false;
+    store.peerUsername = null;
 
     messagesEl.innerHTML = '';
     const welcomeMessage = document.createElement('div');
@@ -144,6 +145,7 @@ export async function selectChat(chatID) {
   store.currentChatID = targetId;
   store.currentChat   = { id: targetId, type };
   store.currentChatIsPrivate = !isGroup;
+  store.peerUsername = isGroup ? null : name;
 
   messagesEl.innerHTML = '';
   chatSend({ type: 'join_chat', chatID: targetId });
