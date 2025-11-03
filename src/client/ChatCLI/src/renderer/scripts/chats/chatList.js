@@ -113,5 +113,7 @@ export async function loadChats() {
 }
 
 export async function onWSChatCreated({ detail : msg }) {
+  
+  showToast("")
   loadChats();
 }

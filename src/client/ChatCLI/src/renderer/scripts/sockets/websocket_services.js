@@ -166,7 +166,7 @@ export function connectWS() {
 
 
 // ---------- Sending ----------
-export function chatSend(payload) {
+export function WSSend(payload) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload));
   } else {

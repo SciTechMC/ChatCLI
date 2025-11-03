@@ -1,33 +1,12 @@
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from services import (
-    authenticate,
-    join_chat,
-    leave_chat,
-    post_msg,
-    chat_subscriptions,
-    broadcast_typing,
-    notify_status,
-    active_connections,
-    idle_subscriptions,
-    call_invite,
-    call_accept,
-    call_decline,
-    call_end,
-    call_sessions,
-)
+import services
 import uvicorn
 
 # Configure module logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[
-        logging.FileHandler('app.log', mode='w'),
-        logging.StreamHandler()
-    ]
-)
+logging.basicConfig(level=logging.DEBUG)
+
 # Logging level priority (low → high)
 # NOTSET   = 0   → disables filtering
 # DEBUG    = 10  → detailed debug info
@@ -57,7 +36,7 @@ async def websocket_endpoint(ws: WebSocket):
         return
 
     try:
-        username = await authenticate(ws, init)
+        username = await services.authenticate(ws, init)
     except Exception as e:
         logger.error("Error during authentication", exc_info=e)
         try:
@@ -76,7 +55,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         await ws.send_json({"type": "auth_ack", "status": "ok"})
         #logger.info("Authentication acknowledged for user: %s", username)
-        active_connections[username] = ws
+        services.active_connections[username] = ws
     except RuntimeError:
         await ws.close(code=1008)
         return
@@ -88,43 +67,63 @@ async def websocket_endpoint(ws: WebSocket):
                 msg = await ws.receive_json()
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected for user: %s", username)
-                break  # Exit the loop cleanly
+                break
 
-            msg_type = msg.get("type")
             logger.debug("Received message for %s: %s", username, msg)
 
-
             try:
-                if msg_type == "join_chat":
-                    await join_chat(username, msg.get("chatID"), ws)
-                elif msg_type == "leave_chat":
-                    await leave_chat(username, msg.get("chatID"), ws)
-                elif msg_type == "post_msg":
-                    result = await post_msg({
-                        "username": username,
-                        "chatID": msg.get("chatID"),
-                        "text": msg.get("text")
-                    })
-                    await ws.send_json({
-                        "type":        "post_msg_ack",
-                        "status":      "ok",
-                        "messageID":   result.get("messageID") if result else None
-                    }) 
-                elif msg_type == "typing":
-                    await broadcast_typing(username, msg.get("chatID"))
-                elif msg_type == "join_idle":
-                    idle_subscriptions.add(ws)
-                elif msg_type == "call_invite":
-                    logger.info("Call invite from %s to %s in chat %s", username, msg.get("callee"), msg.get("chatID"))
-                    await call_invite(caller=username, chat_id=msg.get("chatID"), callee=msg.get("callee"))
-                elif msg_type == "call_accept":
-                    await call_accept(username=username, chat_id=msg.get("chatID"))
-                elif msg_type == "call_decline":
-                    await call_decline(username=username, chat_id=msg.get("chatID"))
-                elif msg_type == "call_end":
-                    await call_end(username=username, chat_id=msg.get("chatID"))
-                else:
-                    raise ValueError(f"Unknown action: {msg_type}")
+                match msg:
+                    case {"type": "join_chat", "chatID": chat_id}:
+                        await services.join_chat(username, chat_id, ws)
+
+                    case {"type": "leave_chat", "chatID": chat_id}:
+                        await services.leave_chat(username, chat_id, ws)
+
+                    case {"type": "post_msg", "chatID": chat_id, "text": text} if isinstance(text, str):
+                        result = await services.post_msg({
+                            "username": username,
+                            "chatID":   chat_id,
+                            "text":     text
+                        })
+                        await ws.send_json({
+                            "type":      "post_msg_ack",
+                            "status":    "ok",
+                            "messageID": result.get("messageID") if result else None
+                        })
+
+                    case {"type": "typing", "chatID": chat_id}:
+                        await services.broadcast_typing(username, chat_id)
+
+                    case {"type": "chat_created", "chatID": chat_id, "username": creator}:
+                        await services.broadcast_chat_created_simple(chat_id, creator)
+
+
+                    #------ CALLING CASES ------#
+
+                    case {"type": "join_idle"}:
+                        services.idle_subscriptions.add(ws)
+
+                    case {"type": "call_invite", "chatID": chat_id, "callee": callee}:
+                        logger.info("Call invite from %s to %s in chat %s", username, callee, chat_id)
+                        await services.call_invite(caller=username, chat_id=chat_id, callee=callee)
+
+                    case {"type": "call_accept", "chatID": chat_id}:
+                        await services.call_accept(username=username, chat_id=chat_id)
+
+                    case {"type": "call_decline", "chatID": chat_id}:
+                        await services.call_decline(username=username, chat_id=chat_id)
+
+                    case {"type": "call_end", "chatID": chat_id}:
+                        await services.call_end(username=username, chat_id=chat_id)
+
+                    # Known shape but unsupported action
+                    case {"type": action}:
+                        raise ValueError(f"Unknown action: {action}")
+
+                    # Completely invalid payload
+                    case _:
+                        raise ValueError("Invalid message payload")
+
             except ValueError as ve:
                 logger.warning("Value error for user %s: %s", username, ve)
                 try:
@@ -137,20 +136,21 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_json({"type": "error", "message": "Internal server error"})
                 except RuntimeError:
                     break
+
     except Exception as e:
         logger.error("Unexpected error in connection loop for %s", username, exc_info=e)
     finally:
         # Clean up subscriptions
-        for subs in chat_subscriptions.values():
+        for subs in services.chat_subscriptions.values():
             subs.discard(ws)
 
         # Remove from active connections
-        active_connections.pop(username, None)
-        idle_subscriptions.discard(ws)
+        services.active_connections.pop(username, None)
+        services.idle_subscriptions.discard(ws)
 
         # Notify others the user is offline
         try:
-            await notify_status(username, is_online=False)
+            await services.notify_status(username, is_online=False)
         except Exception as e:
             logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
 
@@ -167,7 +167,7 @@ app.add_middleware(
 async def call_ws(ws: WebSocket, call_id: str, user: str):
     await ws.accept()
 
-    sess = call_sessions.get(call_id)
+    sess = services.call_sessions.get(call_id)
     if sess and user not in {sess.get("from"), sess.get("to")}:
         await ws.close(code=1008)
         return

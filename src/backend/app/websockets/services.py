@@ -348,3 +348,27 @@ async def call_end(username: str, chat_id: int) -> None:
         pending_calls.pop(chat_id, None)
         if cid: call_sessions.pop(cid, None)
     await _broadcast_chat(chat_id, payload)
+
+async def broadcast_chat_created_simple(chat_id: str, creator_username: str):
+    """
+    Broadcast 'chat_created' to everyone subscribed to chat_id
+    EXCEPT the creator (by username).
+    """
+    subs = chat_subscriptions.get(chat_id, set())
+    if not subs:
+        return
+
+    sender_ws = active_connections.get(creator_username)
+    payload = {
+        "type": "chat_created",
+        "chatID": chat_id,
+        "by": creator_username,
+    }
+
+    for ws in list(subs):
+        if ws is sender_ws:
+            continue
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            pass

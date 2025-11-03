@@ -1,5 +1,5 @@
 import { store } from './core/store.js';
-import { connectWS, chatSend, initChatSocketAutoResume } from './sockets/chatSocket.js';
+import { connectWS, WSSend, initChatSocketAutoResume } from './sockets/websocket_services.js';
 import { setupModalClosing, showModal, hideModal, showConfirmationModal } from './ui/modals.js';
 import { initTypingIndicator } from './ui/typing.js';
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
@@ -474,6 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             body: JSON.stringify({ receiver, session_token: store.token })
           });
           showToast('Private chat created!', 'info');
+          WSSend({ type: 'chat_created', chatID });
           hideModal(createChatModal);
           newChatInput.value = '';
           await loadChats();
@@ -494,6 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (!result.chatID) throw new Error('Failed to create group');
           const newChatID = result.chatID;
           showToast('Group created!', 'info');
+          WSSend({ type: 'chat_created', chatID });
           hideModal(createChatModal);
           newGroupNameInput.value = '';
           groupMemberInput.value = '';
@@ -551,7 +553,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       cc.classList.toggle('error', len > 2048);
 
       if (!store.currentChatID) return;
-      chatSend({ type: 'typing', chatID: store.currentChatID });
+      WSSend({ type: 'typing', chatID: store.currentChatID });
     });
   }
 

@@ -2,7 +2,7 @@ import { store } from '../core/store.js';
 import { apiRequest } from '../core/api.js';
 import { showToast } from '../ui/toasts.js';
 import { showConfirmationModal } from '../ui/modals.js';
-import { chatSend } from '../sockets/chatSocket.js';
+import { WSSend } from '../sockets/websocket_services.js';
 import { updateTypingIndicator } from '../ui/typing.js';
 import { loadGroupMembers } from './groupService.js';
 
@@ -22,7 +22,7 @@ function isNewCluster(prevMsgEl, user, tsMs) {
 }
 
 function getAvatarFor(username) {
-  return null; // fallback to initials chip if no image URL
+  return null;
 }
 
 function makeInitials(name = '') {
@@ -138,7 +138,7 @@ export async function selectChat(chatID) {
 
   // Leave previous chat (only when switching)
   if (store.currentChatID != null) {
-    chatSend({ type: 'leave_chat', chatID: store.currentChatID });
+    WSSend({ type: 'leave_chat', chatID: store.currentChatID });
   }
 
   // Join new chat
@@ -148,7 +148,7 @@ export async function selectChat(chatID) {
   store.peerUsername = isGroup ? null : name;
 
   messagesEl.innerHTML = '';
-  chatSend({ type: 'join_chat', chatID: targetId });
+  WSSend({ type: 'join_chat', chatID: targetId });
 
   // Group extras
   if (isGroup) {
@@ -276,7 +276,7 @@ export async function sendMessage() {
 
   // Case 1: short — just send
   if (len <= MAX_MESSAGE_LEN) {
-    chatSend({ type: 'post_msg', chatID: store.currentChatID, text });
+    WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
     messageInput.value = '';
     messageInput.style.height = 'auto';
     updateSendButtonState();
@@ -295,7 +295,7 @@ export async function sendMessage() {
         const trimmed = text.slice(0, HARD_MAX);
         const chunks = splitIntoChunks(trimmed, MAX_MESSAGE_LEN, MAX_SPLIT_PARTS);
         for (const chunk of chunks) {
-          chatSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
+          WSSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
         }
         messageInput.value = '';
         messageInput.style.height = 'auto';
@@ -314,7 +314,7 @@ export async function sendMessage() {
     'Split Message?',
     async () => {
       for (const chunk of chunks) {
-        chatSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
+        WSSend({ type: 'post_msg', chatID: store.currentChatID, text: chunk });
       }
       messageInput.value = '';
       messageInput.style.height = 'auto';
