@@ -5,7 +5,7 @@ import { initTypingIndicator } from './ui/typing.js';
 import { autoLoginOrRedirect, wireProfileAndAccount, putUsernameInUI } from './auth/session.js';
 import { initChatSearch, reapplyChatSearch } from './chats/search.js';
 import { apiRequest } from './core/api.js';
-import { loadChats } from './chats/chatList.js';
+import { loadChats, onWSChatCreated } from './chats/chatList.js';
 import { handleArchiveChat, archiveChat } from './chats/archive.js';
 import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus } from './chats/chatSession.js';
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
@@ -18,6 +18,7 @@ import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/
 window.addEventListener('chat:new-message', onWSNewMessage);
 window.addEventListener('chat:user-typing', onWSTyping);
 window.addEventListener('chat:user-status', onWSUserStatus);
+window.addEventListener('chat:chat_created', onWSChatCreated);
 
 // archive UX events
 window.addEventListener('chat:archive', (ev) => handleArchiveChat(ev.detail.chatID));

@@ -111,3 +111,7 @@ export async function loadChats() {
     showToast('Failed to load chats: ' + err.message, 'error');
   }
 }
+
+export async function onWSChatCreated({ detail : msg }) {
+  loadChats();
+}

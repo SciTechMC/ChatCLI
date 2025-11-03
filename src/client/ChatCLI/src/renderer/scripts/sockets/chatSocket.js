@@ -103,6 +103,11 @@ export function connectWS() {
       return;
     }
 
+    if (msg.type === 'chat_created') {
+      window.dispatchEvent(new CustomEvent('chat:chat_created', { detail: msg }));
+      return;
+    }
+
     // Call signaling (global)
     if (msg.type === 'call_incoming') {
       console.log('[CALL-INCOMING]', msg);
