@@ -113,7 +113,6 @@ export async function loadChats() {
 }
 
 export async function onWSChatCreated({ detail : msg }) {
-  
-  showToast("")
   loadChats();
+  showToast("You were added to a chat by " + msg.creator, "info");
 }

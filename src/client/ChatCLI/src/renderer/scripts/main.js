@@ -470,14 +470,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!receiver) return showToast('Please enter a username', 'error');
 
         try {
-          await apiRequest('/chat/create-chat', {
+          const result = await apiRequest('/chat/create-chat', {
             body: JSON.stringify({ receiver, session_token: store.token })
           });
+          const chatID = result.chatID;
           showToast('Private chat created!', 'info');
-          WSSend({ type: 'chat_created', chatID });
+          try {
+            WSSend({ type : 'chat_created', chatID : chatID, 'creator': store.username });
+          } catch (err) {showToast(err.message, 'error')}
           hideModal(createChatModal);
           newChatInput.value = '';
           await loadChats();
+          selectChat(chatID);
         } catch (err) {
           showToast(err.message || 'Could not create private chat', 'error');
         }
@@ -493,14 +497,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             body: JSON.stringify({ session_token: store.token, name: groupName, members })
           });
           if (!result.chatID) throw new Error('Failed to create group');
-          const newChatID = result.chatID;
+          const chatID = result.chatID;
           showToast('Group created!', 'info');
-          WSSend({ type: 'chat_created', chatID });
+          try {
+            WSSend({ type: 'chat_created', chatID : chatID, 'creator': store.username });
+          } catch (err) {showToast(err.message + "send chat_created", 'error')}
           hideModal(createChatModal);
           newGroupNameInput.value = '';
           groupMemberInput.value = '';
           await loadChats();
-          selectChat(newChatID);
+          selectChat(chatID);
         } catch (err) {
           showToast(err.message || 'Could not create group', 'error');
         }

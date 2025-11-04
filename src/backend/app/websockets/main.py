@@ -94,8 +94,8 @@ async def websocket_endpoint(ws: WebSocket):
                     case {"type": "typing", "chatID": chat_id}:
                         await services.broadcast_typing(username, chat_id)
 
-                    case {"type": "chat_created", "chatID": chat_id, "username": creator}:
-                        await services.broadcast_chat_created_simple(chat_id, creator)
+                    case {"type": "chat_created", "chatID": chat_id, "creator": creator}:
+                        await services.broadcast_chat_created(chat_id, creator)
 
 
                     #------ CALLING CASES ------#

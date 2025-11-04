@@ -349,26 +349,51 @@ async def call_end(username: str, chat_id: int) -> None:
         if cid: call_sessions.pop(cid, None)
     await _broadcast_chat(chat_id, payload)
 
-async def broadcast_chat_created_simple(chat_id: str, creator_username: str):
+async def broadcast_chat_created(chat_id: int, creator_username: str):
     """
-    Broadcast 'chat_created' to everyone subscribed to chat_id
-    EXCEPT the creator (by username).
+    Broadcast 'chat_created' to all participants of the chat except the creator.
     """
-    subs = chat_subscriptions.get(chat_id, set())
-    if not subs:
-        return
+    try:
+        # Step 1: fetch userIDs of participants
+        participants_rows = await fetch_records(
+            table="participants",
+            where_clause="chatID = %s",
+            params=(chat_id,)
+        )
+        if not participants_rows:
+            return
 
-    sender_ws = active_connections.get(creator_username)
-    payload = {
-        "type": "chat_created",
-        "chatID": chat_id,
-        "by": creator_username,
-    }
+        user_ids = [row["userID"] for row in participants_rows]
 
-    for ws in list(subs):
-        if ws is sender_ws:
-            continue
-        try:
-            await ws.send_json(payload)
-        except Exception:
-            pass
+        # Step 2: fetch usernames for those userIDs
+        usernames = []
+        for uid in user_ids:
+            user_row = await fetch_records(
+                table="users",
+                where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
+                params=(uid,),
+                fetch_all=False
+            )
+            if user_row:
+                usernames.append(user_row["username"])
+
+        payload = {
+            "type": "chat_created",
+            "chatID": chat_id,
+            "creator": creator_username,
+        }
+
+        for username in usernames:
+            if username == creator_username:
+                continue
+            ws = active_connections.get(username)
+            if ws:
+                try:
+                    await ws.send_json(payload)
+                except Exception as e:
+                    logging.warning("Failed to send chat_created to %s: %s", username, e)
+                    active_connections.pop(username, None)
+
+    except Exception as e:
+        logging.error("Failed to broadcast chat_created: %s", e)
+

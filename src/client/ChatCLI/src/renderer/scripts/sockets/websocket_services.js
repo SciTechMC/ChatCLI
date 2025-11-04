@@ -104,6 +104,7 @@ export function connectWS() {
     }
 
     if (msg.type === 'chat_created') {
+      console.log("chat_created called");
       window.dispatchEvent(new CustomEvent('chat:chat_created', { detail: msg }));
       return;
     }
