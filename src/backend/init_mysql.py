@@ -1,7 +1,7 @@
 import os
 import logging
 import subprocess
-from mysql.connector import connect, Error
+from mariadb import connect, Error
 from dotenv import load_dotenv
 
 #Make sure a .env file exists
@@ -61,7 +61,7 @@ DB_PASSWORD   = os.getenv("DB_PASSWORD")
 def create_database_and_tables():
     """Create database and tables if they don't exist."""
     try:
-        with connect(host=DB_HOST, user=DB_ROOT_USER, password=DB_ROOT_PASS, charset='utf8mb4',collation='utf8mb4_unicode_ci',use_unicode=True) as conn:
+        with connect(host=DB_HOST, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
             conn.autocommit = False
             with conn.cursor() as cursor:
                 logging.info("Connected to MySQL server as root.")

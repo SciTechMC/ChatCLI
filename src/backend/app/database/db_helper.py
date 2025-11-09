@@ -2,8 +2,7 @@ import logging
 from flask import g
 import os
 from dotenv import load_dotenv
-import mysql.connector
-from mysql.connector import Error
+from mariadb import connect, Error
 from app.config import VALID_TABLES
 from functools import wraps
 
@@ -14,7 +13,7 @@ def get_db():
     :return: A MySQL database connection stored in Flask's 'g' object.
     """
     if 'db' not in g:
-        g.db = mysql.connector.connect(
+        g.db = connect(
             host=os.getenv("DB_HOST", "localhost"),
             user=os.getenv("DB_USER", "root"),
             password=os.getenv("DB_PASSWORD", ""),

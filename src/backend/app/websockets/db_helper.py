@@ -1,4 +1,4 @@
-import aiomysql
+import asyncmy
 import os
 import logging
 from dotenv import load_dotenv
@@ -23,7 +23,7 @@ async def get_conn():
     Raises an exception if connection fails.
     """
     try:
-        conn = await aiomysql.connect(**DB_CONFIG)
+        conn = await asyncmy.connect(**DB_CONFIG)
         return conn
     except Exception as e:
         logger.error("Failed to connect to database: %s", e, exc_info=e)
@@ -53,7 +53,7 @@ async def fetch_records(
     conn = None
     try:
         conn = await get_conn()
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+        async with conn.cursor(asyncmy.DictCursor) as cur:
             await cur.execute(sql, params)
             if fetch_all:
                 rows = await cur.fetchall()
