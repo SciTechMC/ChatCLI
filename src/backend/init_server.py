@@ -4,17 +4,23 @@ import subprocess
 from mariadb import connect, Error
 from dotenv import load_dotenv
 
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits
+flask_key = secrets.token_urlsafe(32)
+db_user_pssw = secrets.token_urlsafe(10)
+
 #Make sure a .env file exists
 from pathlib import Path
-import shutil
 
-DEFAULT_ENV = """FLASK_ENV=dev
+DEFAULT_ENV = f"""FLASK_ENV=dev
 THREADS=2
 IGNORE_EMAIL_VERIF=true
 
 # Database credentials
 DB_USER=chatcli_access
-DB_PASSWORD=1234
+DB_PASSWORD={db_user_pssw}
 DB_ROOT_USER=root
 DB_ROOT_PASSWORD=1234
 
@@ -30,17 +36,14 @@ EMAIL_USER=placeholder
 EMAIL_PASSWORD=xx
 
 # Flask secret key
-FLASK_SECRET_KEY=xx
+FLASK_SECRET_KEY={flask_key}
 """
 
-def ensure_env(template="template.env", env=".env"):
+def ensure_env(env=".env"):
     d = Path(__file__).resolve().parent
-    envp, tmpp = d/env, d/template
+    envp = d / env
     if not envp.exists():
-        if tmpp.exists():
-            shutil.copyfile(tmpp, envp)
-        else:
-            envp.write_text(DEFAULT_ENV)
+        envp.write_text(DEFAULT_ENV)
     return envp
 
 ensure_env()
