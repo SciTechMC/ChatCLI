@@ -6,14 +6,18 @@ from dotenv import load_dotenv
 
 import secrets
 import string
+from pathlib import Path
 
+# ------------------------
+# Secrets for defaults
+# ------------------------
 alphabet = string.ascii_letters + string.digits
 flask_key = secrets.token_urlsafe(32)
 db_user_pssw = secrets.token_urlsafe(10)
 
-#Make sure a .env file exists
-from pathlib import Path
-
+# ------------------------
+# Default .env contents
+# ------------------------
 DEFAULT_ENV = f"""FLASK_ENV=dev
 THREADS=2
 IGNORE_EMAIL_VERIF=true
@@ -46,29 +50,49 @@ def ensure_env(env=".env"):
         envp.write_text(DEFAULT_ENV)
     return envp
 
+# Make sure a .env file exists and load it
 ensure_env()
-
 load_dotenv()
 
-# Configure logging
+# ------------------------
+# Logging
+# ------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# Load configuration from environment variables
+# ------------------------
+# Config
+# ------------------------
 DB_HOST       = os.getenv("DB_HOST", "localhost")
+DB_PORT       = int(os.getenv("DB_PORT", "3306"))
 DB_ROOT_USER  = os.getenv("DB_ROOT_USER", "root")
 DB_ROOT_PASS  = os.getenv("DB_ROOT_PASSWORD")
 DB_NAME       = os.getenv("DB_NAME", "chatcli")
 DB_USER       = os.getenv("DB_USER", "chatcli_access")
 DB_PASSWORD   = os.getenv("DB_PASSWORD")
 
+# Choose how broad the DB account access should be.
+# - For local-only, use: ["localhost", "127.0.0.1"]
+# - For containers/remote too, use: ["%"]
+HOST_LIST = ["%"]  # adjust to your needs
+
+# Helper to build a safe SQL account literal: 'user'@'host'
+def acct_literal(u: str, h: str) -> str:
+    u = (u or "").replace("'", "''")
+    h = (h or "").replace("'", "''")
+    return f"'{u}'@'{h}'"
+
 def create_database_and_tables():
-    """Create database and tables if they don't exist."""
+    """Create database and tables if they don't exist, then create/grant the app user."""
     try:
-        with connect(host=DB_HOST, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
-            conn.autocommit = False
+        # 1) Create DB + tables in one connection; autocommit=True for DDL
+        with connect(host=DB_HOST, port=DB_PORT, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
+            conn.autocommit = True
             with conn.cursor() as cursor:
-                logging.info("Connected to MySQL server as root.")
-                cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                logging.info("Connected to MySQL/MariaDB server as root.")
+                cursor.execute(
+                    f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+                )
                 cursor.execute(f"USE `{DB_NAME}`;")
 
                 table_statements = [
@@ -112,12 +136,12 @@ def create_database_and_tables():
                     # refresh_tokens
                     """
                     CREATE TABLE IF NOT EXISTS refresh_tokens (
-                      id            BIGINT UNSIGNED      AUTO_INCREMENT PRIMARY KEY,
-                      userID       INT                  NOT NULL,
-                      token         CHAR(64)             NOT NULL UNIQUE,  # SHA-256 hex
-                      created_at    DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                      expires_at    DATETIME             NOT NULL,
-                      revoked       BOOLEAN              NOT NULL DEFAULT FALSE,
+                      id             BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                      userID         INT           NOT NULL,
+                      token          CHAR(64)      NOT NULL UNIQUE,  # SHA-256 hex
+                      created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      expires_at     DATETIME      NOT NULL,
+                      revoked        BOOLEAN       NOT NULL DEFAULT FALSE,
                       INDEX idx_ref_user    (userID),
                       INDEX idx_ref_expires (expires_at),
                       FOREIGN KEY (userID) REFERENCES users(userID)
@@ -188,24 +212,29 @@ def create_database_and_tables():
                     """
                 ]
 
-                # execute each CREATE
                 for stmt in table_statements:
                     cursor.execute(stmt)
+
                 logging.info("All tables created or verified successfully.")
 
-                # application user privileges
-                cursor.execute(
-                    "CREATE USER IF NOT EXISTS %s@%s IDENTIFIED BY %s;",
-                    (DB_USER, DB_HOST, DB_PASSWORD)
-                )
-                cursor.execute(
-                    f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{DB_NAME}`.* TO %s@%s;",
-                    (DB_USER, DB_HOST)
-                )
-                logging.info(f"User '{DB_USER}' granted privileges on `{DB_NAME}`.")
+        # 2) Create/grant app user in a fresh connection; autocommit=True
+        with connect(host=DB_HOST, port=DB_PORT, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                for h in HOST_LIST:
+                    account = acct_literal(DB_USER, h)
 
-                conn.commit()
-                logging.info("Database setup committed.")
+                    # Ensure the user exists, then (re)set its password
+                    cursor.execute(f"CREATE USER IF NOT EXISTS {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
+                    cursor.execute(f"ALTER USER {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
+
+                    # Grant privileges on this database
+                    cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{DB_NAME}`.* TO {account};")
+
+                # Not strictly required, but harmless:
+                cursor.execute("FLUSH PRIVILEGES;")
+
+                logging.info(f"User '{DB_USER}' created/updated and granted on `{DB_NAME}` for hosts: {HOST_LIST}")
 
     except Error as e:
         logging.error(f"MySQL Error during setup: {e}")
@@ -217,14 +246,14 @@ def run_application(flask_script="main.py", fastapi_script="app/websockets/main.
         logging.info(f"Starting Flask app in new CMD: {flask_script}")
         subprocess.Popen([
             "cmd.exe", "/c",
-            "start", "Flask Backend",      # <-- window title
+            "start", "Flask Backend",
             "cmd.exe", "/k", f"python {flask_script}"
         ])
 
         logging.info(f"Starting FastAPI app in new CMD: {fastapi_script}")
         subprocess.Popen([
             "cmd.exe", "/c",
-            "start", "FastAPI Backend",    # <-- window title
+            "start", "FastAPI Backend",
             "cmd.exe", "/k", f"python {fastapi_script}"
         ])
 
@@ -233,5 +262,6 @@ def run_application(flask_script="main.py", fastapi_script="app/websockets/main.
         raise
 
 if __name__ == "__main__":
+    logging.info("Running database initialization…")
     create_database_and_tables()
     run_application()
