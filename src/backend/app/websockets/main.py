@@ -103,12 +103,12 @@ async def websocket_endpoint(ws: WebSocket):
                     case {"type": "join_idle"}:
                         services.idle_subscriptions.add(ws)
 
-                    case {"type": "call_invite", "chatID": chat_id, "callee": callee}:
-                        logger.info("Call invite from %s to %s in chat %s", username, callee, chat_id)
-                        await services.call_invite(caller=username, chat_id=chat_id, callee=callee)
+                    case {"type": "call_invite", "chatID": chat_id}:
+                        logger.info("Call invite from %s in chat %s", username, chat_id)
+                        await services.call_invite(caller=username, chat_id=chat_id)
 
-                    case {"type": "call_accept", "chatID": chat_id}:
-                        await services.call_accept(username=username, chat_id=chat_id)
+                    case {"type": "call_accept", "chatID": chat_id, "call_id": call_id}:
+                        await services.call_accept(username=username, chat_id=chat_id, call_id=call_id)
 
                     case {"type": "call_decline", "chatID": chat_id}:
                         await services.call_decline(username=username, chat_id=chat_id)
@@ -163,33 +163,59 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.websocket("/call/{call_id}/{user}")
-async def call_ws(ws: WebSocket, call_id: str, user: str):
+@app.websocket("/call/{call_id}")
+async def call_ws(ws: WebSocket, call_id: str):
     await ws.accept()
 
     sess = services.call_sessions.get(call_id)
-    if sess and user not in {sess.get("from"), sess.get("to")}:
+    if not sess:
+        try:
+            await ws.send_json({
+                "type": "call_ws_error",
+                "call_id": call_id,
+                "code": "CALL_NOT_FOUND",
+            })
+        except Exception:
+            pass
+        await ws.close(code=1008)
+        return
+
+    state = sess.get("state")
+    if state not in ("ringing", "active"):
+        try:
+            await ws.send_json({
+                "type": "call_ws_error",
+                "call_id": call_id,
+                "code": "CALL_NOT_ACTIVE",
+                "state": state,
+            })
+        except Exception:
+            pass
         await ws.close(code=1008)
         return
 
     call_rooms.setdefault(call_id, set()).add(ws)
-    call_users.setdefault(call_id, set()).add(user)
 
     try:
         while True:
             data = await ws.receive_json()
-            # Attach sender; fan out to other participant(s) in this call
-            data["from"] = user
+            # fan out signaling payload to other participant(s) in this call
             for peer in list(call_rooms.get(call_id, set())):
                 if peer is not ws:
-                    await peer.send_json(data)
+                    try:
+                        await peer.send_json(data)
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         pass
     finally:
         try:
             for peer in list(call_rooms.get(call_id, set())):
                 if peer is not ws:
-                    await peer.send_json({"type": "leave", "by": user})
+                    try:
+                        await peer.send_json({"type": "leave"})
+                    except Exception:
+                        pass
         except Exception:
             pass
 

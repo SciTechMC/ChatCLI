@@ -269,85 +269,203 @@ async def _broadcast_chat(
             subs.discard(ws)
 
 async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
-    state = pending_calls.get(chat_id)
-    if not state: return
+    """Send current call state for a chat to a single websocket, if any."""
+    call_id = pending_calls.get(chat_id)
+    if not call_id:
+        return
+    session = call_sessions.get(call_id)
+    if not session:
+        return
     await ws.send_json({
         "type": "call_state",
         "chatID": chat_id,
-        "from": state.get("from"),
-        "to": state.get("to"),
-        "state": state.get("state", "ringing"),
-        "call_id": state.get("call_id"),   # ← add this
+        "call_id": call_id,
+        "initiator": session.get("initiator"),
+        "state": session.get("state", "ringing"),
     })
 
-async def call_invite(caller: str, chat_id: int, callee: str) -> None:
-    call_id = str(uuid.uuid4())
-    state = {"from": caller, "to": callee, "state": "ringing", "call_id": call_id}
-    pending_calls[chat_id] = state
-    call_sessions[call_id] = {"chat_id": chat_id, "from": caller, "to": callee, "state": "ringing"}
+async def call_invite(caller: str, chat_id: int) -> None:
+    """Start a new call in the given chat, if allowed."""
+    # Basic validation: ensure chat exists and caller is a participant
+    try:
+        participants_rows = await fetch_records(
+            table="participants",
+            where_clause="chatID = %s",
+            params=(chat_id,),
+        )
+        if not participants_rows:
+            await _send_to_user(caller, {
+                "type": "call_error",
+                "chatID": chat_id,
+                "code": "CHAT_NOT_FOUND",
+            })
+            return
 
-    # direct (global) notify to callee
-    await _send_to_user(callee, {
-        "type": "call_incoming",
-        "chatID": chat_id,
-        "from": caller,
-        "to": callee,
-        "call_id": call_id
-    })
-    # also inform anyone subscribed to the chat
-    await _broadcast_chat(chat_id, {
-        "type": "call_state",
-        "chatID": chat_id,
-        "from": caller,
-        "to": callee,
-        "state": "ringing",
-        "call_id": call_id
-    }, exclude_users={caller})
-
-async def call_accept(username: str, chat_id: int) -> None:
-    call = pending_calls.get(chat_id)
-    if not call or username != call.get("to"):
+        user_row = await fetch_records(
+            table="users",
+            where_clause="username = %s AND disabled = FALSE AND deleted = FALSE",
+            params=(caller,),
+            fetch_all=False,
+        )
+        if not user_row or user_row["userID"] not in [row["userID"] for row in participants_rows]:
+            await _send_to_user(caller, {
+                "type": "call_error",
+                "chatID": chat_id,
+                "code": "NOT_IN_CHAT",
+            })
+            return
+    except mysql.connector.Error as e:
+        logger.error("DB error in call_invite for %s in chat %s: %s", caller, chat_id, e, exc_info=e)
+        await _send_to_user(caller, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "code": "INTERNAL_ERROR",
+        })
         return
-    call["state"] = "accepted"
-    cid = call["call_id"]
-    if cid in call_sessions:
-        call_sessions[cid]["state"] = "accepted"
 
-    payload = {"type": "call_accepted", "chatID": chat_id, "from": call["from"], "to": call["to"], "call_id": cid}
-    await _send_to_user(call["from"], payload)
-    await _send_to_user(call["to"], payload)
+    # Check if a call is already pending/active for this chat
+    existing_cid = pending_calls.get(chat_id)
+    if existing_cid:
+        existing = call_sessions.get(existing_cid)
+        if existing and existing.get("state") != "ended":
+            await _send_to_user(caller, {
+                "type": "call_error",
+                "chatID": chat_id,
+                "code": "CHAT_BUSY",
+            })
+            return
 
+    # Create new call session
+    call_id = str(uuid.uuid4())
+    call_sessions[call_id] = {
+        "chat_id": chat_id,
+        "initiator": caller,
+        "state": "ringing",
+    }
+    # link chat → call_id
+    pending_calls[chat_id] = call_id
+
+    # Notify the entire chat (group or private)
+    payload = {
+        "type": "call_state",
+        "chatID": chat_id,
+        "call_id": call_id,
+        "initiator": caller,
+        "state": "ringing",
+    }
+    await _broadcast_chat(chat_id, payload)
+
+async def call_accept(username: str, chat_id: int, call_id: str) -> None:
+    """Accept a pending call for the given chat and call id."""
+    current_cid = pending_calls.get(chat_id)
+    if not current_cid or current_cid != call_id:
+        await _send_to_user(username, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "call_id": call_id,
+            "code": "CALL_NOT_FOUND",
+        })
+        return
+
+    session = call_sessions.get(call_id)
+    if not session:
+        await _send_to_user(username, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "call_id": call_id,
+            "code": "CALL_NOT_FOUND",
+        })
+        return
+
+    if session.get("chat_id") != chat_id:
+        await _send_to_user(username, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "call_id": call_id,
+            "code": "CALL_CHAT_MISMATCH",
+        })
+        return
+
+    state = session.get("state")
+    if state != "ringing":
+        await _send_to_user(username, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "call_id": call_id,
+            "code": "CALL_NOT_RINGING",
+            "state": state,
+        })
+        return
+
+    # Mark the call as active
+    session["state"] = "active"
+    call_sessions[call_id] = session
+
+    # Broadcast updated state to the whole chat
     await _broadcast_chat(chat_id, {
         "type": "call_state",
         "chatID": chat_id,
-        "from": call["from"],
-        "to": call["to"],
-        "state": "accepted",
-        "call_id": cid
+        "call_id": call_id,
+        "initiator": session.get("initiator"),
+        "state": "active",
     })
+
+    # And an explicit accepted event, including who accepted
+    await _broadcast_chat(chat_id, {
+        "type": "call_accepted",
+        "chatID": chat_id,
+        "call_id": call_id,
+        "accepted_by": username,
+        "initiator": session.get("initiator"),
+    })
+
 
 async def call_decline(username: str, chat_id: int) -> None:
-    call = pending_calls.get(chat_id)
-    if not call or username not in (call.get("to"), call.get("from")):
+    """Decline the current call for this chat (if any)."""
+    call_id = pending_calls.get(chat_id)
+    if not call_id:
         return
-    cid = call.get("call_id")
-    payload = {"type": "call_declined", "chatID": chat_id, "by": username, "call_id": cid}
-    await _send_to_user(call["from"], payload)
-    await _send_to_user(call["to"], payload)
+
+    session = call_sessions.get(call_id)
+    payload = {
+        "type": "call_declined",
+        "chatID": chat_id,
+        "call_id": call_id,
+        "by": username,
+        "initiator": session.get("initiator") if session else None,
+    }
     await _broadcast_chat(chat_id, payload)
+
     pending_calls.pop(chat_id, None)
-    if cid: call_sessions.pop(cid, None)
+    if call_id in call_sessions:
+        call_sessions.pop(call_id, None)
 
 async def call_end(username: str, chat_id: int) -> None:
-    call = pending_calls.get(chat_id)
-    cid = call.get("call_id") if call else None
-    payload = {"type": "call_ended", "chatID": chat_id, "by": username, "call_id": cid}
-    if call:
-        await _send_to_user(call["from"], payload)
-        await _send_to_user(call["to"], payload)
-        pending_calls.pop(chat_id, None)
-        if cid: call_sessions.pop(cid, None)
+    """End the current call for this chat (if any)."""
+    call_id = pending_calls.get(chat_id)
+    if not call_id:
+        await _send_to_user(username, {
+            "type": "call_error",
+            "chatID": chat_id,
+            "code": "CALL_NOT_FOUND",
+        })
+        return
+
+    session = call_sessions.get(call_id)
+    if session:
+        session["state"] = "ended"
+        call_sessions[call_id] = session
+
+    payload = {
+        "type": "call_ended",
+        "chatID": chat_id,
+        "call_id": call_id,
+        "ended_by": username,
+        "initiator": session.get("initiator") if session else None,
+    }
     await _broadcast_chat(chat_id, payload)
+
+    pending_calls.pop(chat_id, None)
 
 async def broadcast_chat_created(chat_id: int, creator_username: str):
     """
