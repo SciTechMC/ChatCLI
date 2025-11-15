@@ -1,14 +1,15 @@
 import { store } from '../core/store.js';
 
-export async function getMic() {
-  if (store.call.localStream) return store.call.localStream;
-  try {
-    let localStream = await navigator.mediaDevices.getUserMedia({
-      audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true},
-      video: false
-    });
-    store.call.localStream = localStream;
-  } catch {}
+export async function initMedia() {
+  let localStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: true,
+      autoGainControl: true
+    },
+    video: false
+  });
+  store.call.localStream = localStream;
 }
 
 // --- Simple tone engine (ringback + ringtone) ---

@@ -23,6 +23,7 @@ export const store = {
     currentCallId: null,
     pc: null,
     localStream: null,
+    remoteStream: null,
     inCall: false,
     joiningArmed: false,
     pendingOffer: null,

@@ -11,8 +11,10 @@ import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyp
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
-import { toggleMute, endCall } from './calls/rtc.js';
+import { toggleMute, endCall, joinCall } from './calls/rtc.js';
 import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
+
+
 
 // --- events from ws
 window.addEventListener('chat:new-message', onWSNewMessage);
@@ -38,7 +40,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatTitle: document.querySelector('.chat-title'),
     editMembersBtn: document.getElementById('manageUsersBtn'),
 
-    // placeholder created below
     placeholder: null,
 
     // modals
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.callState = 'idle';
     window.dispatchEvent(new Event('call:ended'));
   });
-
+  
   const btn = store.refs.acceptCallBtn;
   btn?.addEventListener('click', async () => {
     btn.disabled = true;
@@ -134,7 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (ringingChat && store.currentChatID !== ringingChat) {
         await selectChat(ringingChat);
       }
-    if (store.callIncoming?.call_id) store.call.currentCallId = store.callIncoming.call_id;
+      if (store.callIncoming?.call_id) store.call.currentCallId = store.callIncoming.call_id;
       sendCallAcceptViaGlobal(ringingChat);
       store.callState = 'in-call';
       store.callActiveChatID = ringingChat ?? store.currentChatID;
@@ -144,6 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       setTimeout(() => { if (btn.isConnected) btn.disabled = false; }, 1500);
     }
   });
+  
 
 
   function showIncomingCallModal(from, meta = '') {
@@ -170,13 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }  
 
   store.refs.btnMute?.addEventListener('click', async () => {
-    try {
-      if (!store.call.localStream) {
-        const { getMic } = await import('./calls/media.js');
-        await getMic();
-      }
-      toggleMute();
-    } catch (e) { console.error(e); }
+    toggleMute();
   });
 
   function updateMuteButton() {
@@ -226,21 +222,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!btn) return;
     btn.style.display = visible ? 'inline-flex' : 'none';
   }
-
-  // Send call accept signaling
+  
+  // Call primary button click
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
     try {
-      const inOtherChat =
-        store.callState === 'in-call' &&
-        store.callActiveChatID &&
-        store.currentChatID !== store.callActiveChatID;
+      if (!store.currentChatID) {
+        showToast('Select a chat first', 'error');
+        return;
+      }
   
       if (store.callState === 'idle') {
-        // Determine callee for private chat
-        const callee = store.peerUsername;
-        if (!callee) { showToast('No callee for this chat', 'error'); return; }
-        // Invite via GLOBAL WS; open Call WS after 'call_accepted'
-        sendCallInviteViaGlobal({ chatID: store.currentChatID, callee });
+        // Start a call for the current chat (private or group)
+        sendCallInviteViaGlobal(store.currentChatID);
         store.callState = 'outgoing';
         store.callActiveChatID = store.currentChatID;
         playRingback();
@@ -248,15 +241,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
   
       if (store.callState === 'incoming') {
-        if (store.callIncoming?.chatID && store.currentChatID !== store.callIncoming.chatID) {
-          await selectChat(store.callIncoming.chatID);
+        const ringingChat = store.callIncoming?.chatID ?? store.currentChatID;
+        if (ringingChat && store.currentChatID !== ringingChat) {
+          await selectChat(ringingChat);
         }
         if (store.callIncoming?.call_id) {
           store.call.currentCallId = store.callIncoming.call_id;
         }
-        sendCallAcceptViaGlobal(store.callIncoming?.chatID ?? store.currentChatID);
+        sendCallAcceptViaGlobal(ringingChat);
         store.callState = 'in-call';
-        store.callActiveChatID = store.callIncoming?.chatID ?? store.currentChatID;
+        store.callActiveChatID = ringingChat;
         return;
       }
   
@@ -342,40 +336,65 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Global WS → call lifecycle bridge
   window.addEventListener('global:msg', async (ev) => {
     const msg = ev.detail || {};
-    switch (msg.type) {
-      case 'call_incoming': {
-        const { chatID, from, call_id } = msg;
-        store.callIncoming = { chatID, from, call_id };
-        store.callState = 'incoming';
-        playRingtone();
-        showIncomingCallModal(from, 'is calling you…');
-        updateCallButton();
-        break;
-      }
-      case 'call_accepted': {
-        store.callState = 'in-call';
-        store.callActiveChatID = msg.chatID;
-        updateCallButton();
-        break;
-      }
+    const self = (store.username || '').toLowerCase();
 
+    switch (msg.type) {
       case 'call_state': {
-        if (msg.state === 'accepted') {
+        const { chatID, call_id, initiator, state } = msg;
+        const initName = (initiator || '').toLowerCase();
+
+        if (state === 'ringing') {
+          if (self === initName) {
+            store.call.currentCallId = call_id;
+            store.callState = 'outgoing';
+            store.callActiveChatID = chatID;
+            updateCallButton();
+          } else {
+            store.callIncoming = { chatID, from: initiator, call_id };
+            store.callState = 'incoming';
+            playRingtone();
+            showIncomingCallModal(initiator, 'is calling you…');
+            updateCallButton();
+          }
+        } else if (state === 'active') {
+          store.call.currentCallId = call_id;
           store.callState = 'in-call';
-          store.callActiveChatID = msg.chatID;
+          store.callActiveChatID = chatID;
+          stopRingback();
+          stopRingtone();
+          store.callIncoming = null;
           updateCallButton();
+
+          try {
+            const isInitiator = self && initName && self === initName;
+            await joinCall({ callId: call_id, isInitiator });
+          } catch (e) {
+            console.error('Failed to join call', e);
+          }
+        } else if (state === 'ended') {
+          stopRingback();
+          stopRingtone();
+          window.dispatchEvent(new Event('call:ended'));
         }
         break;
       }
-      case 'call_declined':
-      case 'call_ended': {
-        stopRingback(); stopRingtone();
+
+      case 'call_ended':
+      case 'call_declined': {
+        stopRingback();
+        stopRingtone();
         window.dispatchEvent(new Event('call:ended'));
+        break;
+      }
+
+      case 'call_error': {
+        if (msg.message) {
+          showToast(msg.message, 'error');
+        }
         break;
       }
     }
   });
-
 
 
   // Placeholder
