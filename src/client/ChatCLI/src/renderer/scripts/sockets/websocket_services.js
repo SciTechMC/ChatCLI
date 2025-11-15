@@ -108,70 +108,13 @@ export function connectWS() {
       window.dispatchEvent(new CustomEvent('chat:chat_created', { detail: msg }));
       return;
     }
-
-    // Call signaling (global)
-    if (msg.type === 'call_incoming') {
-      console.log('[CALL-INCOMING]', msg);
-      window.dispatchEvent(new CustomEvent('call:incoming', {
-        detail: { chatID: msg.chatID, from: msg.from, call_id: msg.call_id }
-      }));
-      showToast(`${msg.from || 'Someone'} is calling…`, 'info');
-      return;
-    }
-
-    if (msg.type === 'call_state') {
-      console.log('[CALL-STATE]', msg);
-      if (msg.state === 'ringing') {
-        window.dispatchEvent(new CustomEvent('call:incoming', {
-          detail: { chatID: msg.chatID, from: msg.from, call_id: msg.call_id }
-        }));
-        return;
-      }
-      if (msg.state === 'accepted') {
-        if (store.call._startedForCallId === msg.call_id) return;
-        store.call._startedForCallId = msg.call_id;
-        const allowed = (store.callState === 'incoming' || store.callState === 'outgoing');
-        if (!allowed) return;
-        if (store.call.currentCallId && store.call.currentCallId !== msg.call_id) return;
-        if (!store.call.currentCallId) store.call.currentCallId = msg.call_id;
-        if (msg.call_id) openCallWS(msg.call_id, store.username);
-        const iAmCaller = (store.username || '').toLowerCase() === (msg.from || '').toLowerCase();
-        if (iAmCaller) await startCall(); else await joinCall();
-        store.callState = 'in-call';
-        store.callActiveChatID = msg.chatID;
-        window.dispatchEvent(new Event('call:connected'));
-        return;
-      }
-      return;
-    }
-
-    if (msg.type === 'call_accepted') {
-      if (store.call._startedForCallId === msg.call_id) return;
-      store.call._startedForCallId = msg.call_id;
-      if (msg.call_id) { store.call.currentCallId = msg.call_id; openCallWS(msg.call_id, store.username); }
-      const iAmCaller = (store.username || '').toLowerCase() === (msg.from || '').toLowerCase();
-      if (iAmCaller) await startCall(); else await joinCall();
-      store.callState = 'in-call';
-      store.callActiveChatID = msg.chatID;
-      window.dispatchEvent(new Event('call:connected'));
-      return;
-    }
-
-    if (msg.type === 'call_declined' || msg.type === 'call_ended') {
-      console.log('[CALL-ENDED/DECLINED]', msg);
-      window.dispatchEvent(new Event('call:ended'));
-      return;
-    }
   });
 }
-
 
 // ---------- Sending ----------
 export function WSSend(payload) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(payload));
-  } else {
-    console.warn('[CHAT-WS] send() called while not open', payload);
   }
 }
 

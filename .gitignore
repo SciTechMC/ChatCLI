@@ -37,3 +37,4 @@ node_modules/
 packag-lock.json
 npm-debug.log*
 *.log
+settings.json

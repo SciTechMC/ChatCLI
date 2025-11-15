@@ -1,41 +1,18 @@
 import { store } from '../core/store.js';
 
 export async function getMic() {
-  console.debug('[MEDIA] acquiring mic...');
   if (store.call.localStream) return store.call.localStream;
   try {
-    store.call.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    let localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true},
       video: false
     });
-    store.call.localStream.getAudioTracks().forEach(t => t.enabled = !store.call.isMuted);
-    console.debug('[MEDIA] mic acquired; tracks=', store.call.localStream.getAudioTracks().length);
-    return store.call.localStream;
-  } catch (err) {
-    console.error('[CALL] getMic error:', err);
-    const { statusEl } = store.refs;
-    if (statusEl) {
-      statusEl.textContent = 'Microphone error';
-      statusEl.className = 'status warn';
-    }
-    throw err;
-  }
+    store.call.localStream = localStream;
+  } catch {}
 }
 
 // --- Simple tone engine (ringback + ringtone) ---
-let _audioCtx, _ringbackTimer, _ringbackOsc, _ringtoneTimer, _ringtoneOsc;
-
-export function ensureCtx() {
-  _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  return _audioCtx;
-}
-
-export function resumeAudioCtx() {
-  try {
-    const ctx = ensureCtx();
-    if (ctx.state === 'suspended') ctx.resume().catch(()=>{});
-  } catch {}
-}
+let _ringbackTimer, _ringbackOsc, _ringtoneTimer, _ringtoneOsc;
 
 function stopOsc(osc) {
   try { osc.stop(); } catch {}
