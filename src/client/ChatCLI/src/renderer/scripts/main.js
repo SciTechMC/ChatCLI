@@ -109,8 +109,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { store.call?.callWS?.close(); } catch {}
   });
 
-  const SWITCH_CALL_ACTION = 'disable';
-
   store.callIncoming = store.callIncoming || null;
 
   store.refs.incomingCallClose?.addEventListener('click', hideIncomingCallModal);
@@ -254,8 +252,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
   
+      if (store.callState === 'outgoing') {
+        sendCallEndViaGlobal(store.callActiveChatID);
+        endCall('You left');
+        store.callState = 'idle';
+        store.callActiveChatID = null;
+        stopRingback();
+        stopRingtone();
+        updateCallButton();
+        return;
+      }
+
       // else: in-call → leave
-      endCall('You left');
       sendCallEndViaGlobal(store.callActiveChatID);
       store.callState = 'idle';
       store.callActiveChatID = null;
