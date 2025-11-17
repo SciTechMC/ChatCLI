@@ -1,5 +1,7 @@
 import { store } from '../core/store.js';
 
+// --- Media (microphone) ----------------------------------------------------
+
 export async function initMedia() {
   let localStream = await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -12,7 +14,35 @@ export async function initMedia() {
   store.call.localStream = localStream;
 }
 
-// --- Simple tone engine (ringback + ringtone) ---
+// --- Simple tone engine (ringback + ringtone) ------------------------------
+
+// shared audio context
+let _audioCtx = null;
+
+function ensureCtx() {
+  if (!_audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) {
+      throw new Error('Web Audio API not supported');
+    }
+    _audioCtx = new AC();
+  }
+  return _audioCtx;
+}
+
+// resume audio context if suspended (required by some browsers)
+export async function resumeAudioCtx() {
+  try {
+    const ctx = ensureCtx();
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+  } catch (e) {
+    console.warn('resumeAudioCtx failed', e);
+  }
+}
+
+// timers + osc handles
 let _ringbackTimer, _ringbackOsc, _ringtoneTimer, _ringtoneOsc;
 
 function stopOsc(osc) {
@@ -20,11 +50,14 @@ function stopOsc(osc) {
   try { osc.disconnect(); } catch {}
 }
 
+// --- Ringback (outgoing tone) ----------------------------------------------
+
 export function playRingback() {
   stopRingback();
   const ctx = ensureCtx();
   // pattern: 400 Hz for 1s, 2s off
   const on = 1000, off = 2000;
+
   const tick = () => {
     _ringbackOsc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -34,14 +67,23 @@ export function playRingback() {
     _ringbackOsc.start();
     setTimeout(() => stopOsc(_ringbackOsc), on);
   };
+
   tick();
   _ringbackTimer = setInterval(tick, on + off);
 }
 
 export function stopRingback() {
-  if (_ringbackTimer) { clearInterval(_ringbackTimer); _ringbackTimer = null; }
-  if (_ringbackOsc) { stopOsc(_ringbackOsc); _ringbackOsc = null; }
+  if (_ringbackTimer) {
+    clearInterval(_ringbackTimer);
+    _ringbackTimer = null;
+  }
+  if (_ringbackOsc) {
+    stopOsc(_ringbackOsc);
+    _ringbackOsc = null;
+  }
 }
+
+// --- Ringtone (incoming tone) ----------------------------------------------
 
 export function playRingtone() {
   stopRingtone();
@@ -109,6 +151,12 @@ export function playRingtone() {
 }
 
 export function stopRingtone() {
-  if (_ringtoneTimer) { clearInterval(_ringtoneTimer); _ringtoneTimer = null; }
-  if (_ringtoneOsc) { stopOsc(_ringtoneOsc); _ringtoneOsc = null; }
+  if (_ringtoneTimer) {
+    clearInterval(_ringtoneTimer);
+    _ringtoneTimer = null;
+  }
+  if (_ringtoneOsc) {
+    stopOsc(_ringtoneOsc);
+    _ringtoneOsc = null;
+  }
 }
