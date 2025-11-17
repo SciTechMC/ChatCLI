@@ -2,6 +2,7 @@ import asyncmy
 import os
 import logging
 from dotenv import load_dotenv
+from asyncmy.cursors import DictCursor
 
 load_dotenv()
 
@@ -15,6 +16,7 @@ DB_CONFIG = {
     "db": os.getenv("DB_NAME"),
     "port": int(os.getenv("DB_PORT", 3306)),
     "autocommit": True,
+    "cursorclass": DictCursor,
 }
 
 async def get_conn():
@@ -53,7 +55,7 @@ async def fetch_records(
     conn = None
     try:
         conn = await get_conn()
-        async with conn.cursor(asyncmy.DictCursor) as cur:
+        async with conn.cursor() as cur:
             await cur.execute(sql, params)
             if fetch_all:
                 rows = await cur.fetchall()
