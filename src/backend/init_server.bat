@@ -4,4 +4,4 @@ pip install --upgrade -r requirements.txt
 
 echo.
 echo Running database initialization…
-python init_server.py
+python install_update_server.py
