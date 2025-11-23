@@ -238,30 +238,9 @@ def create_database_and_tables():
 
     except Error as e:
         logging.error(f"MySQL Error during setup: {e}")
-        raise
-
-def run_application(flask_script="main.py", fastapi_script="app/websockets/main.py"):
-    """Launch the Flask and FastAPI scripts in separate CMD windows with clear titles."""
-    try:
-        logging.info(f"Starting Flask app in new CMD: {flask_script}")
-        subprocess.Popen([
-            "cmd.exe", "/c",
-            "start", "Flask Backend",
-            "cmd.exe", "/k", f"python {flask_script}"
-        ])
-
-        logging.info(f"Starting FastAPI app in new CMD: {fastapi_script}")
-        subprocess.Popen([
-            "cmd.exe", "/c",
-            "start", "FastAPI Backend",
-            "cmd.exe", "/k", f"python {fastapi_script}"
-        ])
-
-    except Exception as e:
-        logging.error(f"Error starting applications: {e}")
+        input("Press Enter to exit...")
         raise
 
 if __name__ == "__main__":
     logging.info("Running database initialization…")
     create_database_and_tables()
-    run_application()
