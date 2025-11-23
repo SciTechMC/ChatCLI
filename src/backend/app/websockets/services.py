@@ -3,17 +3,30 @@ import hashlib
 import mysql.connector
 from fastapi import WebSocket, status
 from db_helper import fetch_records, insert_record
+import uuid
+import calls
+
+logger = logging.getLogger(__name__)
 
 # In-memory connection & subscription registries
-active_connections: dict[str, WebSocket] = {}
-chat_subscriptions: dict[int, set[WebSocket]] = {}
-idle_subscriptions: set[WebSocket] = set()
+active_connections: dict[str, WebSocket] = {} # username -> WebSocket ; stores all active ws connections
+chat_subscriptions: dict[int, set[WebSocket]] = {} # chatID -> set of WebSockets ; stores ws connections subscribed to each chat
+idle_subscriptions: set[WebSocket] = set() # stores ws connections subscribed to idle notifications
 pending_calls: dict[int, dict] = {}
 call_sessions: dict[str, dict] = {}
-import uuid
+user_status: dict[str, bool] = {} # username -> online status (True/False)
 
-# Module logger
-logger = logging.getLogger(__name__)
+def reset_variables():
+    """
+    Resets all in-memory variables. Used on server startup.
+    """
+    global active_connections, chat_subscriptions, idle_subscriptions, pending_calls, call_sessions, user_status
+    active_connections = {}
+    chat_subscriptions = {}
+    idle_subscriptions = set()
+    pending_calls = {}
+    call_sessions = {}
+    user_status = {}
 
 async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     """
@@ -75,13 +88,6 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
         return None
 
     username = users[0]["username"]
-
-    # Register connection and broadcast online
-    active_connections[username] = websocket
-    try:
-        await notify_status(username, is_online=True)
-    except Exception as e:
-        logger.warning("Failed to notify status for %s: %s", username, e, exc_info=e)
 
     logger.info("User authenticated: %s (userID=%s)", username, user_id)
     return username
@@ -201,72 +207,104 @@ async def broadcast_typing(username: str, chat_id: int):
     await broadcast_msg(chat_id, payload)
 
 async def notify_status(username: str, is_online: bool):
-    payload = {"type": "user_status", "username": username, "online": is_online}
-
-    # Notify chat participants
-    for subs in chat_subscriptions.values():
-        for ws in set(subs):
-            try:
-                await ws.send_json(payload)
-            except Exception as e:
-                logger.warning("Removing dead connection in status notify: %s", e)
-                subs.discard(ws)
-
-    # Notify idle subscriptions
-    for ws in set(idle_subscriptions):
-        try:
-            await ws.send_json(payload)
-        except Exception as e:
-            logger.warning("Removing dead idle connection: %s", e)
-            idle_subscriptions.discard(ws)
-
-async def _send_to_user(username: str, payload: dict) -> bool:
     """
-    Best-effort send to a specific online user.
-    Returns True if a connection existed and we attempted a send.
+    Notify only users related to the given user about their status change.
+    Updates the global user_status dictionary.
     """
-    ws = active_connections.get(username)
-    if not ws:
-        return False
     try:
-        await ws.send_json(payload)
-        return True
-    except Exception as e:
-        logger.warning("Dropping dead connection for %s: %s", username, e)
-        active_connections.pop(username, None)
-        return False
+        # Update the user_status dictionary
+        user_status[username] = is_online
 
-async def _broadcast_chat(
-    chat_id: int,
-    payload: dict,
-    exclude_users: set[str] | None = None,
-    exclude_ws: set | None = None,
-) -> None:
-    """
-    Send to everyone currently subscribed to chat_id, excluding:
-      - any usernames in exclude_users (mapped via active_connections)
-      - any websocket objects in exclude_ws
-    """
-    subs = chat_subscriptions.get(chat_id, set())
-    if not subs:
-        return
+        # Fetch all chat IDs the user is part of
+        user_chats = await fetch_records(
+            table="participants",
+            where_clause="userID = (SELECT userID FROM users WHERE username = %s)",
+            params=(username,),
+            fetch_all=True
+        )
+        chat_ids = {row["chatID"] for row in user_chats}
 
-    exc_ws = set(exclude_ws or ())
-    if exclude_users:
-        for u in exclude_users:
-            ws = active_connections.get(u)
+        # Fetch all usernames of participants in those chats
+        related_users = set()
+        for chat_id in chat_ids:
+            participants = await fetch_records(
+                table="participants",
+                where_clause="chatID = %s",
+                params=(chat_id,),
+                fetch_all=True
+            )
+            related_users.update(
+                row["userID"] for row in participants if row["userID"] != username
+            )
+
+        # Fetch usernames for related user IDs
+        related_usernames = []
+        for user_id in related_users:
+            user_row = await fetch_records(
+                table="users",
+                where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
+                params=(user_id,),
+                fetch_all=False
+            )
+            if user_row:
+                related_usernames.append(user_row["username"])
+
+        # Notify only related users
+        payload = {"type": "user_status", "username": username, "online": is_online}
+        for related_username in related_usernames:
+            ws = active_connections.get(related_username)
             if ws:
-                exc_ws.add(ws)
+                try:
+                    await ws.send_json(payload)
+                except Exception as e:
+                    logger.warning("Removing dead connection for %s: %s", related_username, e)
+                    active_connections.pop(related_username, None)
+    except Exception as e:
+        logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
 
-    # iterate over a snapshot to discard safely
-    for ws in set(subs):
-        if ws in exc_ws:
-            continue
-        try:
-            await ws.send_json(payload)
-        except Exception as e:
-            logger.warning("Removing dead connection in chat %s: %s", chat_id, e)
-            subs.discard(ws)
+async def get_online_users_for_user(username: str) -> list[str]:
+    """
+    Get a list of online users who share common chats with the given user.
+    """
+    try:
+        # Fetch all chat IDs the user is part of
+        user_chats = await fetch_records(
+            table="participants",
+            where_clause="userID = (SELECT userID FROM users WHERE username = %s)",
+            params=(username,),
+            fetch_all=True
+        )
+        chat_ids = {row["chatID"] for row in user_chats}
+
+        # Fetch all usernames of participants in those chats
+        related_users = set()
+        for chat_id in chat_ids:
+            participants = await fetch_records(
+                table="participants",
+                where_clause="chatID = %s",
+                params=(chat_id,),
+                fetch_all=True
+            )
+            related_users.update(
+                row["userID"] for row in participants if row["userID"] != username
+            )
+
+        # Fetch usernames for related user IDs
+        online_users = []
+        for user_id in related_users:
+            user_row = await fetch_records(
+                table="users",
+                where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
+                params=(user_id,),
+                fetch_all=False
+            )
+            if user_row and user_status.get(user_row["username"], False):
+                online_users.append(user_row["username"])
+
+        return online_users
+    except Exception as e:
+        logger.error("Failed to get online users for %s: %s", username, e, exc_info=e)
+        return []
 
 async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
     """Send current call state for a chat to a single websocket, if any."""
@@ -283,189 +321,6 @@ async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
         "initiator": session.get("initiator"),
         "state": session.get("state", "ringing"),
     })
-
-async def call_invite(caller: str, chat_id: int) -> None:
-    """Start a new call in the given chat, if allowed."""
-    # Basic validation: ensure chat exists and caller is a participant
-    try:
-        participants_rows = await fetch_records(
-            table="participants",
-            where_clause="chatID = %s",
-            params=(chat_id,),
-        )
-        if not participants_rows:
-            await _send_to_user(caller, {
-                "type": "call_error",
-                "chatID": chat_id,
-                "code": "CHAT_NOT_FOUND",
-            })
-            return
-
-        user_row = await fetch_records(
-            table="users",
-            where_clause="username = %s AND disabled = FALSE AND deleted = FALSE",
-            params=(caller,),
-            fetch_all=False,
-        )
-        if not user_row or user_row["userID"] not in [row["userID"] for row in participants_rows]:
-            await _send_to_user(caller, {
-                "type": "call_error",
-                "chatID": chat_id,
-                "code": "NOT_IN_CHAT",
-            })
-            return
-    except mysql.connector.Error as e:
-        logger.error("DB error in call_invite for %s in chat %s: %s", caller, chat_id, e, exc_info=e)
-        await _send_to_user(caller, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "code": "INTERNAL_ERROR",
-        })
-        return
-
-    # Check if a call is already pending/active for this chat
-    existing_cid = pending_calls.get(chat_id)
-    if existing_cid:
-        existing = call_sessions.get(existing_cid)
-        if existing and existing.get("state") != "ended":
-            await _send_to_user(caller, {
-                "type": "call_error",
-                "chatID": chat_id,
-                "code": "CHAT_BUSY",
-            })
-            return
-
-    # Create new call session
-    call_id = str(uuid.uuid4())
-    call_sessions[call_id] = {
-        "chat_id": chat_id,
-        "initiator": caller,
-        "state": "ringing",
-    }
-    # link chat → call_id
-    pending_calls[chat_id] = call_id
-
-    # Notify the entire chat (group or private)
-    payload = {
-        "type": "call_state",
-        "chatID": chat_id,
-        "call_id": call_id,
-        "initiator": caller,
-        "state": "ringing",
-    }
-    await _broadcast_chat(chat_id, payload)
-
-async def call_accept(username: str, chat_id: int, call_id: str) -> None:
-    """Accept a pending call for the given chat and call id."""
-    current_cid = pending_calls.get(chat_id)
-    if not current_cid or current_cid != call_id:
-        await _send_to_user(username, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "call_id": call_id,
-            "code": "CALL_NOT_FOUND",
-        })
-        return
-
-    session = call_sessions.get(call_id)
-    if not session:
-        await _send_to_user(username, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "call_id": call_id,
-            "code": "CALL_NOT_FOUND",
-        })
-        return
-
-    if session.get("chat_id") != chat_id:
-        await _send_to_user(username, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "call_id": call_id,
-            "code": "CALL_CHAT_MISMATCH",
-        })
-        return
-
-    state = session.get("state")
-    if state != "ringing":
-        await _send_to_user(username, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "call_id": call_id,
-            "code": "CALL_NOT_RINGING",
-            "state": state,
-        })
-        return
-
-    # Mark the call as active
-    session["state"] = "active"
-    call_sessions[call_id] = session
-
-    # Broadcast updated state to the whole chat
-    await _broadcast_chat(chat_id, {
-        "type": "call_state",
-        "chatID": chat_id,
-        "call_id": call_id,
-        "initiator": session.get("initiator"),
-        "state": "active",
-    })
-
-    # And an explicit accepted event, including who accepted
-    await _broadcast_chat(chat_id, {
-        "type": "call_accepted",
-        "chatID": chat_id,
-        "call_id": call_id,
-        "accepted_by": username,
-        "initiator": session.get("initiator"),
-    })
-
-
-async def call_decline(username: str, chat_id: int) -> None:
-    """Decline the current call for this chat (if any)."""
-    call_id = pending_calls.get(chat_id)
-    if not call_id:
-        return
-
-    session = call_sessions.get(call_id)
-    payload = {
-        "type": "call_declined",
-        "chatID": chat_id,
-        "call_id": call_id,
-        "by": username,
-        "initiator": session.get("initiator") if session else None,
-    }
-    await _broadcast_chat(chat_id, payload)
-
-    pending_calls.pop(chat_id, None)
-    if call_id in call_sessions:
-        call_sessions.pop(call_id, None)
-
-async def call_end(username: str, chat_id: int) -> None:
-    """End the current call for this chat (if any)."""
-    call_id = pending_calls.get(chat_id)
-    if not call_id:
-        await _send_to_user(username, {
-            "type": "call_error",
-            "chatID": chat_id,
-            "code": "CALL_NOT_FOUND",
-        })
-        return
-
-    session = call_sessions.get(call_id)
-    if session:
-        session["state"] = "ended"
-        call_sessions[call_id] = session
-
-    payload = {
-        "type": "call_ended",
-        "chatID": chat_id,
-        "call_id": call_id,
-        "ended_by": username,
-        "initiator": session.get("initiator") if session else None,
-    }
-    await _broadcast_chat(chat_id, payload)
-
-    pending_calls.pop(chat_id, None)
 
 async def broadcast_chat_created(chat_id: int, creator_username: str):
     """
@@ -515,3 +370,101 @@ async def broadcast_chat_created(chat_id: int, creator_username: str):
     except Exception as e:
         logging.error("Failed to broadcast chat_created: %s", e)
 
+async def handle_message(username: str, ws: WebSocket, msg: dict) -> None:
+    """
+    Route a single inbound WebSocket message for a given user.
+    """
+    logger.debug("Received message for %s: %s", username, msg)
+
+    try:
+        match msg:
+            # ----- CHAT MESSAGES / PRESENCE -----
+
+            case {"type": "join_chat", "chatID": chat_id}:
+                await join_chat(username, chat_id, ws)
+
+            case {"type": "leave_chat", "chatID": chat_id}:
+                await leave_chat(username, chat_id, ws)
+
+            case {"type": "post_msg", "chatID": chat_id, "text": text} if isinstance(text, str):
+                result = await post_msg({
+                    "username": username,
+                    "chatID":   chat_id,
+                    "text":     text,
+                })
+                await ws.send_json({
+                    "type":      "post_msg_ack",
+                    "status":    "ok",
+                    "messageID": result.get("messageID") if isinstance(result, dict) else None,
+                })
+
+            case {"type": "typing", "chatID": chat_id}:
+                await broadcast_typing(username, chat_id)
+
+            case {"type": "chat_created", "chatID": chat_id, "creator": creator}:
+                await broadcast_chat_created(chat_id, creator)
+
+            case {"type": "join_idle"}:
+                idle_subscriptions.add(ws)
+
+            # ----- CALLING CASES -----
+
+            case {"type": "call_invite", "chatID": chat_id}:
+                await calls.call_invite(caller=username, chat_id=chat_id)
+
+            case {"type": "call_accept", "chatID": chat_id, "call_id": call_id}:
+                await calls.call_accept(username=username, chat_id=chat_id, call_id=call_id)
+
+            case {"type": "call_decline", "chatID": chat_id}:
+                await calls.call_decline(username=username, chat_id=chat_id)
+
+            case {"type": "call_end", "chatID": chat_id}:
+                await calls.call_end(username=username, chat_id=chat_id)
+
+            # ----- FALLBACKS -----
+
+            # Known shape but unsupported action
+            case {"type": action}:
+                raise ValueError(f"Unknown action: {action}")
+
+            # Completely invalid payload
+            case _:
+                raise ValueError("Invalid message payload")
+
+    except ValueError as ve:
+        logger.warning("Value error for user %s: %s", username, ve)
+        try:
+            await ws.send_json({"type": "error", "message": str(ve)})
+        except RuntimeError:
+            # WebSocket already closed; nothing else to do
+            pass
+    except Exception as e:
+        logger.error("Error handling message for %s: %s", username, e, exc_info=e)
+        try:
+            await ws.send_json({"type": "error", "message": "Internal server error"})
+        except RuntimeError:
+            # WebSocket already closed
+            pass
+
+async def cleanup_connection(username: str, ws: WebSocket) -> None:
+    """
+    Remove this websocket from all registries and mark the user offline.
+    Safe to call even if things are already partially cleaned up.
+    """
+    # Remove from all chat subscriptions
+    for subs in chat_subscriptions.values():
+        subs.discard(ws)
+
+    # Remove from idle subscriptions
+    idle_subscriptions.discard(ws)
+
+    # Remove from active_connections *only if* this ws is still the one stored
+    current_ws = active_connections.get(username)
+    if current_ws is ws:
+        active_connections.pop(username, None)
+
+    # Notify others the user is offline (also updates user_status)
+    try:
+        await notify_status(username, is_online=False)
+    except Exception as e:
+        logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)

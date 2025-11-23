@@ -1,5 +1,7 @@
 import logging
+import asyncio  # Add asyncio for lock handling
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.websockets import WebSocketState
 import services
 import uvicorn
 
@@ -17,142 +19,66 @@ logging.basicConfig(level=logging.DEBUG)
 
 app = FastAPI()
 call_rooms: dict[str, set[WebSocket]] = {}
-
 call_users: dict[str, set[str]] = {}
+
+services.reset_variables()
+
+# Add a lock for managing concurrent connection attempts
+connection_locks: dict[str, asyncio.Lock] = {}
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
-    # Accept connection
     await ws.accept()
-    logger.info("WebSocket connection accepted.")
 
-    # Authentication handshake
+    # --- AUTH HANDSHAKE ---
     try:
         init = await ws.receive_json()
-        logger.debug("Received auth payload: %s", init)
-    except Exception as e:
-        logger.error("Failed to receive auth payload", exc_info=e)
-        await ws.close(code=1003)
-        return
-
-    try:
         username = await services.authenticate(ws, init)
+        if not username:
+            await ws.close(code=1008)
+            return
     except Exception as e:
-        logger.error("Error during authentication", exc_info=e)
-        try:
-            await ws.send_json({"type": "error", "message": "Authentication error"})
-        except RuntimeError:
-            # Connection already closed, ignore send error
-            pass
+        logger.error("Authentication failed", exc_info=e)
         await ws.close(code=1008)
         return
 
-    if not username:
-        logger.warning("Invalid credentials: %s", init)
-        return
+    # --- ONE-USER-AT-A-TIME LOCK ---
+    lock = connection_locks.setdefault(username, asyncio.Lock())
+    async with lock:
+        old_ws = services.active_connections.get(username)
 
-    # Acknowledge successful auth
-    try:
-        await ws.send_json({"type": "auth_ack", "status": "ok"})
-        #logger.info("Authentication acknowledged for user: %s", username)
+        if old_ws and old_ws is not ws and old_ws.application_state == WebSocketState.CONNECTED:
+            try:
+                await old_ws.close(code=1000)
+            except Exception:
+                pass
+
         services.active_connections[username] = ws
-    except RuntimeError:
-        await ws.close(code=1008)
-        return
 
-    # Main message loop
+    # --- SEND INITIAL STATE ---
+    try:
+        await services.notify_status(username, True)
+        online_users = await services.get_online_users_for_user(username)
+        await ws.send_json({"type": "auth_ack", "status": "ok"})
+        await ws.send_json({"type": "online_users", "users": online_users})
+    except Exception as e:
+        logger.error("Error sending initial state to %s", username, exc_info=e)
+
+    ####################
+    # Main message loop#
+    ####################
+
     try:
         while True:
-            try:
-                msg = await ws.receive_json()
-            except WebSocketDisconnect:
-                logger.info("WebSocket disconnected for user: %s", username)
-                break
-
-            logger.debug("Received message for %s: %s", username, msg)
-
-            try:
-                match msg:
-                    case {"type": "join_chat", "chatID": chat_id}:
-                        await services.join_chat(username, chat_id, ws)
-
-                    case {"type": "leave_chat", "chatID": chat_id}:
-                        await services.leave_chat(username, chat_id, ws)
-
-                    case {"type": "post_msg", "chatID": chat_id, "text": text} if isinstance(text, str):
-                        result = await services.post_msg({
-                            "username": username,
-                            "chatID":   chat_id,
-                            "text":     text
-                        })
-                        await ws.send_json({
-                            "type":      "post_msg_ack",
-                            "status":    "ok",
-                            "messageID": result.get("messageID") if result else None
-                        })
-
-                    case {"type": "typing", "chatID": chat_id}:
-                        await services.broadcast_typing(username, chat_id)
-
-                    case {"type": "chat_created", "chatID": chat_id, "creator": creator}:
-                        await services.broadcast_chat_created(chat_id, creator)
-
-
-                    #------ CALLING CASES ------#
-
-                    case {"type": "join_idle"}:
-                        services.idle_subscriptions.add(ws)
-
-                    case {"type": "call_invite", "chatID": chat_id}:
-                        logger.info("Call invite from %s in chat %s", username, chat_id)
-                        await services.call_invite(caller=username, chat_id=chat_id)
-
-                    case {"type": "call_accept", "chatID": chat_id, "call_id": call_id}:
-                        await services.call_accept(username=username, chat_id=chat_id, call_id=call_id)
-
-                    case {"type": "call_decline", "chatID": chat_id}:
-                        await services.call_decline(username=username, chat_id=chat_id)
-
-                    case {"type": "call_end", "chatID": chat_id}:
-                        await services.call_end(username=username, chat_id=chat_id)
-
-                    # Known shape but unsupported action
-                    case {"type": action}:
-                        raise ValueError(f"Unknown action: {action}")
-
-                    # Completely invalid payload
-                    case _:
-                        raise ValueError("Invalid message payload")
-
-            except ValueError as ve:
-                logger.warning("Value error for user %s: %s", username, ve)
-                try:
-                    await ws.send_json({"type": "error", "message": str(ve)})
-                except RuntimeError:
-                    break
-            except Exception as e:
-                logger.error("Error handling message for %s: %s", username, e, exc_info=e)
-                try:
-                    await ws.send_json({"type": "error", "message": "Internal server error"})
-                except RuntimeError:
-                    break
-
+            msg = await ws.receive_json()
+            await services.handle_message(username, ws, msg)
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected for user: %s", username)
     except Exception as e:
-        logger.error("Unexpected error in connection loop for %s", username, exc_info=e)
+        logger.error("WebSocket error for %s: %s", username, e, exc_info=e)
     finally:
-        # Clean up subscriptions
-        for subs in services.chat_subscriptions.values():
-            subs.discard(ws)
+        await services.cleanup_connection(username, ws)
 
-        # Remove from active connections
-        services.active_connections.pop(username, None)
-        services.idle_subscriptions.discard(ws)
-
-        # Notify others the user is offline
-        try:
-            await services.notify_status(username, is_online=False)
-        except Exception as e:
-            logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
 
 from fastapi.middleware.cors import CORSMiddleware
 connections = {}  # username -> WebSocket
@@ -177,7 +103,11 @@ async def call_ws(ws: WebSocket, call_id: str):
             })
         except Exception:
             pass
-        await ws.close(code=1008)
+        try:
+            if ws.application_state != WebSocketState.DISCONNECTED:
+                await ws.close(code=1008)
+        except RuntimeError:
+            logger.warning("Attempted to close an already closed WebSocket for call_id: %s", call_id)
         return
 
     state = sess.get("state")
@@ -191,7 +121,11 @@ async def call_ws(ws: WebSocket, call_id: str):
             })
         except Exception:
             pass
-        await ws.close(code=1008)
+        try:
+            if ws.application_state != WebSocketState.DISCONNECTED:
+                await ws.close(code=1008)
+        except RuntimeError:
+            logger.warning("Attempted to close an already closed WebSocket for call_id: %s", call_id)
         return
 
     call_rooms.setdefault(call_id, set()).add(ws)
