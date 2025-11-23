@@ -1,6 +1,5 @@
-// authVault.js (main process)
 const keytar = require('keytar')
-const SERVICE = 'YourAppName.RefreshToken'
+const SERVICE = 'ChatCLI.RefreshToken'
 
 async function saveRefreshToken(accountId, refreshToken) {
   await keytar.setPassword(SERVICE, accountId, refreshToken)

@@ -4,6 +4,8 @@ export const store = {
   token: null,
   username: null,
 
+  preventReconnect: false,
+
   // chat
   currentChatID: null,
   currentChat: null,

@@ -5,7 +5,7 @@ import { showModal, hideModal, showConfirmationModal } from '../ui/modals.js';
 
 export async function autoLoginOrRedirect() {
   store.username = await window.secureStore.get('username');
-  if (!store.username) {
+  if (!store.username || store.preventReconnect) {
     window.location.href = 'index.html';
     return false;
   }
@@ -15,6 +15,7 @@ export async function autoLoginOrRedirect() {
     setAccess(r.access_token);
     return true;
   } catch {
+    showToast('Session expired. Please log in again.', 'error');
     window.location.href = 'index.html';
     return false;
   }

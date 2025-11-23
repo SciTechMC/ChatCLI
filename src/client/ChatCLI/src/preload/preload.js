@@ -1,7 +1,3 @@
-//  G:\ChatCLI\src\client\electronapp\preload.js
-
-// OPTIONAL: keep these two lines for sanity logs
-
 const { contextBridge, ipcRenderer } = require('electron');
 const api = require('../renderer/scripts/api.js');
 const { WS_URL, BASE_URL } = require('./config.js');
@@ -39,7 +35,6 @@ contextBridge.exposeInMainWorld('chatAPI', {
     const ws = new WebSocket(WS_URL);
     ws.on('open', () => ws.send(JSON.stringify({ type: 'auth', token })));
     ws.on('message', (data) => {
-      // re-emit into the DOM so your renderer code can listen
       window.dispatchEvent(new CustomEvent('ws-message', {
         detail: JSON.parse(data)
       }));

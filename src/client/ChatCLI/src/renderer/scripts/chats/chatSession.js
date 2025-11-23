@@ -362,3 +362,18 @@ export function onWSUserStatus({ detail: msg }) {
     }
   });
 }
+
+export function onWSOnlineUsers({ detail: onlineUsers }) {
+  const chatItems = document.querySelectorAll('.chat-item');
+  chatItems.forEach(el => {
+    const username = el.dataset.username;
+    if (!username) return;
+
+    const statusIndicator = el.querySelector('.chat-status');
+    if (statusIndicator) {
+      const isOnline = onlineUsers.includes(username);
+      statusIndicator.classList.toggle('online', isOnline);
+      statusIndicator.classList.toggle('offline', !isOnline);
+    }
+  });
+}

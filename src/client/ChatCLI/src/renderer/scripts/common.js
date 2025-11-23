@@ -12,6 +12,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     reset:    document.getElementById('reset-overlay'),
   };
 
+  try {
+    const msg = sessionStorage.getItem('redirect_reason');
+    if (msg) {
+      showToast(msg, 'warning'); // or 'error' if you prefer
+      sessionStorage.removeItem('redirect_reason');
+    }
+  } catch (_) {}
+
   function showOverlay(name) {
     Object.entries(overlays).forEach(([k, el]) => {
       if (!el) return;
@@ -27,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
     if (name === 'verify') updateVerifyUsernameLabel();
-    // when switching modals, re-run gating on visible form
     requestAnimationFrame(() => refreshAllGates());
   }
 
@@ -114,6 +121,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function tryAutoLoginIfNeeded() {
+    // After a WS failure / forced redirect, we skip *one* auto-login attempt
+    try {
+      if (sessionStorage.getItem('skip_auto_login_once') === '1') {
+        sessionStorage.removeItem('skip_auto_login_once');
+        return;
+      }
+    } catch (_) {}
+
     if (accessToken) return;
     if (!window.secureStore) return;
     const accountId = await window.secureStore.get('username');

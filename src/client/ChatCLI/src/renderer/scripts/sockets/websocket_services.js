@@ -6,8 +6,7 @@ let isConnecting = false;
 
 // ---- Reconnect backoff (unbounded, capped at MAX) ----
 let reconnectAttempts = 0;
-const BACKOFF_BASE = 1000;        // 1s
-const BACKOFF_MAX  = 15000;       // 15s cap
+const RETRY_DELAYS_MS = [5000, 10000, 20000]; // 3 attempts
 
 // ---------- Utility: reconnect scheduling ----------
 function nextDelay() {
@@ -17,7 +16,6 @@ function nextDelay() {
 }
 
 function shouldHoldReconnect() {
-  // Don’t hammer while offline or tab hidden
   if (navigator && 'onLine' in navigator && !navigator.onLine) return true;
   if (document && typeof document.hidden === 'boolean' && document.hidden) return true;
   return false;
@@ -25,8 +23,25 @@ function shouldHoldReconnect() {
 
 function scheduleReconnect(reason = '') {
   if (shouldHoldReconnect()) return;
-  const delay = nextDelay();
-  reconnectAttempts++;
+
+  if (reconnectAttempts >= RETRY_DELAYS_MS.length) {
+    console.error('[CHAT-WS] Max retries reached. Redirecting to index.html.');
+
+    // Tell index *why* we’re going back + avoid auto-login spam
+    try {
+      sessionStorage.setItem(
+        'redirect_reason',
+        'Unable to connect to the server. Please try again later.'
+      );
+      sessionStorage.setItem('skip_auto_login_once', '1');
+    } catch (_) {}
+
+    store.preventReconnect = true;
+    window.location.href = 'index.html';
+    return;
+  }
+
+  const delay = RETRY_DELAYS_MS[reconnectAttempts++];
   console.warn(`[CHAT-WS] Reconnecting in ${delay}ms (${reason})`);
   setTimeout(connectWS, delay);
 }
@@ -58,9 +73,46 @@ export function connectWS() {
     ws.send(JSON.stringify({ type: 'join_idle' }));
   });
 
-  ws.addEventListener('close', () => {
-    console.warn('[CHAT-WS] Closed ❌');
+  ws.addEventListener('close', (event) => {
+    console.warn('[CHAT-WS] Closed ❌', event.code, event.reason);
     isConnecting = false;
+
+    // 1008: policy / auth failure → do NOT retry
+    if (event.code === 1008) {
+      console.error('[CHAT-WS] Authentication failed. Not retrying.');
+
+      try {
+        sessionStorage.setItem(
+          'redirect_reason',
+          'Authentication failed. Please log in again.'
+        );
+        sessionStorage.setItem('skip_auto_login_once', '1');
+      } catch (_) {}
+
+      store.preventReconnect = true;
+      window.location.href = 'index.html';
+      return;
+    }
+
+    // 1000: normal closure used by server to kick this client
+    if (event.code === 1000) {
+      console.warn('[CHAT-WS] Closed by server with code 1000. Not retrying.');
+
+      const msg =
+        (event.reason && event.reason.trim()) ||
+        'You were logged out from this session (for example by logging in from another location).';
+
+      try {
+        sessionStorage.setItem('redirect_reason', msg);
+        sessionStorage.setItem('skip_auto_login_once', '1');
+      } catch (_) {}
+
+      store.preventReconnect = true;
+      window.location.href = 'index.html';
+      return;
+    }
+
+    // Other close codes → 3-step retry
     scheduleReconnect('close');
   });
 
@@ -78,6 +130,12 @@ export function connectWS() {
       msg = JSON.parse(event.data);
     } catch {
       console.warn('[CHAT-WS] Bad JSON', event.data);
+      return;
+    }
+
+    // Handle the "online_users" message type
+    if (msg.type === 'online_users') {
+      window.dispatchEvent(new CustomEvent('chat:online-users', { detail: msg.users }));
       return;
     }
 
