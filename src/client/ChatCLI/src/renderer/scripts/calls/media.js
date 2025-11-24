@@ -12,6 +12,7 @@ export async function initMedia() {
     video: false
   });
   store.call.localStream = localStream;
+  console.log('Local media stream obtained');
 }
 
 // --- Simple tone engine (ringback + ringtone) ------------------------------

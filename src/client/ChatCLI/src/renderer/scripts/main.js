@@ -344,65 +344,82 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Global WS → call lifecycle bridge
   window.addEventListener('global:msg', async (ev) => {
-    const msg = ev.detail || {};
-    const self = (store.username || '').toLowerCase();
+      const msg = ev.detail || {};
+      const self = (store.username || '').toLowerCase();
 
-    switch (msg.type) {
-      case 'call_state': {
-        const { chatID, call_id, initiator, state } = msg;
-        const initName = (initiator || '').toLowerCase();
+      console.log("[CALL][GLOBAL MSG RECEIVED]", msg);
 
-        if (state === 'ringing') {
-          if (self === initName) {
-            store.call.currentCallId = call_id;
-            store.callState = 'outgoing';
-            store.callActiveChatID = chatID;
-            updateCallButton();
-          } else {
-            store.callIncoming = { chatID, from: initiator, call_id };
-            store.callState = 'incoming';
-            playRingtone();
-            showIncomingCallModal(initiator, 'is calling you…');
-            updateCallButton();
+      switch (msg.type) {
+
+          case 'call_state': {
+              console.log("[CALL_STATE EVENT]", {
+                  chatID: msg.chatID,
+                  call_id: msg.call_id,
+                  initiator: msg.initiator,
+                  state: msg.state
+              });
+
+              const { chatID, call_id, initiator, state } = msg;
+              const initName = (initiator || '').toLowerCase();
+
+              if (state === 'ringing') {
+                  console.log("[CALL] RINGING state reached");
+
+                  if (self === initName) {
+                      console.log("[CALL] I am the initiator → outgoing");
+                      store.call.currentCallId = call_id;
+                      store.callState = 'outgoing';
+                      store.callActiveChatID = chatID;
+                  } else {
+                      console.log("[CALL] Incoming call detected from:", initiator);
+                      store.callIncoming = { chatID, from: initiator, call_id };
+                      store.callState = 'incoming';
+                  }
+                  updateCallButton();
+                  break;
+              }
+
+              if (state === 'active') {
+                  console.log("[CALL] ACTIVE state reached. Joining call:", call_id);
+
+                  store.call.currentCallId = call_id;
+                  store.callState = 'in-call';
+                  store.callActiveChatID = chatID;
+
+                  const isInitiator = self === initName;
+                  console.log("[CALL] joinCall() with:", { call_id, isInitiator });
+
+                  await joinCall({ callId: call_id, isInitiator });
+                  updateCallButton();
+                  break;
+              }
+
+              if (state === 'ended') {
+                  console.log("[CALL] ENDED state received");
+                  window.dispatchEvent(new Event('call:ended'));
+                  break;
+              }
+
+              break;
           }
-        } else if (state === 'active') {
-          store.call.currentCallId = call_id;
-          store.callState = 'in-call';
-          store.callActiveChatID = chatID;
-          stopRingback();
-          stopRingtone();
-          store.callIncoming = null;
-          updateCallButton();
 
-          try {
-            const isInitiator = self && initName && self === initName;
-            await joinCall({ callId: call_id, isInitiator });
-          } catch (e) {
-            console.error('Failed to join call', e);
-          }
-        } else if (state === 'ended') {
-          stopRingback();
-          stopRingtone();
-          window.dispatchEvent(new Event('call:ended'));
-        }
-        break;
-      }
+          case 'call_ended':
+              console.log("[CALL] call_ended EVENT", msg);
+              window.dispatchEvent(new Event('call:ended'));
+              break;
 
-      case 'call_ended':
-      case 'call_declined': {
-        stopRingback();
-        stopRingtone();
-        window.dispatchEvent(new Event('call:ended'));
-        break;
-      }
+          case 'call_declined':
+              console.log("[CALL] call_declined EVENT", msg);
+              window.dispatchEvent(new Event('call:ended'));
+              break;
 
-      case 'call_error': {
-        if (msg.message) {
-          showToast(msg.message, 'error');
-        }
-        break;
+          case 'call_error':
+              console.error("[CALL_ERROR]", msg);
+              if (msg.message) {
+                  showToast(msg.message, 'error');
+              }
+              break;
       }
-    }
   });
 
 
