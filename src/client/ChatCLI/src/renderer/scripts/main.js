@@ -270,6 +270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       store.callActiveChatID = null;
       stopRingback();
       stopRingtone();
+      endCall('You left');
     } catch (e) {
       console.error(e);
     } finally {
@@ -396,6 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
               if (state === 'ended') {
                   console.log("[CALL] ENDED state received");
+                  endCall('signaling_ended');
                   window.dispatchEvent(new Event('call:ended'));
                   break;
               }
@@ -410,6 +412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           case 'call_declined':
               console.log("[CALL] call_declined EVENT", msg);
+              endCall('remote_hangup');
               window.dispatchEvent(new Event('call:ended'));
               break;
 
