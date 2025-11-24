@@ -306,7 +306,7 @@ async def get_online_users_for_user(username: str) -> list[str]:
         logger.error("Failed to get online users for %s: %s", username, e, exc_info=e)
         return []
 
-async def _send_to_user(username: str, payload: dict) -> bool:
+async def send_to_user(username: str, payload: dict) -> bool:
     """
     Best-effort send to a specific online user.
     Returns True if a connection existed and we attempted a send.
@@ -323,7 +323,7 @@ async def _send_to_user(username: str, payload: dict) -> bool:
         return False
 
 
-async def _broadcast_chat(
+async def broadcast_chat(
     chat_id: int,
     payload: dict,
     exclude_users: set[str] | None = None,
@@ -517,3 +517,45 @@ async def cleanup_connection(username: str, ws: WebSocket) -> None:
         await notify_status(username, is_online=False)
     except Exception as e:
         logger.error("Failed to notify status for %s: %s", username, e, exc_info=e)
+
+async def get_chat_participant_usernames(chat_id: int) -> list[str]:
+  try:
+    participants_rows = await fetch_records(
+      table="participants",
+      where_clause="chatID = %s",
+      params=(chat_id,),
+      fetch_all=True,
+    )
+    if not participants_rows:
+      return []
+
+    usernames: list[str] = []
+    for row in participants_rows:
+      user_row = await fetch_records(
+        table="users",
+        where_clause="userID = %s AND disabled = FALSE AND deleted = FALSE",
+        params=(row["userID"],),
+        fetch_all=False,
+      )
+      if user_row:
+        usernames.append(user_row["username"])
+    return usernames
+  except Exception as e:
+    logger.error("Failed to get usernames for chat %s: %s", chat_id, e, exc_info=e)
+    return []
+
+async def broadcast_call_to_chat_participants(chat_id: int, payload: dict) -> None:
+  """
+  Send payload to all ONLINE participants of this chat, via active_connections.
+  Does not depend on chat_subscriptions / join_chat.
+  """
+  usernames = await get_chat_participant_usernames(chat_id)
+  for username in usernames:
+    ws = active_connections.get(username)
+    if not ws:
+      continue
+    try:
+      await ws.send_json(payload)
+    except Exception as e:
+      logger.warning("Removing dead connection for %s: %s", username, e)
+      active_connections.pop(username, None)
