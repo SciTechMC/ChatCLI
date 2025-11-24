@@ -164,6 +164,7 @@ export function connectWS() {
       window.dispatchEvent(new CustomEvent('chat:chat_created', { detail: msg }));
       return;
     }
+    window.dispatchEvent(new CustomEvent('global:msg', { detail: msg }));
   });
 }
 

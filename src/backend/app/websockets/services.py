@@ -306,6 +306,55 @@ async def get_online_users_for_user(username: str) -> list[str]:
         logger.error("Failed to get online users for %s: %s", username, e, exc_info=e)
         return []
 
+async def _send_to_user(username: str, payload: dict) -> bool:
+    """
+    Best-effort send to a specific online user.
+    Returns True if a connection existed and we attempted a send.
+    """
+    ws = active_connections.get(username)
+    if not ws:
+        return False
+    try:
+        await ws.send_json(payload)
+        return True
+    except Exception as e:
+        logger.warning("Dropping dead connection for %s: %s", username, e)
+        active_connections.pop(username, None)
+        return False
+
+
+async def _broadcast_chat(
+    chat_id: int,
+    payload: dict,
+    exclude_users: set[str] | None = None,
+    exclude_ws: set | None = None,
+) -> None:
+    """
+    Send to everyone currently subscribed to chat_id, excluding:
+      - any usernames in exclude_users (mapped via active_connections)
+      - any websocket objects in exclude_ws
+    """
+    subs = chat_subscriptions.get(chat_id, set())
+    if not subs:
+        return
+
+    exc_ws = set(exclude_ws or ())
+    if exclude_users:
+        for u in exclude_users:
+            ws = active_connections.get(u)
+            if ws:
+                exc_ws.add(ws)
+
+    for ws in set(subs):
+        if ws in exc_ws:
+            continue
+        try:
+            await ws.send_json(payload)
+        except Exception as e:
+            logger.warning("Removing dead connection in chat %s: %s", chat_id, e)
+            subs.discard(ws)
+
+
 async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
     """Send current call state for a chat to a single websocket, if any."""
     call_id = pending_calls.get(chat_id)
