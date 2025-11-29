@@ -1,5 +1,5 @@
 import hashlib
-import mysql.connector
+import mariadb
 from flask import current_app
 
 from app.errors import BadRequest, Conflict, APIError
@@ -72,7 +72,7 @@ def subscribe(data: dict) -> dict:
         )
     except Conflict:
         raise
-    except mysql.connector.Error as err:
+    except mariadb.Error as err:
         logger.error("Database error subscribing email %s: %s", email, err, exc_info=err)
         raise APIError("Database error.")
     except Exception as e:

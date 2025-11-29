@@ -1,16 +1,12 @@
-from datetime import datetime, timedelta, timezone
-import random
-import mysql.connector
+import mariadb
 from flask import current_app
 
 from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
 from app.services.base_services import authenticate_token
 from app.database.db_helper import (
     transactional,
-    insert_record,
     fetch_records,
     get_db,
-    update_records
 )
 
 
@@ -133,7 +129,7 @@ def get_messages(data: dict) -> dict:
             params=(chat_id, user_lower),
             fetch_all=True
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         current_app.logger.error("DB error checking participants", exc_info=e)
         raise APIError()
     if not parts:
@@ -149,7 +145,7 @@ def get_messages(data: dict) -> dict:
             limit=limit,
             fetch_all=True
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         current_app.logger.error("DB error fetching messages", exc_info=e)
         raise APIError()
 
@@ -308,7 +304,7 @@ def add_participant(data: dict) -> dict:
                 "INSERT INTO participants (chatID, userID) VALUES (%s,%s)",
                 (chat_id, uid)
             )
-        except mysql.connector.Error:
+        except mariadb.Error:
             pass
     conn.commit()
 
