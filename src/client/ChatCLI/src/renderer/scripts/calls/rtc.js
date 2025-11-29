@@ -3,14 +3,29 @@ import { store } from '../core/store.js';
 let pc = null;
 let ws = null;
 let callingURL = null;
-let hasSentOffer = false; // <--- NEW
+let hasSentOffer = false;
 
 async function getMic() {
-  if (store.call.localStream) return store.call.localStream;
   const { initMedia } = await import('./media.js');
-  await initMedia();
-  console.log('[RTC] getMic(): localStream tracks =', store.call.localStream?.getTracks());
-  return store.call.localStream;
+
+  if (!store.call.localStream || store.call.localStream.getAudioTracks().length === 0) {
+    await initMedia();
+    console.log('[RTC] getMic(): localStream tracks =', store.call.localStream?.getTracks());
+  }
+
+  return store.call.localStream || new MediaStream();
+}
+
+async function clearPC() {
+  if (pc) {
+    try { pc.ontrack = null; } catch {}
+    try { pc.onicecandidate = null; } catch {}
+    try { pc.onconnectionstatechange = null; } catch {}
+    try { pc.oniceconnectionstatechange = null; } catch {}
+    try { pc.close(); } catch {}
+  }
+  pc = null;
+  store.call.pc = null;
 }
 
 async function createPeerConnection() {
@@ -86,6 +101,10 @@ async function createPeerConnection() {
     console.log('[RTC] ICE connection state =', pc.iceConnectionState);
   };
 
+  ws.onclose = (ev) => {
+    console.log('[RTC] Signaling WS CLOSED', ev.code, ev.reason);
+  };
+
   window.dispatchEvent(new Event('call:started'));
   return pc;
 }
@@ -93,12 +112,8 @@ async function createPeerConnection() {
 async function ensureSignalingSocket(callId, isInitiator = false) {
   console.log('[RTC] ensureSignalingSocket(): callId =', callId, 'isInitiator =', isInitiator);
 
-  if (ws && store.call.currentCallId === callId && ws.readyState === WebSocket.OPEN) {
-    console.log('[RTC] Reusing existing signaling socket');
-    return;
-  }
-
   try { ws?.close(); } catch {}
+  ws = null;
 
   store.call.currentCallId = callId;
   const base = store.WS_URL || '';
@@ -107,13 +122,10 @@ async function ensureSignalingSocket(callId, isInitiator = false) {
 
   ws = new WebSocket(callingURL);
   store.call.callWS = ws;
-  hasSentOffer = false; // reset for this call
+  hasSentOffer = false;
 
-  ws.onopen = async () => {
+  ws.onopen = () => {
     console.log('[RTC] Signaling WS OPEN:', callingURL);
-    await createPeerConnection();
-
-    // NEW: handshake – just announce we’re ready
     try {
       ws.send(JSON.stringify({ type: 'ready' }));
       console.log('[RTC] Sent READY handshake');
@@ -135,8 +147,6 @@ async function ensureSignalingSocket(callId, isInitiator = false) {
       if (type === 'ready') {
         console.log('[RTC] Received READY handshake');
 
-        // Only the initiator creates/sends the offer,
-        // and only once, after seeing remote READY.
         if (isInitiator && !hasSentOffer) {
           try {
             const pcInstance = await createPeerConnection();
@@ -237,12 +247,20 @@ async function handleCandidate(candidate) {
 
 export async function joinCall({ callId, isInitiator = false }) {
   console.log('[RTC] joinCall(): callId =', callId, 'isInitiator =', isInitiator);
+
+  await clearPC();
+
   await ensureSignalingSocket(callId, isInitiator);
 }
 
 export async function toggleMute() {
   store.call.isMuted = !store.call.isMuted;
-  const stream = await getMic();
+
+  const stream = store.call.localStream;
+  if (!stream) {
+    console.warn('[RTC] toggleMute(): no localStream');
+    return;
+  }
 
   console.log('[RTC] toggleMute(): muted =', store.call.isMuted);
 

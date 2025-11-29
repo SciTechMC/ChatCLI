@@ -365,6 +365,11 @@ body {
   box-shadow: 0 6px 18px rgba(16,185,129,0.35);
 }
 
+.header-button.no-mic {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Pulse halo */
 @keyframes callPulse {
   0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }

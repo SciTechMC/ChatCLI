@@ -3,16 +3,30 @@ import { store } from '../core/store.js';
 // --- Media (microphone) ----------------------------------------------------
 
 export async function initMedia() {
-  let localStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      echoCancellation: false,
-      noiseSuppression: true,
-      autoGainControl: true
-    },
-    video: false
-  });
-  store.call.localStream = localStream;
-  console.log('Local media stream obtained');
+  try {
+    const localStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      video: false,
+    });
+    store.call.localStream = localStream;
+    console.log('Local media stream obtained');
+
+    const hasMic = localStream.getAudioTracks().length > 0;
+    window.dispatchEvent(
+      new CustomEvent('media:mic-status', { detail: { hasMic } })
+    );
+  } catch (err) {
+    console.error('Local media stream FAILED, staying in receive-only mode', err);
+    store.call.localStream = null;
+
+    window.dispatchEvent(
+      new CustomEvent('media:mic-status', { detail: { hasMic: false } })
+    );
+  }
 }
 
 // --- Simple tone engine (ringback + ringtone) ------------------------------

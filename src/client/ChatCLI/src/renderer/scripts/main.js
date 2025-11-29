@@ -12,7 +12,7 @@ import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
 import { toggleMute, endCall, joinCall } from './calls/rtc.js';
-import { playRingback, stopRingback, playRingtone, stopRingtone } from './calls/media.js';
+import { playRingback, stopRingback, playRingtone, stopRingtone, initMedia } from './calls/media.js';
 
 
 
@@ -96,10 +96,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     declineCallBtn: document.getElementById('declineCallBtn'),
   };
 
+  let _noMicPopupShown = false;
+  window.addEventListener('media:mic-status', (ev) => {
+    const hasMic = !!ev.detail?.hasMic;
+    const muteBtn = store.refs.btnMute;
+    const muteIconUse = store.refs.muteIconUse;
+    if (!muteBtn || !muteIconUse) return;
 
-  const resume = () => { try { import('./calls/media.js').then(m => m.resumeAudioCtx()); } catch {} };
-  window.addEventListener('click', resume, { once: true, capture: true });
-  window.addEventListener('keydown', resume, { once: true, capture: true });
+    if (!hasMic) {
+      muteIconUse.setAttribute('href', '#icon-mic-off');
+      muteBtn.disabled = true;
+      muteBtn.classList.add('no-mic');
+      muteBtn.title = 'No microphone detected';
+      if (!_noMicPopupShown) {
+        _noMicPopupShown = true;
+        showToast(
+          'This device has no microphone. You can join calls, but others won’t hear you.',
+          'error'
+        );
+      }
+    } else {
+      muteBtn.disabled = false;
+      muteBtn.classList.remove('no-mic');
+      muteBtn.title = '';
+      muteIconUse.setAttribute('href', '#icon-mic');
+    }
+  });
+
   try { endCall('App reloaded'); } catch {}
   store.callState = 'idle';
   store.callActiveChatID = null;
@@ -230,14 +253,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
   
-      if (store.callState === 'idle') {
-        // Start a call for the current chat (private or group)
-        sendCallInviteViaGlobal(store.currentChatID);
-        store.callState = 'outgoing';
-        store.callActiveChatID = store.currentChatID;
-        playRingback();
-        return;
-      }
+    if (store.callState === 'idle') {
+      await initMedia();
+
+      const hasMic =
+        store.call.localStream &&
+        store.call.localStream.getAudioTracks().length > 0;
+
+      if (!hasMic) { return; }
+
+      sendCallInviteViaGlobal(store.currentChatID);
+      store.callState = 'outgoing';
+      store.callActiveChatID = store.currentChatID;
+      playRingback();
+      return;
+    }
   
       if (store.callState === 'incoming') {
         const ringingChat = store.callIncoming?.chatID ?? store.currentChatID;
@@ -375,6 +405,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                       console.log("[CALL] Incoming call detected from:", initiator);
                       store.callIncoming = { chatID, from: initiator, call_id };
                       store.callState = 'incoming';
+                      window.dispatchEvent(new CustomEvent('call:incoming', {
+                        detail: { chatID, from: initiator, call_id }
+                      }));
                   }
                   updateCallButton();
                   break;
@@ -388,6 +421,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                   store.callActiveChatID = chatID;
 
                   const isInitiator = self === initName;
+                  if (isInitiator) {
+                    stopRingback();
+                  }
                   console.log("[CALL] joinCall() with:", { call_id, isInitiator });
 
                   await joinCall({ callId: call_id, isInitiator });
