@@ -96,7 +96,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     declineCallBtn: document.getElementById('declineCallBtn'),
   };
 
-  let _noMicPopupShown = false;
   window.addEventListener('media:mic-status', (ev) => {
     const hasMic = !!ev.detail?.hasMic;
     const muteBtn = store.refs.btnMute;
@@ -108,13 +107,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       muteBtn.disabled = true;
       muteBtn.classList.add('no-mic');
       muteBtn.title = 'No microphone detected';
-      if (!_noMicPopupShown) {
-        _noMicPopupShown = true;
-        showToast(
-          'This device has no microphone. You can join calls, but others won’t hear you.',
-          'error'
-        );
-      }
+      showToast(
+        'This device has no microphone. You can join calls, but others won’t hear you.',
+        'error'
+      );
     } else {
       muteBtn.disabled = false;
       muteBtn.classList.remove('no-mic');
@@ -378,31 +374,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       const msg = ev.detail || {};
       const self = (store.username || '').toLowerCase();
 
-      console.log("[CALL][GLOBAL MSG RECEIVED]", msg);
-
       switch (msg.type) {
 
           case 'call_state': {
-              console.log("[CALL_STATE EVENT]", {
-                  chatID: msg.chatID,
-                  call_id: msg.call_id,
-                  initiator: msg.initiator,
-                  state: msg.state
-              });
-
               const { chatID, call_id, initiator, state } = msg;
               const initName = (initiator || '').toLowerCase();
 
               if (state === 'ringing') {
-                  console.log("[CALL] RINGING state reached");
-
                   if (self === initName) {
-                      console.log("[CALL] I am the initiator → outgoing");
                       store.call.currentCallId = call_id;
                       store.callState = 'outgoing';
                       store.callActiveChatID = chatID;
                   } else {
-                      console.log("[CALL] Incoming call detected from:", initiator);
                       store.callIncoming = { chatID, from: initiator, call_id };
                       store.callState = 'incoming';
                       window.dispatchEvent(new CustomEvent('call:incoming', {
@@ -414,7 +397,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
 
               if (state === 'active') {
-                  console.log("[CALL] ACTIVE state reached. Joining call:", call_id);
 
                   store.call.currentCallId = call_id;
                   store.callState = 'in-call';
@@ -424,7 +406,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                   if (isInitiator) {
                     stopRingback();
                   }
-                  console.log("[CALL] joinCall() with:", { call_id, isInitiator });
 
                   await joinCall({ callId: call_id, isInitiator });
                   updateCallButton();
@@ -432,7 +413,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
 
               if (state === 'ended') {
-                  console.log("[CALL] ENDED state received");
                   endCall('signaling_ended');
                   window.dispatchEvent(new Event('call:ended'));
                   break;
@@ -442,12 +422,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           case 'call_ended':
-              console.log("[CALL] call_ended EVENT", msg);
               window.dispatchEvent(new Event('call:ended'));
               break;
 
           case 'call_declined':
-              console.log("[CALL] call_declined EVENT", msg);
               endCall('remote_hangup');
               window.dispatchEvent(new Event('call:ended'));
               break;
