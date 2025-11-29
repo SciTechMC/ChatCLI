@@ -1,9 +1,8 @@
 import logging
 import hashlib
-import mysql.connector
+import mariadb
 from fastapi import WebSocket, status
 from db_helper import fetch_records, insert_record
-import uuid
 import calls
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,7 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
             params=(token_hash,),
             fetch_all=True
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         logger.error("DB error during session lookup: %s", e, exc_info=e)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return None
@@ -73,7 +72,7 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
             params=(user_id,),
             fetch_all=True
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         logger.error("DB error during user lookup: %s", e, exc_info=e)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
         return None
@@ -127,7 +126,7 @@ async def post_msg(msg: dict) -> dict | None:
             params=(username,),
             fetch_all=True
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         logger.error("DB error fetching user %s: %s", username, e, exc_info=e)
         return {"status": "error", "code": "DB_ERROR", "message": "Internal server error."}
     except Exception as e:
@@ -154,7 +153,7 @@ async def post_msg(msg: dict) -> dict | None:
             "messages",
             {"chatID": chat_id, "userID": user_id, "message": text}
         )
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         logger.error("DB error inserting message for %s: %s", username, e, exc_info=e)
         return {"status": "error", "code": "DB_ERROR", "message": "Internal server error."}
     except Exception as e:

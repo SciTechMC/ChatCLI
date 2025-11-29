@@ -1,6 +1,6 @@
 import logging
 import uuid
-import mysql.connector
+import mariadb
 import db_helper as db
 import services
 
@@ -37,7 +37,7 @@ async def call_invite(caller: str, chat_id: int) -> None:
                 "code": "NOT_IN_CHAT",
             })
             return
-    except mysql.connector.Error as e:
+    except mariadb.Error as e:
         logger.error("DB error in call_invite for %s in chat %s: %s", caller, chat_id, e, exc_info=e)
         await services.send_to_user(caller, {
             "type": "call_error",
