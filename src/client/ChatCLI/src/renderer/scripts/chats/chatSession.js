@@ -274,7 +274,6 @@ export async function sendMessage() {
 
   const len = text.length;
 
-  // Case 1: short — just send
   if (len <= MAX_MESSAGE_LEN) {
     WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
     messageInput.value = '';
@@ -284,12 +283,25 @@ export async function sendMessage() {
     return;
   }
 
-  // Case 2: over hard cap — block and offer to auto-trim
   if (len > HARD_MAX) {
     const over = len - HARD_MAX;
+
+    const overflowRaw = text.slice(HARD_MAX).trimStart();
+    let overflowSnippet = '';
+    if (overflowRaw.length > 0) {
+      const words = overflowRaw.split(/\s+/).slice(0, 8).join(' ');
+      const hasMore = overflowRaw.length > words.length;
+      overflowSnippet =
+        `\n\nAnything after the limit will NOT be sent. ` +
+        `The first part that will be dropped starts with:\n` +
+        `"${words}${hasMore ? '…' : ''}"`;
+    }
+
     showConfirmationModal(
-      `Your message is ${len} characters, exceeding the limit of ${HARD_MAX}.\n\n` +
-      `Send the first ${HARD_MAX} characters, split into 5 messages?`,
+      `Your message is ${len} characters, exceeding the limit of ${HARD_MAX} ` +
+      `(${over} characters too long).\n\n` +
+      `Send the first ${HARD_MAX} characters, split into 5 messages?` +
+      overflowSnippet,
       'Message Too Long',
       async () => {
         const trimmed = text.slice(0, HARD_MAX);
@@ -307,10 +319,10 @@ export async function sendMessage() {
     return;
   }
 
-  // Case 3: within hard cap — confirm and split
   const chunks = splitIntoChunks(text, MAX_MESSAGE_LEN, MAX_SPLIT_PARTS);
   showConfirmationModal(
-    `Your message is ${len} characters and will be split into ${chunks.length} message${chunks.length>1?'s':''}. Continue?`,
+    `Your message is ${len} characters and will be split into ${chunks.length} ` +
+    `message${chunks.length > 1 ? 's' : ''}. Continue?`,
     'Split Message?',
     async () => {
       for (const chunk of chunks) {

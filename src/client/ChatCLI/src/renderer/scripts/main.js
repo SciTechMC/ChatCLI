@@ -598,9 +598,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     store.refs.messageInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        sendMessage();
+
+        const input = store.refs.messageInput;
+        if (!input) return;
+
+        const text = input.value.trim();
+        if (!text) return;
+
+        const len = text.length;
+
+        // If a confirmation modal is already open, don't trigger another send
+        const cm = store.refs.confirmationModal;
+        const modalOpen = cm && cm.classList.contains('active');
+        if (modalOpen) return;
+
+        // For "normal" messages (<= 2048 chars), Enter sends immediately
+        if (len <= 2048) {
+          sendMessage();
+          return;
+        }
+
+        // For long messages that require the split/trim confirmation,
+        // force the user to click the send button so the modal can't
+        // be auto-accepted by the same Enter keypress.
+        showToast(
+          'Message is too long to send with Enter. Click the send icon to confirm splitting.',
+          'info'
+        );
       }
-    });
+  });
     store.refs.messageInput.addEventListener('input', () => {
       const el = store.refs.messageInput;
       el.style.height = 'auto';
