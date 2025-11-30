@@ -30,6 +30,16 @@ def route_verify_email():
     return jsonify(result)
 
 
+@user.route("/resend-verification", methods=["POST"])
+@limiter.limit("1 per minute")
+def route_resend_verification():
+    data = request.get_json(silent=True)
+    if not data:
+        raise errors.BadRequest("Invalid JSON format.")
+    result = resend_verification(data)
+    return jsonify(result)
+
+
 @user.route("/login", methods=["POST"])
 @limiter.limit("5 per minute")
 def route_login():

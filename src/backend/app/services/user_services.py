@@ -174,6 +174,60 @@ def verify_email(data: dict) -> dict:
     return {"message": "Email verified!"}
 
 
+def resend_verification(data: dict) -> dict:
+    """
+    Resends a verification code to the user's email.
+    """
+    username = (data.get("username") or "").strip().lower()
+
+    if not username:
+        raise BadRequest("Username is required.")
+
+    try:
+        users = fetch_records(
+            table="users",
+            where_clause="LOWER(username) = LOWER(%s)",
+            params=(username,),
+            fetch_all=True
+        )
+        if not users:
+            raise NotFound("User not found.")
+        user = users[0]
+        if user["email_verified"]:
+            raise BadRequest("Email is already verified.")
+
+        # revoke all tokens
+        update_records(
+            table="email_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user["userID"], datetime.now(timezone.utc))
+        )
+
+        # create new token
+        email_token = f"{random.randint(100000, 999999):06d}"
+        expiry      = datetime.now(timezone.utc) + timedelta(minutes=5)
+        insert_record(
+            "email_tokens",
+            {
+                "userID":      user["userID"],
+                "email_token": email_token,
+                "expires_at":  expiry,
+                "revoked":     False
+            }
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        current_app.logger.error("Error during resend verification", exc_info=e)
+        raise APIError()
+
+    # send verification email
+    send_verification_email(user["username"], email_token, user["email"])
+
+    return {"message": "Verification email resent!"}
+
+
 def login(data: dict) -> dict:
     """
     Authenticates credentials and issues tokens.

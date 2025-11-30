@@ -235,7 +235,7 @@ async function forceLogoutAfterProfileChange(message = 'Profile updated. Please 
       body: JSON.stringify({ session_token: store.token })
     });
   } catch (_) {}
-
+  let username = store.username;
   try { if (store.username && window.auth?.clear) await window.auth.clear(store.username); } catch (_) {}
   try { await window.secureStore.delete('session_token'); } catch (_) {}
   try { await window.secureStore.delete('refresh_token'); } catch (_) {}
@@ -243,5 +243,5 @@ async function forceLogoutAfterProfileChange(message = 'Profile updated. Please 
   try { await window.secureStore.delete('email'); } catch (_) {}
 
   showToast(message, 'info');
-  window.location.href = 'index.html';
+  window.location.href = `index.html?username=${encodeURIComponent(username)}#verify`;
 }

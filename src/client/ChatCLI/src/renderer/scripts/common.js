@@ -45,6 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const backFromVerifyBtn   = document.getElementById('back-to-welcome-from-verify');
   const openResetBtn        = document.getElementById('open-reset');
   const backFromResetBtn    = document.getElementById('back-to-login-from-reset');
+  const openVerifyFromLoginBtn = document.getElementById('open-verify-from-login');
+  const resendCodeBtn      = document.getElementById('resend-code-btn');
 
   openLoginBtn?.addEventListener('click', () => showOverlay('login'));
   backToWelcomeBtn?.addEventListener('click', () => showOverlay('welcome'));
@@ -57,6 +59,35 @@ document.addEventListener('DOMContentLoaded', async () => {
   const initialTarget = (location.hash || '').replace('#','');
   if (initialTarget && overlays[initialTarget]) showOverlay(initialTarget);
   else showOverlay('welcome');
+
+  resendCodeBtn?.addEventListener('click', async () => {
+    const username = getUsernameFromParams();
+    if (!username) {
+      showToast('Missing username for verification. Please register again.', 'error');
+      return;
+    }
+    try {
+      await window.api.request('/user/resend-verification', {
+        body: JSON.stringify({ username })
+      });
+      showToast('Verification code resent! Check your email.', 'info');
+    } catch (err) {
+      showToast('Failed to resend code: ' + (err.message || 'Server error'), 'error');
+    }
+  });
+
+  openVerifyFromLoginBtn?.addEventListener('click', () => {
+    const usernameInput = document.querySelector('#login-form input[name="username"]');
+    const username = usernameInput?.value.trim() || '';
+
+    if (!username) {
+      showToast('Please enter your username first to verify your email.', 'error');
+      return;
+    }
+
+    setUsernameParam(username);
+    showOverlay('verify');
+  });
 
   window.addEventListener('hashchange', () => {
     const target = (location.hash || '').replace('#','');
