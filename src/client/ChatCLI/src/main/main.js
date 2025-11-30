@@ -8,6 +8,11 @@ const SERVICE = 'chatcli'
 const profileArg = process.argv.find(arg => arg.startsWith('--profile='))
 const PROFILE = profileArg ? (profileArg.split('=')[1] || 'default') : 'default';
 
+const isDev = !app.isPackaged;
+const iconPath = isDev
+  ? path.join(__dirname, '../../static/icon.ico')
+  : path.join(process.resourcesPath, 'icon.ico');
+
 ipcMain.handle('auth:storeRefresh', async (_e, { accountId, refreshToken }) => {
   const key = `%{PROFILE}::${accountId}`
   await saveRefreshToken(key, refreshToken)
@@ -54,11 +59,13 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      icon: iconPath,
     },
   })
   win.loadFile(path.join(__dirname, '../renderer/pages', 'index.html'))

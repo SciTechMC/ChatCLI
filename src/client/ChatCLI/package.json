@@ -1,7 +1,7 @@
 {
-  "name": "chatcli-electron",
-  "version": "0.1.0-beta+devbuild",
-  "description": "ChatCLI – Windows Electron chat client",
+  "name": "chatcli",
+  "version": "0.4.0-beta",
+  "description": "ChatCLI",
   "author": "SciTechMC <jan.vdcg@gmail.com>",
   "main": "./src/main/main.js",
   "scripts": {
@@ -22,17 +22,13 @@
   "build": {
     "appId": "com.scitechmc.chatcli",
     "productName": "ChatCLI",
-    "files": [
-      "**/*"
-    ],
+    "files": ["**/*"],
     "directories": {
       "output": "dist"
     },
     "win": {
-      "target": [
-        "nsis",
-        "zip"
-      ]
+      "icon": "static/icon.ico",
+      "target": ["nsis", "zip"]
     },
     "nsis": {
       "oneClick": false,
