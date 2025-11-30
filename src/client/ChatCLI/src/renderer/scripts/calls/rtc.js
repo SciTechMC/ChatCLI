@@ -2,6 +2,7 @@ import { store } from '../core/store.js';
 
 let pc = null;
 let ws = null;
+let baseURL = store.CALL_URL || null;
 let callingURL = null;
 let hasSentOffer = false;
 
@@ -86,8 +87,7 @@ async function ensureSignalingSocket(callId, isInitiator = false) {
   ws = null;
 
   store.call.currentCallId = callId;
-  const base = store.WS_URL || '';
-  callingURL = base.replace(/\/ws$/, '') + '/call/' + encodeURIComponent(callId);
+  callingURL =  baseURL + encodeURIComponent(callId);
 
   ws = new WebSocket(callingURL);
   store.call.callWS = ws;
