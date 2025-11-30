@@ -579,7 +579,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Manage group members button
   if (store.refs.editMembersBtn) {
     store.refs.editMembersBtn.addEventListener('click', openGroupEditor);
-    
   }
   store.refs.editMembersBtn.style.display = 'none';
 

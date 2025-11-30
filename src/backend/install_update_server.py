@@ -25,6 +25,8 @@ IGNORE_EMAIL_VERIF=true
 # Database credentials
 DB_USER=chatcli_access
 DB_PASSWORD={db_user_pssw}
+
+ROOT_ACCESS=false
 DB_ROOT_USER=root
 DB_ROOT_PASSWORD=1234
 
@@ -57,7 +59,7 @@ load_dotenv()
 # ------------------------
 # Logging
 # ------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(level=logging.INFO)
 
 # ------------------------
 # Config
@@ -69,11 +71,13 @@ DB_ROOT_PASS  = os.getenv("DB_ROOT_PASSWORD")
 DB_NAME       = os.getenv("DB_NAME", "chatcli")
 DB_USER       = os.getenv("DB_USER", "chatcli_access")
 DB_PASSWORD   = os.getenv("DB_PASSWORD")
+raw_root = os.getenv("ROOT_ACCESS", "false").strip().lower()
+DB_ROOT_ACCESS = raw_root in ("1", "true", "yes")
 
 # Choose how broad the DB account access should be.
 # - For local-only, use: ["localhost", "127.0.0.1"]
 # - For containers/remote too, use: ["%"]
-HOST_LIST = ["%"]  # adjust to your needs
+HOST_LIST = ["%"]
 
 # Helper to build a safe SQL account literal: 'user'@'host'
 def acct_literal(u: str, h: str) -> str:
@@ -85,14 +89,21 @@ def create_database_and_tables():
     """Create database and tables if they don't exist, then create/grant the app user."""
     try:
         # 1) Create DB + tables in one connection; autocommit=True for DDL
-        with connect(host=DB_HOST, port=DB_PORT, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
+        if DB_ROOT_ACCESS == True:
+            user = DB_ROOT_USER
+            password = DB_ROOT_PASS
+        else:
+            user = DB_USER
+            password = DB_PASSWORD
+        with connect(host=DB_HOST, port=DB_PORT, user=user, password=password) as conn:
             conn.autocommit = True
             with conn.cursor() as cursor:
                 logging.info("Connected to MySQL/MariaDB server as root.")
-                cursor.execute(
-                    f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` "
-                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-                )
+                if DB_ROOT_ACCESS == True:
+                  cursor.execute(
+                      f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` "
+                      "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+                  )
                 cursor.execute(f"USE `{DB_NAME}`;")
 
                 table_statements = [
@@ -218,28 +229,32 @@ def create_database_and_tables():
                 logging.info("All tables created or verified successfully.")
 
         # 2) Create/grant app user in a fresh connection; autocommit=True
-        with connect(host=DB_HOST, port=DB_PORT, user=DB_ROOT_USER, password=DB_ROOT_PASS) as conn:
-            conn.autocommit = True
-            with conn.cursor() as cursor:
-                for h in HOST_LIST:
-                    account = acct_literal(DB_USER, h)
+        if DB_ROOT_ACCESS == True:
+          with connect(host=DB_HOST, port=DB_PORT, user=user, password=password) as conn:
+              conn.autocommit = True
+              with conn.cursor() as cursor:
+                  for h in HOST_LIST:
+                      account = acct_literal(DB_USER, h)
 
-                    # Ensure the user exists, then (re)set its password
-                    cursor.execute(f"CREATE USER IF NOT EXISTS {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
-                    cursor.execute(f"ALTER USER {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
+                      # Ensure the user exists, then (re)set its password
+                      cursor.execute(f"CREATE USER IF NOT EXISTS {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
+                      cursor.execute(f"ALTER USER {account} IDENTIFIED BY %s;", (DB_PASSWORD,))
 
-                    # Grant privileges on this database
-                    cursor.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON `{DB_NAME}`.* TO {account};")
+                      # Grant privileges on this database
+                      cursor.execute(f"GRANT ALL PRIVILEGES ON `{DB_NAME}`.* TO {account};")
 
-                # Not strictly required, but harmless:
-                cursor.execute("FLUSH PRIVILEGES;")
+                  # Not strictly required, but harmless:
+                  cursor.execute("FLUSH PRIVILEGES;")
 
-                logging.info(f"User '{DB_USER}' created/updated and granted on `{DB_NAME}` for hosts: {HOST_LIST}")
+                  logging.info(f"User '{DB_USER}' created/updated and granted on `{DB_NAME}` for hosts: {HOST_LIST}")
+        else:
+            logging.warning("Skipping DB user creation since ROOT_ACCESS is false.")
+            input("Press Enter to continue...")
 
     except Error as e:
         logging.error(f"MySQL Error during setup: {e}")
         input("Press Enter to exit...")
-        raise
+        return
 
 if __name__ == "__main__":
     logging.info("Running database initialization…")
