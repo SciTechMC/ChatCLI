@@ -200,7 +200,7 @@ def resend_verification(data: dict) -> dict:
         update_records(
             table="email_tokens",
             data={"revoked": True},
-            where_clause="userID = %s",
+            where_clause="userID = %s AND expires_at > %s",
             where_params=(user["userID"], datetime.now(timezone.utc))
         )
 
