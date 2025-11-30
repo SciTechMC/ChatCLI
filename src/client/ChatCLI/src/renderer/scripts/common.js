@@ -305,11 +305,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         setAccess(res.access_token);
 
-        if (window.auth && typeof window.auth.storeRefresh === 'function') {
-          await window.auth.storeRefresh(username, res.refresh_token);
-        }
-        if (window.secureStore && typeof window.secureStore.set === 'function') {
+        if (window.secureStore?.set) {
+          await window.secureStore.set('session_token', res.access_token);
           await window.secureStore.set('username', username);
+        }
+        if (window.auth?.storeRefresh) {
+          await window.auth.storeRefresh(username, res.refresh_token);
         }
 
         showToast('Login successful! Redirecting…', 'info');

@@ -5,21 +5,42 @@ import { showModal, hideModal, showConfirmationModal } from '../ui/modals.js';
 
 export async function autoLoginOrRedirect() {
   store.username = await window.secureStore.get('username');
+
   if (!store.username || store.preventReconnect) {
+    console.error('No stored username or reconnect prevented, redirecting to login.');
     window.location.href = 'index.html';
     return false;
   }
+
+  const savedSession = await window.secureStore.get('session_token');
+  if (savedSession) {
+    setAccess(savedSession);
+    return true;
+  }
+
   try {
+    console.log('No stored session_token, using refresh flow for', store.username);
     const r = await window.auth.refresh(store.username);
     if (!r || !r.ok || !r.access_token) throw new Error('Refresh failed');
+
     setAccess(r.access_token);
+
+    if (r.refresh_token && window.auth?.storeRefresh) {
+      await window.auth.storeRefresh(store.username, r.refresh_token);
+    }
+    if (window.secureStore?.set) {
+      await window.secureStore.set('session_token', r.access_token);
+    }
+
     return true;
   } catch {
     showToast('Session expired. Please log in again.', 'error');
+    console.error('Session refresh failed, redirecting to login.');
     window.location.href = 'index.html';
     return false;
   }
 }
+
 
 export function wireProfileAndAccount() {
   const {

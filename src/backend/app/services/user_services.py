@@ -256,6 +256,12 @@ def login(data: dict) -> dict:
         access_plain  = secrets.token_urlsafe(48)
         access_hash   = hashlib.sha256(access_plain.encode()).hexdigest()
         access_expiry = now + timedelta(days=1)
+        update_records(
+            table="session_tokens",
+            data={"revoked": True},
+            where_clause="userID = %s",
+            where_params=(user["userID"],)
+        )
         insert_record(
             "session_tokens",
             {
@@ -270,12 +276,6 @@ def login(data: dict) -> dict:
         refresh_plain  = secrets.token_urlsafe(64)
         refresh_hash   = hashlib.sha256(refresh_plain.encode()).hexdigest()
         refresh_expiry = now + timedelta(days=60)
-        update_records(
-            table="session_tokens",
-            data={"revoked": True},
-            where_clause="userID = %s",
-            where_params=(user["userID"],)
-        )
         insert_record(
             "refresh_tokens",
             {

@@ -35,11 +35,11 @@ async def websocket_endpoint(ws: WebSocket):
         init = await ws.receive_json()
         username = await services.authenticate(ws, init)
         if not username:
-            await ws.close(code=1008)
             return
     except Exception as e:
         logger.error("Authentication failed", exc_info=e)
-        await ws.close(code=1008)
+        if ws.application_state != WebSocketState.DISCONNECTED:
+            await ws.close(code=1008)
         return
 
     # --- ONE-USER-AT-A-TIME LOCK ---

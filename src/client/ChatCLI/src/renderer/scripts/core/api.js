@@ -36,6 +36,8 @@ export async function apiRequest(endpoint, options = {}) {
           const r = await window.auth.refresh(accountId); // { ok, access_token }
           if (r && r.ok && r.access_token) {
             setAccess(r.access_token);
+            if (r.refresh_token && window.auth?.storeRefresh)
+              await window.auth.storeRefresh(accountId, r.refresh_token);
             const raw2 = await doCall();
             let env2 = raw2;
             if (Array.isArray(raw2)) env2 = { status: 'ok', response: raw2 };
