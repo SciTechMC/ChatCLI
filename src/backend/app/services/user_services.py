@@ -565,12 +565,85 @@ def submit_profile(data: dict) -> dict:
 
         # handle delete
         if delete_acc:
-            update_records(...)  # revoke, scrub, clear
+            # 1) Scrub all messages by this user
+            update_records(
+                table="messages",
+                data={"message": "[deleted]"},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
+            # 2) Revoke all session + refresh tokens
+            update_records(
+                table="session_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+            update_records(
+                table="refresh_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
+            # revoke any other tokens
+            update_records(
+                table="email_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+            update_records(
+                table="pass_reset_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
+            # 3) Anonymise & flag the user
+            anon_username = f"deleted_{userID}"
+
+            update_records(
+                table="users",
+                data={
+                    "username":       anon_username,
+                    "password":       "0",
+                    "email":          "deleted@deleted.deleted",
+                    "email_verified": False,
+                    "disabled":       True,
+                    "deleted":        True,
+                },
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
             return {"disable": False, "delete": True, "message": "Account deleted."}
 
         # handle disable
         if disable:
-            update_records(...)  # revoke, disable flag
+            # Flag as disabled
+            update_records(
+                table="users",
+                data={"disabled": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
+            # Revoke all session + refresh tokens
+            update_records(
+                table="session_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+            update_records(
+                table="refresh_tokens",
+                data={"revoked": True},
+                where_clause="userID = %s",
+                where_params=(userID,),
+            )
+
             return {"disable": True, "delete": False, "message": "Account disabled."}
 
         # handle update

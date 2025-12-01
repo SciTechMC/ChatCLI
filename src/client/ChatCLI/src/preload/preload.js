@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const api = require('../renderer/scripts/api.js');
-const { WS_URL, BASE_URL } = require('./config.js');
+const { WS_URL, BASE_URL, CALL_URL } = require('./config.js');
 
 /* -------- Expose REST API wrapper -------- */
 contextBridge.exposeInMainWorld('api', {
@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   initializeTokens:   api.initializeTokens,
   WS_URL,
   BASE_URL,
+  CALL_URL,
 });
 
 /* -------- Expose secureStore via keytar -------- */

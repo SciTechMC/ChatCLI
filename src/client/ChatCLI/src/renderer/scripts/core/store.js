@@ -1,6 +1,6 @@
 export const store = {
-  WS_URL: (window.appConfig && window.appConfig.WS_URL) || '',
-  CALL_URL: (window.appConfig && window.appConfig.CALL_URL) || '',
+  WS_URL: (window.api && window.api.WS_URL) || '',
+  CALL_URL: (window.api && window.api.CALL_URL) || '',
 
   token: null,
   username: null,
