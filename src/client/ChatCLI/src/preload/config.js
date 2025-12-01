@@ -1,7 +1,7 @@
 const API_HOST = 'chat.puam.be';
 const WS_HOST = 'ws.chat.puam.be';
-const API_PORT = 5123;
-const WS_PORT = 8765;
+const API_PORT = 80;
+const WS_PORT = 80;
 
 module.exports = {
   BASE_URL: `http://${API_HOST}:${API_PORT}`,
