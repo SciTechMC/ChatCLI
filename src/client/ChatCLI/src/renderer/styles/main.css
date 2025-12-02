@@ -808,3 +808,34 @@ mark { background: var(--accent, #ffe58f); padding: 0 .1em; }
     box-shadow: 0 8px 20px rgba(0,0,0,.35);
   }
 }
+
+.archived-chats-button {
+  padding: 6px 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  transition:
+    background .2s ease,
+    transform .06s ease,
+    box-shadow .15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,.28);
+}
+
+.archived-chats-button:hover {
+  background: rgba(255,255,255,.10);
+}
+
+.archived-chats-button:active {
+  transform: translateY(1px);
+}
