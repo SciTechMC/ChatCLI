@@ -9,10 +9,11 @@ logger = logging.getLogger(__name__)
 
 # In-memory connection & subscription registries
 active_connections: dict[str, WebSocket] = {} # username -> WebSocket ; stores all active ws connections
-chat_subscriptions: dict[int, set[WebSocket]] = {} # chatID -> set of WebSockets ; stores ws connections subscribed to each chat
+active_call_connections: dict[str, WebSocket] = {} # username -> WebSocket ; stores all active call ws connectionsabout:blank#blocked
+chat_subscriptions: dict[int, set[WebSocket]] = {} # chat_id -> set of WebSockets ; stores ws connections subscribed to each chat
 idle_subscriptions: set[WebSocket] = set() # stores ws connections subscribed to idle notifications
-pending_calls: dict[int, dict] = {}
-call_sessions: dict[str, dict] = {}
+pending_calls: dict[int, dict] = {} # chat_id -> call_id ; stores pending call IDs per chat
+call_sessions: dict[str, dict] = {} # call_id -> session dict ; stores active call sessions
 user_status: dict[str, bool] = {} # username -> online status (True/False)
 
 def reset_variables():
@@ -92,6 +93,14 @@ async def authenticate(websocket: WebSocket, msg: dict) -> str | None:
     return username
 
 async def join_chat(username: str, chat_id: int, ws: WebSocket):
+    participant = await fetch_records(
+        table="participants",
+        where_clause="chat_id = %s AND userID = (SELECT userID FROM users WHERE username = %s)",
+        params=(chat_id, username),
+        fetch_all=True
+    )
+    if not participant:
+        return { "type": "error", "message": "Access denied for this chat." }
     try:
         chat_subscriptions.setdefault(chat_id, set()).add(ws)
         await emit_call_state(ws, chat_id)
@@ -105,18 +114,14 @@ async def leave_chat(username: str, chat_id: int, ws: WebSocket):
     except Exception as e:
         logger.error("Error removing %s from chat %s: %s", username, chat_id, e, exc_info=e)
 
-async def post_msg(msg: dict) -> dict | None:
+async def post_msg(username: str, chat_id: int, text, ws: WebSocket) -> dict | None:
     """
-    Inserts and broadcasts a message.
-    Returns the payload or error payload dict.
+    Inserts and broadcasts a message. Returns the payload or error payload dict.
     """
-    username = msg.get("username", "").lower()
-    chat_id = msg.get("chatID")
-    text = msg.get("text", "")
 
     # Validate inputs
     if not username or chat_id is None or text is None:
-        return None
+        return {"type": "error", "message": "Invalid message content."}
 
     # Fetch userID
     try:
@@ -128,13 +133,13 @@ async def post_msg(msg: dict) -> dict | None:
         )
     except mariadb.Error as e:
         logger.error("DB error fetching user %s: %s", username, e, exc_info=e)
-        return {"status": "error", "code": "DB_ERROR", "message": "Internal server error."}
+        return { "type": "error", "message": "Interal server error." }
     except Exception as e:
         logger.error("Unexpected error fetching user %s: %s", username, e, exc_info=e)
-        return {"status": "error", "code": "INTERNAL_ERROR", "message": "Internal server error."}
+        return { "type": "error", "message": "Interal server error." }
 
     if not users:
-        return {"status": "error", "code": "USER_NOT_FOUND", "message": "User not found."}
+        return { "type": "error", "message": "User not found." }
     user_rec = users[0]
     user_id = user_rec["userID"]
     display_name = user_rec.get("username", username)
@@ -142,16 +147,25 @@ async def post_msg(msg: dict) -> dict | None:
     # Validate text
     if not text.strip():
         logger.warning("Empty message from %s in chat %s", username, chat_id)
-        return {"status": "error", "code": "EMPTY_MESSAGE", "message": "Cannot send an empty message."}
+        return { "type": "error", "message": "Cannot send an empty message." }
     if len(text) > 2048:
         logger.warning("Message too long (%s chars) from %s in chat %s", len(text), username, chat_id)
         return {"status": "error", "code": "TOO_LONG", "message": "Message exceeds 2048-character limit.", "limit": 2048, "length": len(text)}
+
+    participant = await fetch_records(
+        table="participants",
+        where_clause="chat_id=%s AND userID=%s",
+        params=(chat_id, user_id),
+        fetch_all=True
+    )
+    if not participant:
+        return {"status": "error", "code": "NOT_IN_CHAT", "message": "You are not a member of this chat."}
 
     # Insert message
     try:
         message_id = await insert_record(
             "messages",
-            {"chatID": chat_id, "userID": user_id, "message": text}
+            {"chat_id": chat_id, "userID": user_id, "message": text}
         )
     except mariadb.Error as e:
         logger.error("DB error inserting message for %s: %s", username, e, exc_info=e)
@@ -179,7 +193,7 @@ async def post_msg(msg: dict) -> dict | None:
     payload = {
         "type": "new_message",
         "messageID": row["messageID"],
-        "chatID": row["chatID"],
+        "chat_id": row["chat_id"],
         "userID": row["userID"],
         "username": display_name,
         "message": row["message"],
@@ -202,7 +216,9 @@ async def broadcast_msg(chat_id: int, payload: dict):
             subscribers.discard(ws)
 
 async def broadcast_typing(username: str, chat_id: int):
-    payload = {"type": "user_typing", "username": username, "chatID": chat_id}
+    
+
+    payload = {"type": "user_typing", "username": username, "chat_id": chat_id}
     await broadcast_msg(chat_id, payload)
 
 async def notify_status(username: str, is_online: bool):
@@ -221,14 +237,14 @@ async def notify_status(username: str, is_online: bool):
             params=(username,),
             fetch_all=True
         )
-        chat_ids = {row["chatID"] for row in user_chats}
+        chat_ids = {row["chat_id"] for row in user_chats}
 
         # Fetch all usernames of participants in those chats
         related_users = set()
         for chat_id in chat_ids:
             participants = await fetch_records(
                 table="participants",
-                where_clause="chatID = %s",
+                where_clause="chat_id = %s",
                 params=(chat_id,),
                 fetch_all=True
             )
@@ -273,14 +289,14 @@ async def get_online_users_for_user(username: str) -> list[str]:
             params=(username,),
             fetch_all=True
         )
-        chat_ids = {row["chatID"] for row in user_chats}
+        chat_ids = {row["chat_id"] for row in user_chats}
 
         # Fetch all usernames of participants in those chats
         related_users = set()
         for chat_id in chat_ids:
             participants = await fetch_records(
                 table="participants",
-                where_clause="chatID = %s",
+                where_clause="chat_id = %s",
                 params=(chat_id,),
                 fetch_all=True
             )
@@ -321,7 +337,6 @@ async def send_to_user(username: str, payload: dict) -> bool:
         active_connections.pop(username, None)
         return False
 
-
 async def broadcast_chat(
     chat_id: int,
     payload: dict,
@@ -353,7 +368,6 @@ async def broadcast_chat(
             logger.warning("Removing dead connection in chat %s: %s", chat_id, e)
             subs.discard(ws)
 
-
 async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
     """Send current call state for a chat to a single websocket, if any."""
     call_id = pending_calls.get(chat_id)
@@ -362,13 +376,13 @@ async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
     session = call_sessions.get(call_id)
     if not session:
         return
-    await ws.send_json({
+    return {
         "type": "call_state",
-        "chatID": chat_id,
+        "chat_id": chat_id,
         "call_id": call_id,
         "initiator": session.get("initiator"),
         "state": session.get("state", "ringing"),
-    })
+    }
 
 async def broadcast_chat_created(chat_id: int, creator_username: str):
     """
@@ -378,7 +392,7 @@ async def broadcast_chat_created(chat_id: int, creator_username: str):
         # Step 1: fetch userIDs of participants
         participants_rows = await fetch_records(
             table="participants",
-            where_clause="chatID = %s",
+            where_clause="chat_id = %s",
             params=(chat_id,)
         )
         if not participants_rows:
@@ -400,7 +414,7 @@ async def broadcast_chat_created(chat_id: int, creator_username: str):
 
         payload = {
             "type": "chat_created",
-            "chatID": chat_id,
+            "chat_id": chat_id,
             "creator": creator_username,
         }
 
@@ -417,82 +431,6 @@ async def broadcast_chat_created(chat_id: int, creator_username: str):
 
     except Exception as e:
         logging.error("Failed to broadcast chat_created: %s", e)
-
-async def handle_message(username: str, ws: WebSocket, msg: dict) -> None:
-    """
-    Route a single inbound WebSocket message for a given user.
-    """
-    logger.debug("Received message for %s: %s", username, msg)
-
-    try:
-        match msg:
-            # ----- CHAT MESSAGES / PRESENCE -----
-
-            case {"type": "join_chat", "chatID": chat_id}:
-                await join_chat(username, chat_id, ws)
-
-            case {"type": "leave_chat", "chatID": chat_id}:
-                await leave_chat(username, chat_id, ws)
-
-            case {"type": "post_msg", "chatID": chat_id, "text": text} if isinstance(text, str):
-                result = await post_msg({
-                    "username": username,
-                    "chatID":   chat_id,
-                    "text":     text,
-                })
-                await ws.send_json({
-                    "type":      "post_msg_ack",
-                    "status":    "ok",
-                    "messageID": result.get("messageID") if isinstance(result, dict) else None,
-                })
-
-            case {"type": "typing", "chatID": chat_id}:
-                await broadcast_typing(username, chat_id)
-
-            case {"type": "chat_created", "chatID": chat_id, "creator": creator}:
-                await broadcast_chat_created(chat_id, creator)
-
-            case {"type": "join_idle"}:
-                idle_subscriptions.add(ws)
-
-            # ----- CALLING CASES -----
-
-            case {"type": "call_invite", "chatID": chat_id}:
-                await calls.call_invite(caller=username, chat_id=chat_id)
-
-            case {"type": "call_accept", "chatID": chat_id, "call_id": call_id}:
-                await calls.call_accept(username=username, chat_id=chat_id, call_id=call_id)
-
-            case {"type": "call_decline", "chatID": chat_id}:
-                await calls.call_decline(username=username, chat_id=chat_id)
-
-            case {"type": "call_end", "chatID": chat_id}:
-                await calls.call_end(username=username, chat_id=chat_id)
-
-            # ----- FALLBACKS -----
-
-            # Known shape but unsupported action
-            case {"type": action}:
-                raise ValueError(f"Unknown action: {action}")
-
-            # Completely invalid payload
-            case _:
-                raise ValueError("Invalid message payload")
-
-    except ValueError as ve:
-        logger.warning("Value error for user %s: %s", username, ve)
-        try:
-            await ws.send_json({"type": "error", "message": str(ve)})
-        except RuntimeError:
-            # WebSocket already closed; nothing else to do
-            pass
-    except Exception as e:
-        logger.error("Error handling message for %s: %s", username, e, exc_info=e)
-        try:
-            await ws.send_json({"type": "error", "message": "Internal server error"})
-        except RuntimeError:
-            # WebSocket already closed
-            pass
 
 async def cleanup_connection(username: str, ws: WebSocket) -> None:
     """
@@ -521,7 +459,7 @@ async def get_chat_participant_usernames(chat_id: int) -> list[str]:
   try:
     participants_rows = await fetch_records(
       table="participants",
-      where_clause="chatID = %s",
+      where_clause="chat_id = %s",
       params=(chat_id,),
       fetch_all=True,
     )

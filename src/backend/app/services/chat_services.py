@@ -113,10 +113,7 @@ def get_messages(data: dict) -> dict:
     if limit < 1 or limit > 200:
         raise BadRequest("limit must be between 1 and 200.")
 
-    username = authenticate_token(session_token)      # guaranteed real user
-    if not username:
-        raise Unauthorized("Unable to verify user!")
-    username = authenticate_token(session_token)         # real user
+    username = authenticate_token(session_token)
     if not username:
         raise Unauthorized("Unable to verify user!")
 
@@ -237,6 +234,15 @@ def get_members(data: dict) -> dict:
     )
     if not grp:
         raise NotFound("Group not found.")
+    
+    parts_self = fetch_records(
+    table="participants",
+    where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
+    params=(chat_id, username.lower()),
+    fetch_all=True
+    )
+    if not parts_self:
+        raise NotFound("Chat not found or access denied.")
 
     parts = fetch_records(
         table="participants",
@@ -387,7 +393,7 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> int:
             SET archived = 0
             WHERE chatID = %s AND userID IN (%s, %s)
             """,
-            (chat_id, sender_id, receiver_id)
+            (chat_id, sender_id)
         )
         return chat_id
 

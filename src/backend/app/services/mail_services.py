@@ -3,6 +3,11 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+
+URL = os.getenv("PUB_URL", '127.0.0.1')
 
 from app.errors import APIError
 
@@ -70,7 +75,7 @@ def send_password_reset_email(username: str, token: str, recipient: str) -> None
     Compose and send password reset instructions email.
     Raises APIError on failure.
     """
-    reset_link = f"http://fortbow.zapto.org:5123/user/reset-password?token={token}&username={username}"
+    reset_link = f"http://{URL}/user/reset-password?token={token}&username={username}"
     subject = "Password Reset Request for Your ChatCLI Account"
     body = f"""
 Dear {username},

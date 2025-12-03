@@ -43,6 +43,9 @@ EMAIL_PASSWORD=xx
 
 # Flask secret key
 FLASK_SECRET_KEY={flask_key}
+
+#Public URL of the server
+PUB_URL=127.0.01
 """
 
 def ensure_env(env=".env"):

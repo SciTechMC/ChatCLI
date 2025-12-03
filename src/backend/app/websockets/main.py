@@ -32,8 +32,8 @@ async def websocket_endpoint(ws: WebSocket):
 
     # --- AUTH HANDSHAKE ---
     try:
-        init = await ws.receive_json()
-        username = await services.authenticate(ws, init)
+        init_payload = await ws.receive_json()
+        username = await services.authenticate(ws, init_payload)
         if not username:
             return
     except Exception as e:
@@ -92,6 +92,31 @@ app.add_middleware(
 @app.websocket("/call/{call_id}")
 async def call_ws(ws: WebSocket, call_id: str):
     await ws.accept()
+
+    # --- AUTH HANDSHAKE ---
+    try:
+        init_payload = await ws.receive_json()
+        username = await services.authenticate(ws, init_payload)
+        if not username:
+            return
+    except Exception as e:
+        logger.error("Authentication failed", exc_info=e)
+        if ws.application_state != WebSocketState.DISCONNECTED:
+            await ws.close(code=1008)
+        return
+
+    # --- ONE-USER-AT-A-TIME LOCK ---
+    lock = connection_locks.setdefault(username, asyncio.Lock())
+    async with lock:
+        old_ws = services.active_call_connections.get(username)
+
+        if old_ws and old_ws is not ws and old_ws.application_state == WebSocketState.CONNECTED:
+            try:
+                await old_ws.close(code=1000)
+            except Exception:
+                pass
+
+        services.active_call_connections[username] = ws
 
     sess = services.call_sessions.get(call_id)
     if not sess:
