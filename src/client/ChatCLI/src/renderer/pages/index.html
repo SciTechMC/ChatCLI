@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Welcome to ChatCLI</title>
+  <link rel="stylesheet" href="../styles/base.css" />
+  <link rel="stylesheet" href="../styles/toasts.css">
+</head>
+<body>
+
+  <!-- ===== Skeleton background ===== -->
+  <div class="skeleton-bg" aria-hidden="true">
+    <div class="s-sidebar">
+      <div class="s-sidebar-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="sk sk-circle"></span>
+          <div style="flex:1;">
+            <div class="sk sk-line w-70 mb-8"></div>
+            <div class="sk sk-line sm w-40"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <span class="sk sk-circle" style="width:20px;height:20px;"></span>
+          <span class="sk sk-circle" style="width:20px;height:20px;"></span>
+        </div>
+      </div>
+
+      <div class="s-search"><span class="sk sk-rect w-100"></span></div>
+
+      <div class="s-chat-list">
+        <div class="s-chat-item">
+          <span class="sk sk-dot"></span>
+          <div><div class="sk sk-line w-80 mb-8"></div><div class="sk sk-line sm w-50"></div></div>
+          <span class="sk sk-circle" style="width:16px;height:16px;"></span>
+        </div>
+        <div class="s-chat-item">
+          <span class="sk sk-dot"></span>
+          <div><div class="sk sk-line w-70 mb-8"></div><div class="sk sk-line sm w-40"></div></div>
+          <span class="sk sk-circle" style="width:16px;height:16px;"></span>
+        </div>
+        <div class="s-chat-item">
+          <span class="sk sk-dot"></span>
+          <div><div class="sk sk-line w-60 mb-8"></div><div class="sk sk-line sm w-35"></div></div>
+          <span class="sk sk-circle" style="width:16px;height:16px;"></span>
+        </div>
+      </div>
+
+      <div class="s-sidebar-footer"><span class="sk sk-rect w-100"></span></div>
+    </div>
+
+    <div class="s-chat-area">
+      <div class="s-chat-header">
+        <div class="sk sk-line lg w-30"></div>
+        <div style="display:flex;gap:8px;">
+          <div class="sk sk-rect" style="width:28px;height:24px;"></div>
+          <div class="sk sk-rect" style="width:28px;height:24px;"></div>
+          <div class="sk sk-rect" style="width:28px;height:24px;"></div>
+        </div>
+      </div>
+
+      <div class="s-messages">
+        <div class="s-message"><div class="sk sk-line w-70"></div><div class="sk sk-line w-50"></div></div>
+        <div class="s-message me"><div class="sk sk-line w-40"></div><div class="sk sk-line w-60"></div></div>
+        <div class="s-message"><div class="sk sk-line w-50"></div><div class="sk sk-line w-80"></div></div>
+      </div>
+
+      <div class="s-input">
+        <div class="sk sk-rect" style="width:88%;height:40px;"></div>
+        <div class="sk sk-rect" style="width:40px;height:40px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome modal -->
+  <div class="overlay" id="welcome-overlay">
+    <div class="modal">
+      <h1 class="heading">Welcome to ChatCLI</h1>
+      <p class="body-copy">Log in to continue or create an account.</p>
+      <div class="actions">
+        <button class="btn" id="open-login">Log In</button>
+        <button class="btn btn-quiet" id="open-register">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login modal (hidden by default) -->
+  <div class="overlay" id="login-overlay" hidden>
+    <div class="modal">
+      <h1 class="heading">Log in to ChatCLI</h1>
+      <p class="body-copy">Welcome back. Please enter your details.</p>
+      <form class="auth-form" id="login-form" novalidate>
+        <div class="field">
+          <label for="username" class="label">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required class="input" placeholder="username" />
+        </div>
+        <div class="field">
+          <label for="password" class="label">Password</label>
+          <div class="input-wrap">
+            <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8" class="input" placeholder="••••••••" />
+            <button class="icon-btn" type="button" aria-label="Show password" data-toggle-password>
+              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <p class="hint">Minimum 8 characters.</p>
+        </div>
+        <div class="row between">
+          <label class="check">
+            <input type="checkbox" name="remember" />
+            <span>Remember me</span>
+          </label>
+          <button class="link" type="button" id="open-reset">Forgot password?</button>
+        </div>
+        <div class="row end">
+          <button class="link" type="button" id="open-verify-from-login">
+            Verify email
+          </button>
+        </div>
+        <div class="actions vertical">
+          <button class="btn w-full" id="login-submit" type="submit">Log In</button>
+          <button class="btn btn-quiet w-full" type="button" id="back-to-welcome">Back</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Register modal (hidden by default) -->
+  <div class="overlay" id="register-overlay" hidden>
+    <div class="modal">
+      <h1 class="heading">Create your account</h1>
+      <p class="body-copy">Join ChatCLI by filling in the details below.</p>
+
+      <form class="auth-form" id="register-form" novalidate>
+        <div class="field">
+          <label for="email" class="label">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" required class="input" placeholder="you@example.com" />
+        </div>
+
+        <div class="field">
+          <label for="username" class="label">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required class="input" placeholder="username" />
+        </div>
+
+        <div class="field">
+          <label for="password" class="label">
+            Password
+            <span class="info-wrap">
+              <button type="button" class="info" data-for="password" aria-describedby="pwd-rules" aria-label="Password rules" tabindex="0">i</button>
+              <div class="tooltip" role="tooltip" id="pwd-rules">
+                <ul class="rules">
+                  <li data-rule="upper"><span class="symbol">✗</span> 1 Uppercase letter</li>
+                  <li data-rule="lower"><span class="symbol">✗</span> 1 Lowercase letter</li>
+                  <li data-rule="number"><span class="symbol">✗</span> 1 Number</li>
+                  <li data-rule="special"><span class="symbol">✗</span> 1 Special Character</li>
+                  <li data-rule="length"><span class="symbol">✗</span> At least 8 characters</li>
+                </ul>
+              </div>
+            </span>
+          </label>
+        
+          <div class="input-wrap">
+            <input id="password" name="password" type="password"
+                   autocomplete="new-password" required minlength="8"
+                   class="input" placeholder="••••••••" />
+            <button class="icon-btn" type="button" aria-label="Show password" data-toggle-password>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+
+        <div class="field">
+          <label for="confirm" class="label">Confirm Password</label>
+          <div class="input-wrap">
+            <input id="confirm" name="confirm" type="password" minlength="8" autocomplete="new-password" required class="input" placeholder="••••••••" />
+            <button class="icon-btn" type="button" aria-label="Show password" data-toggle-password>
+              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="actions vertical">
+          <button class="btn w-full" id="register-submit" type="submit">Register</button>
+          <button class="btn btn-quiet w-full" type="button" id="back-to-welcome-from-register">Back</button>
+        </div>
+
+        <div class="form-error" role="alert" aria-live="polite" hidden></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Verify modal (hidden by default) -->
+  <div class="overlay" id="verify-overlay" hidden>
+    <div class="modal">
+      <h1 class="heading">Verify your email</h1>
+      <p class="body-copy">
+        Enter the 6-digit code we sent to the email for
+        <strong id="verify-username-label">your account</strong>.
+      </p>
+
+      <form class="auth-form" id="verify-form" novalidate>
+        <div class="field">
+          <label for="token" class="label">Verification code</label>
+          <input
+            id="token"
+            name="token"
+            class="input"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            placeholder="123456"
+            pattern="[0-9]{6}"
+            required
+          />
+          <p class="hint">6 digits (numbers only).</p>
+        </div>
+        <div class="row end">
+          <button class="link" type="button" id="resend-code-btn">
+            Resend Code
+          </button>
+        </div>
+        <div class="actions vertical">
+          <button class="btn w-full" id="verify-submit" type="submit" data-requires-online disabled>Verify</button>
+          <button class="btn btn-quiet w-full" type="button" id="back-to-welcome-from-verify">Back</button>
+        </div>
+
+        <div class="form-error" role="alert" aria-live="polite" hidden></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reset password request modal (hidden by default) -->
+  <div class="overlay" id="reset-overlay" hidden>
+    <div class="modal">
+      <h1 class="heading">Reset your password</h1>
+      <p class="body-copy">Enter your username. If it exists, we’ll email a reset link to the email linked to that account.</p>
+
+      <form class="auth-form" id="reset-password-form" novalidate>
+        <div class="field">
+          <label for="reset-username" class="label">Username</label>
+          <input id="reset-username" name="username" class="input" required placeholder="your-username" />
+        </div>
+
+        <div class="actions vertical">
+          <button class="btn w-full" id="reset-password-submit" type="submit" data-requires-online disabled>Send reset email</button>
+          <button class="btn btn-quiet w-full" type="button" id="back-to-login-from-reset">Back</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== Bottom-right corner status + Retry ===== -->
+  <div class="corner-ui" role="region" aria-label="Connection status">
+    <span class="status-chip">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="status-text">Checking server…</span>
+    </span>
+    <a class="btn retry-btn" id="retry-btn">Retry</a>
+  </div>
+  <script type="module" src="../scripts/common.js"></script>
+</body>
+</html>

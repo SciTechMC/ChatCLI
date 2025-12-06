@@ -1,0 +1,3 @@
+@echo off
+echo Starting both servers...
+python run_server.py

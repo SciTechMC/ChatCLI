@@ -34,3 +34,7 @@ env.bak/
 venv.bak/
 node_modules/
 .env
+packag-lock.json
+npm-debug.log*
+*.log
+settings.json

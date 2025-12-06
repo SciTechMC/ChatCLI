@@ -1,0 +1,291 @@
+:root{
+--bg-primary:#131519; --bg-secondary:#1a1d22; --border-color:#262a30;
+--text-primary:#e6e8ec; --text-secondary:#aab0b8; --overlay:rgba(0,0,0,.28);
+--card-bg: rgba(16,18,22,.76); --card-border:#262a30; --radius:10px;
+--space-xs:6px; --space-sm:10px; --space-md:16px; --space-lg:22px;
+--font-sm:.9rem; --font-md:1rem; --font-lg:1.2rem;
+--accent:#5b86ff; --accent-quiet:#3b5ed5; --transition:160ms ease;
+}
+html, body { height: 100%; }
+body {
+margin: 0; background: var(--bg-primary); color: var(--text-primary);
+font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+overflow: hidden;
+}
+
+/* ===== Skeleton (background, non-interactive) ===== */
+@keyframes sk-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+.sk{ display:inline-block; border-radius:6px;
+background-image:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 75%);
+background-size:200% 100%; animation: sk-shimmer 1.25s ease-in-out infinite;
+}
+.sk-line{height:12px;border-radius:4px} .sk-line.sm{height:8px} .sk-line.lg{height:16px}
+.sk-rect{height:34px;border-radius:8px} .sk-circle{width:34px;height:34px;border-radius:50%}
+.sk-dot{width:10px;height:10px;border-radius:50%}
+.w-20{width:20%}.w-30{width:30%}.w-40{width:40%}.w-50{width:50%}.w-60{width:60%}.w-70{width:70%}.w-80{width:80%}.w-90{width:90%}.w-100{width:100%}
+.mb-8{margin-bottom:8px}
+
+.skeleton-bg{position:absolute;inset:0;display:flex;pointer-events:none}
+.s-sidebar{width:280px;background:var(--bg-secondary);border-right:1px solid var(--border-color);display:flex;flex-direction:column}
+.s-sidebar-header,.s-sidebar-footer{padding:14px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between}
+.s-sidebar-footer{border-bottom:none;border-top:1px solid var(--border-color);margin-top:auto}
+.s-search{padding:12px 14px;border-bottom:1px solid var(--border-color)}
+.s-chat-list{padding:10px;overflow:hidden;flex:1}
+.s-chat-item{display:grid;grid-template-columns:12px 1fr 16px;gap:10px;padding:8px}
+.s-chat-area{flex:1;display:flex;flex-direction:column}
+.s-chat-header,.s-input{padding:14px;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center}
+.s-messages{padding:18px;overflow:hidden;flex:1;display:flex;gap:12px;flex-direction:column}
+.s-message{max-width:70%;display:flex;flex-direction:column;gap:6px}
+.s-message.me{margin-left:auto;max-width:65%}
+
+/* ===== Modal overlay (center) ===== */
+.overlay{
+position:fixed; inset:0; display:grid; place-items:center;
+padding:clamp(12px,3vw,24px); background:var(--overlay); z-index:10;
+}
+.modal{
+width:min(520px,92vw); background:var(--card-bg); border:1px solid var(--card-border);
+border-radius:var(--radius); backdrop-filter:saturate(120%) blur(6px);
+box-shadow:0 6px 24px rgba(0,0,0,.35);
+padding:clamp(14px,3vw,22px);
+}
+.heading{margin:0 0 8px 0; font-size:var(--font-lg); font-weight:650; letter-spacing:.2px}
+.body-copy{margin:0; color:var(--text-secondary); font-size:var(--font-md); line-height:1.45}
+
+.actions{display:flex; gap:10px; align-items:center; margin-top:16px}
+.btn{
+appearance:none; border-radius:8px; padding:10px 14px;
+font:inherit; font-weight:600; cursor:pointer; transition:var(--transition);
+text-decoration:none; color:var(--text-primary); background:#0f1216; border:1px solid var(--border-color);
+box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+/* minimalist colored edge/border accent */
+.btn::after{
+content:""; position:absolute; inset:-1px; border-radius:inherit; pointer-events:none;
+border:1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+opacity:.6;
+}
+.btn:hover{border-color:color-mix(in srgb, var(--accent) 60%, var(--border-color));}
+.btn-quiet{background:transparent}
+.btn-wrap{position:relative; display:inline-flex}
+
+/* Keep anchors positioned for ::after accent */
+.btn, .btn-quiet { position:relative; }
+
+/* ===== Bottom-right corner status (+ Retry) ===== */
+.corner-ui{
+position:fixed; right:16px; bottom:16px; z-index:20;
+display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+background:rgba(12,14,18,.65); border:1px solid var(--card-border); border-radius:10px;
+backdrop-filter:saturate(120%) blur(6px);
+padding:10px 12px; box-shadow:0 6px 18px rgba(0,0,0,.35);
+}
+.status-chip{
+display:inline-flex; align-items:center; gap:8px;
+font-size:var(--font-sm); color:var(--text-secondary);
+padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.03);
+border:1px solid var(--border-color);
+}
+.dot{
+width:8px; height:8px; border-radius:50%; background:var(--accent);
+box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.retry-btn{ padding:8px 12px; }
+
+/* Micro adjustments */
+@media (max-width:480px){
+.corner-ui{ right:12px; bottom:12px; padding:8px }
+.retry-btn{ padding:8px 10px }
+}
+
+/* ===== Auth form ===== */
+.auth-form { margin-top: 12px; display: grid; gap: 14px; }
+
+.field { display: grid; gap: 8px; }
+.label { font-weight: 600; font-size: var(--font-sm); color: var(--text-secondary); }
+
+.input,
+.input-wrap .input {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #0f1216;
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.input::placeholder { color: color-mix(in srgb, var(--text-secondary) 70%, transparent); }
+
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border-color));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Password input with icon button */
+.input-wrap { position: relative; display: grid; }
+.icon-btn {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  display: inline-grid; place-items: center;
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid transparent; background: transparent; color: var(--text-secondary);
+  cursor: pointer; transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+.icon-btn:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.icon-btn:active { transform: translateY(calc(-50% + 1px)); }
+
+/* Hints and errors */
+.hint { margin: 2px 0 0; font-size: var(--font-sm); color: var(--text-secondary); }
+.form-error {
+  margin-top: 6px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #ff6b6b; font-size: var(--font-sm);
+}
+
+/* Row utilities */
+.row { display: flex; gap: 10px; align-items: center; }
+.row.between { justify-content: space-between; }
+
+.check { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: var(--font-sm); }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* Links */
+/* Fix for "Forgot password?" button */
+.link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: var(--font-sm);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  transition: color 0.15s ease;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus {
+  outline: none;
+  text-decoration: underline;
+}
+
+/* Button layout helpers */
+.w-full { width: 100%; }
+.actions.vertical { display: grid; gap: 10px; margin-top: 6px; }
+
+/* Constraint feedback via native validation */
+.input:invalid:focus { border-color: #ff6b6b; box-shadow: 0 0 0 3px rgba(255,107,107,0.18); }
+
+/* Autofill (WebKit) */
+input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0px 1000px #0f1216 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+/* Make element widths include padding/border so 100% inputs don't overflow */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Ensure the modal itself doesn't overflow its container */
+.modal { width: min(520px, 92vw); max-width: 520px; }
+
+/* Inputs: avoid overlap with the eye icon and keep inside modal */
+.input-wrap .input { padding-right: 44px; }  /* space for icon */
+.input, .input-wrap .input { width: 100%; }
+
+/* Keep the icon from affecting layout (it’s already absolutely positioned) */
+.icon-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+/* keep your existing .overlay transition */
+.overlay { opacity: 1; transition: opacity .25s ease; }
+
+/* ensure hidden overlays still take layout so they can fade */
+.overlay[hidden] {
+  display: grid;   /* override UA display:none */
+  opacity: 0;
+  pointer-events: none;
+}
+#register-overlay {
+    opacity: 1;
+    transition: opacity 0.25s ease;
+  }
+#register-overlay[hidden] {
+display: grid;
+opacity: 0;
+pointer-events: none;
+}
+/* Red highlight for invalid fields */
+input.invalid, select.invalid, textarea.invalid {
+    border-color: #ff5c5c !important;
+    box-shadow: 0 0 0 2px rgba(255, 92, 92, 0.25) !important;
+  }
+.password-hint {
+margin-top: 4px;
+font-size: var(--font-sm);
+transition: color 0.2s ease;
+}
+/* Info icon + tooltip */
+.info-wrap { position: relative; display: inline-flex; align-items: center; }
+.info {
+  width: 18px; height: 18px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  font-size: 11px; line-height: 1; cursor: help;
+  color: var(--text-secondary); background: transparent;
+  border: 1px solid var(--border-color);
+  margin-left: 6px; padding: 0;
+}
+.info.valid   { color: var(--accent); border-color: var(--accent); }
+.info.invalid { color: #ff5c5c; border-color: #ff5c5c; }
+
+.tooltip {
+  position: absolute; top: 100%; left: 0; margin-top: 8px;
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  border-radius: 8px; padding: 10px 12px; width: 220px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  opacity: 0; transform: translateY(-4px); pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 50;
+}
+
+/* Show tooltip on hover/focus */
+.info-wrap:hover .tooltip,
+.info-wrap:focus-within .tooltip {
+  opacity: 1; transform: translateY(0); pointer-events: auto;
+}
+
+.tooltip .rules { list-style: disc; padding-left: 18px; margin: 0; }
+.tooltip .rules li {
+  font-size: var(--font-sm); color: var(--text-secondary);
+  margin: 4px 0;
+}
+.tooltip .rules li.ok  { color: var(--accent); }
+.tooltip .rules li.bad { color: #ff5c5c; }
+.tooltip .rules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tooltip .rules li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin: 4px 0;
+}
+
+.tooltip .rules li .symbol {
+  font-weight: 700;
+  width: 14px;
+  text-align: center;
+}
+
+.tooltip .rules li.ok  { color: var(--accent); }
+.tooltip .rules li.bad { color: #ff5c5c; }
+
+.tooltip .rules li.ok  .symbol { content: "✓"; color: var(--accent); }
+.tooltip .rules li.bad .symbol { content: "✗"; color: #ff5c5c; }
