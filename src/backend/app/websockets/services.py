@@ -193,7 +193,7 @@ async def post_msg(username: str, chat_id: int, text, ws: WebSocket) -> dict | N
     payload = {
         "type": "new_message",
         "messageID": row["messageID"],
-        "chat_id": row["chat_id"],
+        "chat_id": row["chatID"],
         "userID": row["userID"],
         "username": display_name,
         "message": row["message"],
@@ -237,7 +237,7 @@ async def notify_status(username: str, is_online: bool):
             params=(username,),
             fetch_all=True
         )
-        chat_ids = {row["chat_id"] for row in user_chats}
+        chat_ids = {row["chatID"] for row in user_chats}
 
         # Fetch all usernames of participants in those chats
         related_users = set()
@@ -289,7 +289,7 @@ async def get_online_users_for_user(username: str) -> list[str]:
             params=(username,),
             fetch_all=True
         )
-        chat_ids = {row["chat_id"] for row in user_chats}
+        chat_ids = {row["chatID"] for row in user_chats}
 
         # Fetch all usernames of participants in those chats
         related_users = set()
