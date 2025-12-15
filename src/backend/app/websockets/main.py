@@ -4,6 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 import services
 import uvicorn
+import handler
 
 # Configure module logger
 logger = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive_json()
-            await services.handle_message(username, ws, msg)
+            await handler.handle_message(username, ws, msg)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for user: %s", username)
     except Exception as e:
