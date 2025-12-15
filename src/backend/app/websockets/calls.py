@@ -61,7 +61,7 @@ async def call_invite(caller: str, chat_id: int) -> None:
     # Create new call session
     call_id = str(uuid.uuid4())
     services.call_sessions[call_id] = {
-        "chat_id": chat_id,
+        "chatID": chat_id,
         "initiator": caller,
         "state": "ringing",
     }
@@ -101,7 +101,7 @@ async def call_accept(username: str, chat_id: int, call_id: str) -> None:
         })
         return
 
-    if session.get("chat_id") != chat_id:
+    if session.get("chatID") != chat_id:
         await services.send_to_user(username, {
             "type": "call_error",
             "chatID": chat_id,

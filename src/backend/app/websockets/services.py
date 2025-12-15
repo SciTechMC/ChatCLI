@@ -165,7 +165,7 @@ async def post_msg(username: str, chat_id: int, text, ws: WebSocket) -> dict | N
     try:
         message_id = await insert_record(
             "messages",
-            {"chat_id": chat_id, "userID": user_id, "message": text}
+            {"chatID": chat_id, "userID": user_id, "message": text}
         )
     except mariadb.Error as e:
         logger.error("DB error inserting message for %s: %s", username, e, exc_info=e)
@@ -193,7 +193,7 @@ async def post_msg(username: str, chat_id: int, text, ws: WebSocket) -> dict | N
     payload = {
         "type": "new_message",
         "messageID": row["messageID"],
-        "chat_id": row["chatID"],
+        "chatID": row["chatID"],
         "userID": row["userID"],
         "username": display_name,
         "message": row["message"],
@@ -218,7 +218,7 @@ async def broadcast_msg(chat_id: int, payload: dict):
 async def broadcast_typing(username: str, chat_id: int):
     
 
-    payload = {"type": "user_typing", "username": username, "chat_id": chat_id}
+    payload = {"type": "user_typing", "username": username, "chatID": chat_id}
     await broadcast_msg(chat_id, payload)
 
 async def notify_status(username: str, is_online: bool):
@@ -378,7 +378,7 @@ async def emit_call_state(ws: WebSocket, chat_id: int) -> None:
         return
     return {
         "type": "call_state",
-        "chat_id": chat_id,
+        "chatID": chat_id,
         "call_id": call_id,
         "initiator": session.get("initiator"),
         "state": session.get("state", "ringing"),
@@ -414,7 +414,7 @@ async def broadcast_chat_created(chat_id: int, creator_username: str):
 
         payload = {
             "type": "chat_created",
-            "chat_id": chat_id,
+            "chatID": chat_id,
             "creator": creator_username,
         }
 
