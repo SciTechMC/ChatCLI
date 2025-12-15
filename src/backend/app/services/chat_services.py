@@ -393,7 +393,7 @@ def _create_chat_logic(sender_id: int, receiver_id: int) -> int:
             SET archived = 0
             WHERE chatID = %s AND userID IN (%s, %s)
             """,
-            (chat_id, sender_id)
+            (chat_id, sender_id, receiver_id)
         )
         return chat_id
 
