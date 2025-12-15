@@ -17,7 +17,12 @@ module.exports = {
     },
     {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        options: {
+          maintainer: "SciTechMC",
+          homepage: "http://chat.puam.be"
+        }
+      },
     },
     {
       name: '@electron-forge/maker-rpm',

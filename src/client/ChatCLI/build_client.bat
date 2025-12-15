@@ -5,8 +5,8 @@ rem Install dependencies (if you need to)
 call npm install
 
 rem Make the distributable
-call npm run dist
-call npm run dist:linux
+call npm run dist -- --linux --win --x64
+
 
 rem Wait for a keypress before closing
 pause
