@@ -15,8 +15,7 @@ async def handle_message(username: str, ws: WebSocket, msg: dict) -> None:
             # ----- CHAT MESSAGES / PRESENCE -----
 
             case {"type": "join_chat", "chatID": chatID}:
-                payload = await services.join_chat(username, chatID, ws)
-                await ws.send_json(payload)
+                await services.join_chat(username, chatID, ws)
 
             case {"type": "leave_chat", "chatID": chatID}:
                 payload = await services.leave_chat(username, chatID, ws)
@@ -27,16 +26,14 @@ async def handle_message(username: str, ws: WebSocket, msg: dict) -> None:
                 await ws.send_json(payload)
 
             case {"type": "typing", "chatID": chatID}:
-                payload = await services.broadcast_typing(username, chatID)
-                await ws.send_json(payload)
+                await services.broadcast_typing(username, chatID)
 
             case {"type": "chat_created", "chatID": chatID, "creator": creator}:
                 payload = await services.broadcast_chat_created(chatID, creator)
                 await ws.send_json(payload)
 
             case {"type": "join_idle"}:
-                payload = services.idle_subscriptions.add(ws)
-                await ws.send_json(payload)
+                services.idle_subscriptions.add(ws)
 
             # ----- CALLING CASES -----
 

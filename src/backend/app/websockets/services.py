@@ -200,26 +200,12 @@ async def post_msg(username: str, chatID: int, text, ws: WebSocket) -> dict | No
         "timestamp": row["timestamp"].isoformat()
     }
 
-    await broadcast_msg(chatID, payload)
+    await broadcast_chat(chatID, payload, exclude_ws=ws)
     return payload
 
-async def broadcast_msg(chatID: int, payload: dict):
-    """
-    Send payload to subscribers of chatID.
-    """
-    subscribers = chat_subscriptions.get(chatID, set())
-    for ws in set(subscribers):
-        try:
-            await ws.send_json(payload)
-        except Exception as e:
-            logger.warning("Removing dead connection in chat %s: %s", chatID, e)
-            subscribers.discard(ws)
-
 async def broadcast_typing(username: str, chatID: int):
-    
-
     payload = {"type": "user_typing", "username": username, "chatID": chatID}
-    await broadcast_msg(chatID, payload)
+    await broadcast_chat(chatID, payload, exclude_users=username)
 
 async def notify_status(username: str, is_online: bool):
     """

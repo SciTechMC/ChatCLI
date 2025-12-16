@@ -139,6 +139,11 @@ export function connectWS() {
       return;
     }
 
+    if (msg === null) {
+        console.warn('[CHAT-WS] Received unexpected null payload.');
+        return; 
+    }
+
     // Chat messages
     if (msg.type === 'new_message') {
       if (store.seenMessageIDs.has(msg.messageID)) return;
