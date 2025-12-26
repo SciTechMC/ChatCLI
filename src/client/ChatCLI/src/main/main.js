@@ -5,8 +5,8 @@ const { saveRefreshToken, getRefreshToken, deleteRefreshToken } = require('../pr
 const { BASE_URL } = require('../preload/config.js')
 
 const SERVICE = 'chatcli'
-const profileArg = process.argv.find(arg => arg.startsWith('--profile='))
-const PROFILE = profileArg ? (profileArg.split('=')[1] || 'default') : 'default';
+const PROFILEArg = process.argv.find(arg => arg.startsWith('--PROFILE='))
+const PROFILE = PROFILEArg ? (PROFILEArg.split('=')[1] || 'default') : 'default';
 
 const isDev = !app.isPackaged;
 const iconPath = isDev
@@ -14,13 +14,13 @@ const iconPath = isDev
   : path.join(process.resourcesPath, 'icon.ico');
 
 ipcMain.handle('auth:storeRefresh', async (_e, { accountId, refreshToken }) => {
-  const key = `%{PROFILE}::${accountId}`
+  const key = `${PROFILE}::${accountId}`
   await saveRefreshToken(key, refreshToken)
   return true
 })
 
 ipcMain.handle('auth:refresh', async (_e, { accountId }) => {
-  const key = `%{profile}::${accountId}`
+  const key = `${PROFILE}::${accountId}`
   const rt = await getRefreshToken(key)
   if (!rt) return { ok: false, reason: 'no_refresh' }
   const res = await fetch(`${BASE_URL}/user/refresh-token`, {
@@ -35,7 +35,7 @@ ipcMain.handle('auth:refresh', async (_e, { accountId }) => {
 })
 
 ipcMain.handle('auth:clear', async (_e, { accountId }) => {
-  const key = `%{profile}::${accountId}`
+  const key = `${PROFILE}::${accountId}`
   await deleteRefreshToken(key)
   return true
 })
@@ -73,8 +73,8 @@ function createWindow() {
 
 app.whenReady().then(() => {
   const defaultUserData = app.getPath('userData')
-  const profileUserData = path.join(defaultUserData, PROFILE)
-  app.setPath('userData', profileUserData)
+  const PROFILEUserData = path.join(defaultUserData, PROFILE)
+  app.setPath('userData', PROFILEUserData)
 
   createWindow()
 })
