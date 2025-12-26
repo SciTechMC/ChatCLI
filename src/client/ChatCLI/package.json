@@ -18,8 +18,8 @@
   },
   "devDependencies": {
     "@electron-forge/maker-deb": "^7.10.2",
-    "electron": "^37.3.1",
-    "electron-builder": "^24.0.0"
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0"
   },
   "build": {
     "appId": "com.scitechmc.chatcli",
@@ -38,7 +38,7 @@
       ]
     },
     "linux": {
-      "icon": "build/icons",
+      "icon": "static/icons",
       "target": [
         "deb"
       ],

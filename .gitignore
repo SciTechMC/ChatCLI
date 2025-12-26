@@ -7,9 +7,9 @@ node_modules/
 release-builds/
 out/
 .Python
-build/
 develop-eggs/
 dist/
+build/
 downloads/
 eggs/
 .eggs/
@@ -38,3 +38,4 @@ packag-lock.json
 npm-debug.log*
 *.log
 settings.json
+package-lock.json
