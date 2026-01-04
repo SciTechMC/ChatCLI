@@ -24,10 +24,30 @@ export function setupModalClosing() {
 }
 
 export function showModal(modal) {
-  const closeOnBackdropClick = event => { if (event.target === modal) hideModal(modal); };
-  if (modal._closeOnBackdropClick) modal.removeEventListener('click', modal._closeOnBackdropClick);
-  modal._closeOnBackdropClick = closeOnBackdropClick;
-  modal.addEventListener('click', closeOnBackdropClick);
+  let isMouseDownOnBackdrop = false;
+
+  const handleMouseDown = (e) => {
+    isMouseDownOnBackdrop = (e.target === modal);
+  };
+
+  const handleMouseUp = (e) => {
+    if (e.target === modal && isMouseDownOnBackdrop) {
+      hideModal(modal);
+    }
+    isMouseDownOnBackdrop = false;
+  };
+
+  if (modal._onMouseDown) {
+    modal.removeEventListener('mousedown', modal._onMouseDown);
+    modal.removeEventListener('mouseup', modal._onMouseUp);
+  }
+
+  modal._onMouseDown = handleMouseDown;
+  modal._onMouseUp = handleMouseUp;
+
+  modal.addEventListener('mousedown', handleMouseDown);
+  modal.addEventListener('mouseup', handleMouseUp);
+
   modal.classList.add('active');
   modal.style.pointerEvents = 'all';
   const content = modal.querySelector('.modal-content');
@@ -35,10 +55,15 @@ export function showModal(modal) {
 }
 
 export function hideModal(modal) {
-  if (modal._closeOnBackdropClick) {
-    modal.removeEventListener('click', modal._closeOnBackdropClick);
-    delete modal._closeOnBackdropClick;
+  if (!modal) return;
+
+  if (modal._onMouseDown) {
+    modal.removeEventListener('mousedown', modal._onMouseDown);
+    modal.removeEventListener('mouseup', modal._onMouseUp);
+    delete modal._onMouseDown;
+    delete modal._onMouseUp;
   }
+
   modal.classList.remove('active');
   modal.style.pointerEvents = 'none';
   const content = modal.querySelector('.modal-content');
