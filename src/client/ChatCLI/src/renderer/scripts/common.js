@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const openResetBtn        = document.getElementById('open-reset');
   const backFromResetBtn    = document.getElementById('back-to-login-from-reset');
   const openVerifyFromLoginBtn = document.getElementById('open-verify-from-login');
-  const resendCodeBtn      = document.getElementById('resend-code-btn');
+  const resendCodeBtn       = document.getElementById('resend-code-btn');
 
   openLoginBtn?.addEventListener('click', () => showOverlay('login'));
   backToWelcomeBtn?.addEventListener('click', () => showOverlay('welcome'));
@@ -287,11 +287,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (loginForm) {
     const loginSubmitBtn = document.getElementById('login-submit');
 
-
     // gate: requires username + password (HTML already has required/minlength)
     bindFormGate(loginForm, loginSubmitBtn, null, /* disableOnInvalid= */ true);
 
     loginForm.addEventListener('submit', async e => {
+      var rememberUserBtn = document.getElementById('remember-user-box').checked;
       e.preventDefault();
       if (loginSubmitBtn.disabled) return;
 
@@ -306,10 +306,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         setAccess(res.access_token);
 
         if (window.secureStore?.set) {
-          await window.secureStore.set('session_token', res.access_token);
-          await window.secureStore.set('username', username);
+            await window.secureStore.set('session_token', res.access_token);
+            await window.secureStore.set('username', username);
         }
-        if (window.auth?.storeRefresh) {
+
+        if (window.auth?.storeRefresh && rememberUserBtn) {
           await window.auth.storeRefresh(username, res.refresh_token);
         }
 
