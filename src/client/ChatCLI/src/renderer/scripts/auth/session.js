@@ -75,8 +75,8 @@ export function wireProfileAndAccount() {
     let storedEmail = null;
     try { storedEmail = await window.secureStore.get('email'); } catch (_) {}
 
-    const usernameChanged = !!newUsername && newUsername !== store.username;
-    const emailChanged    = !!newEmail && newEmail !== (storedEmail || '');
+    const usernameChanged = newUsername !== store.username;
+    const emailChanged = newEmail !== store.currentEmail;
   
     // Ask for confirmation only if username or email was changed
     if (usernameChanged || emailChanged) {
@@ -95,8 +95,11 @@ export function wireProfileAndAccount() {
   
             hideModal(profileModal);
   
+            const changeType = emailChanged ? 'email' : 'username';
+
             await forceLogoutAfterProfileChange(
-              'Your username and/or email were updated. Please log in again.'
+              changeType,
+              newUsername
             );
           } catch (err) {
             showToast('Failed to update profile: ' + (err.message || 'Unknown error'), 'error');
@@ -249,20 +252,29 @@ export function putUsernameInUI() {
   }
 }
 
-async function forceLogoutAfterProfileChange(message = 'Profile updated. Please log in again.') {
+async function forceLogoutAfterProfileChange(changeType, newUsername) {
   try {
     await apiRequest('/user/logout-all', {
       method: 'POST',
       body: JSON.stringify({ session_token: store.token })
     });
   } catch (_) {}
-  let username = store.username;
-  try { if (store.username && window.auth?.clear) await window.auth.clear(store.username); } catch (_) {}
-  try { await window.secureStore.delete('session_token'); } catch (_) {}
-  try { await window.secureStore.delete('refresh_token'); } catch (_) {}
-  try { await window.secureStore.delete('username'); } catch (_) {}
-  try { await window.secureStore.delete('email'); } catch (_) {}
 
-  showToast(message, 'info');
-  window.location.href = `index.html?username=${encodeURIComponent(username)}#verify`;
+  try {
+    if (store.username && window.auth?.clear) await window.auth.clear(store.username);
+    const keysToDelete = ['session_token', 'refresh_token', 'username', 'email'];
+    for (const key of keysToDelete) {
+      await window.secureStore.delete(key);
+    }
+  } catch (e) {
+    console.warn('Cleanup error:', e);
+  }
+
+  if (changeType === 'email') {
+    showToast('Email updated. Please verify your new email.', 'info');
+    window.location.href = `index.html?username=${encodeURIComponent(newUsername)}#verify`;
+  } else {
+    showToast('Username updated. Please log in with your new credentials.', 'success');
+    window.location.href = 'index.html#login';
+  }
 }
