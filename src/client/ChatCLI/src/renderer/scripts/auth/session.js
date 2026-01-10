@@ -19,7 +19,6 @@ export async function autoLoginOrRedirect() {
   }
 
   try {
-    console.log('No stored session_token, using refresh flow for', store.username);
     const r = await window.auth.refresh(store.username);
     if (!r || !r.ok || !r.access_token) throw new Error('Refresh failed');
 
@@ -57,6 +56,7 @@ export function wireProfileAndAccount() {
       });
       profileForm.querySelector('input[name="username"]').value = profile.username || '';
       profileForm.querySelector('input[name="email"]').value = profile.email || '';
+      store.currentEmail = profile.email;
       showModal(profileModal);
     } catch (err) {
       showToast('Failed to load profile: ' + (err.message || 'Unknown error'), 'error');
