@@ -68,6 +68,7 @@ function createWindow() {
       icon: iconPath,
     },
   })
+  win.removeMenu()
   win.loadFile(path.join(__dirname, '../renderer/pages', 'index.html'))
 }
 
