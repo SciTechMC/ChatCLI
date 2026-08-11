@@ -46,6 +46,8 @@ ChatCLI has two sides:
 
 The client ships as a standalone installer (`.exe` / `.deb`) and talks to the backend over HTTP and WebSocket. The backend runs as **two separate processes** that must both be started.
 
+> **API reference:** [docs/API.md](docs/API.md) — every HTTP endpoint and WebSocket message.
+
 ---
 
 ## Project structure
